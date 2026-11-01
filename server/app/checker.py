@@ -8,31 +8,8 @@ own reviewed lines there instead.
 import re
 from dataclasses import dataclass, field
 
-from .keys import Rule, rule_for
 from .models import Draft, Episode, EpisodeRequest, SceneText
-
-SPEECH_MAX = {"LITTLE": 100, "CAPTAIN": 140, "DETECTIVE": 180}
-BUBBLE_MAX = 18
-HINT_MAX = 70
-TITLE_MAX = 20
-INTRO_MAX = 180
-SUCCESS_MAX = 60
-TREASURE_MAX = 90
-
-# scary, hurtful or rude: the car says these to a child with nobody choosing them first
-HARMFUL = [
-    r"죽(?!순)", r"(?<![가-힣])피(가|를|투성이)", "코피", "귀신", "유령", "괴물", "좀비", "악마", "저주", "살인", r"총(을|으로|알|소리)",
-    r"칼(을|로|날)", "폭탄", "폭발", "불타", r"불이\s*나", "화재", "다쳐", "다치", "상처", "비명", "무서", "공포",
-    "무시무시", "감옥", "납치", "바보", "멍청", "꺼져", "짜증", "미워", "혼나", "혼날",
-]
-# would have the family do something unsafe with the car
-CAR_UNSAFE = [
-    r"(?<![가-힣])차\s*문", r"창문을?\s*열", r"밖으로\s*나가", r"차에서\s*내", r"벨트를?\s*(풀|빼)",
-    r"운전(해|하|을)", "출발", "시동", "기어를", "기어 레버", "핸들", "브레이크", "액셀", "엑셀", "일어서",
-]
-# the app never asks anything about the child
-PERSONAL = [r"이름(을|이)\s*뭐", "주소", "전화번호", "비밀번호", r"사진(을|찍)", r"몇\s*살"]
-FOREIGN = r"[A-Za-z]|https?:|www\."
+from .rules import FORBID, LIMITS, Rule, rule_for
 
 _PUNCT = re.compile(r"[\s.,!?~…·'\"“”‘’()\-]")
 
@@ -44,13 +21,11 @@ def norm(text: str) -> str:
 
 def bad_words(text: str) -> list[str]:
     found = []
-    for group, patterns in (("무서운 말", HARMFUL), ("차 안전", CAR_UNSAFE), ("개인정보", PERSONAL)):
-        for p in patterns:
-            m = re.search(p, text)
+    for group in FORBID:
+        for p in group.patterns:
+            m = p.search(text)
             if m:
-                found.append(f"{group}: {m.group(0)}")
-    if re.search(FOREIGN, text):
-        found.append("영어나 주소")
+                found.append(f"{group.label}: {m.group(0)}" if group.quote_match else group.label)
     return found
 
 
@@ -62,14 +37,14 @@ def _too_long(name: str, text: str, limit: int) -> list[str]:
 
 def usable_success(lines: list[str]) -> list[str]:
     """Praise lines stand alone, so a bad one is left out instead of losing the whole draft."""
-    return [x for x in lines if not _too_long("success", x, SUCCESS_MAX) and not bad_words(x)][:3]
+    return [x for x in lines if not _too_long("success", x, LIMITS.success) and not bad_words(x)][:3]
 
 
 def check_scene(rule: Rule, scene: SceneText, youngest: str) -> list[str]:
     problems = (
-        _too_long("bubble", scene.bubble, BUBBLE_MAX)
-        + _too_long("speech", scene.speech, SPEECH_MAX[youngest])
-        + _too_long("hint", scene.hint, HINT_MAX)
+        _too_long("bubble", scene.bubble, LIMITS.bubble)
+        + _too_long("speech", scene.speech, getattr(LIMITS.speech, youngest))
+        + _too_long("hint", scene.hint, LIMITS.hint)
     )
     problems += bad_words(" ".join([scene.bubble, scene.speech, scene.hint]))
     speech = norm(scene.speech)
@@ -105,10 +80,10 @@ class Verdict:
 
 def check(draft: Draft, req: EpisodeRequest) -> Verdict:
     v = Verdict()
-    v.episode += _too_long("title", draft.title, TITLE_MAX)
-    v.episode += _too_long("intro", draft.intro, INTRO_MAX)
-    v.episode += _too_long("treasureGift", draft.treasureGift, TREASURE_MAX)
-    v.episode += _too_long("treasureBadge", draft.treasureBadge, TREASURE_MAX)
+    v.episode += _too_long("title", draft.title, LIMITS.title)
+    v.episode += _too_long("intro", draft.intro, LIMITS.intro)
+    v.episode += _too_long("treasureGift", draft.treasureGift, LIMITS.treasure)
+    v.episode += _too_long("treasureBadge", draft.treasureBadge, LIMITS.treasure)
     if len(usable_success(draft.success)) < 2:
         v.episode.append("칭찬 문장 부족")
     if req.theme and draft.theme != req.theme:

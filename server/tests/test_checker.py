@@ -1,7 +1,7 @@
 import pytest
 
 from app.checker import bad_words, check, to_episode
-from app.keys import rule_for
+from app.rules import rule_for
 from app.models import EpisodeRequest
 from app.prompt import user_message
 from tests.fakes import GOOD, draft

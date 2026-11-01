@@ -7,7 +7,7 @@ import kr.escape.car.engine.Rhythm
 import kr.escape.car.engine.Seat
 
 /**
- * The answer keys shared with the story server (server/app/keys.py). A key names a puzzle with its answer, so the
+ * The answer keys shared with the story server (server/app/story_rules.toml). A key names a puzzle with its answer, so the
  * server writes words for exactly that answer and the app looks the words up by the puzzle it is playing.
  */
 object StoryKeys {

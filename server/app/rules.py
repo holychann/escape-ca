@@ -1,0 +1,89 @@
+"""The story rules in story_rules.toml: what the writer is told and what the checker holds every draft to.
+
+A key names one puzzle with its answer already chosen by the app's rule engine, e.g. ``ROOMS:LEFT`` is the
+two-rooms puzzle with the penguin on the left. The story writer only dresses the answer up; the scene rules are how
+the checker makes sure the words still point at the same answer.
+
+The file is checked once when the server starts. An unknown field, a broken pattern or an empty word group stops
+the server, so a typo in the file can never quietly make a check weaker.
+"""
+import re
+import tomllib
+from pathlib import Path
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+
+RULES_FILE = Path(__file__).with_name("story_rules.toml")
+
+Word = Annotated[str, Field(min_length=1)]
+# one of these words is enough
+Group = Annotated[list[Word], Field(min_length=1)]
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class SpeechLimits(_Strict):
+    LITTLE: PositiveInt
+    CAPTAIN: PositiveInt
+    DETECTIVE: PositiveInt
+
+
+class Limits(_Strict):
+    bubble: PositiveInt
+    hint: PositiveInt
+    title: PositiveInt
+    intro: PositiveInt
+    success: PositiveInt
+    treasure: PositiveInt
+    speech: SpeechLimits
+
+
+class Forbid(_Strict):
+    label: Word
+    patterns: Annotated[list[re.Pattern[str]], Field(min_length=1)]
+    quote_match: bool = True
+
+
+class Prompt(_Strict):
+    everywhere_never: list[Word]
+
+
+class Rule(_Strict):
+    situation: Word
+    # every group must appear in the speech
+    must: Annotated[list[Group], Field(min_length=1)]
+    # none of these may appear in the bubble, speech or hint
+    never: list[Word] = []
+    # the hint must point the same way as the speech
+    hint_must: list[Group] = []
+    # Lumi asks the 안전 지킴이 to do it (the belt mission is the child's own job)
+    needs_guardian: bool = True
+
+
+class StoryRules(_Strict):
+    limits: Limits
+    forbid: Annotated[list[Forbid], Field(min_length=1)]
+    prompt: Prompt
+    scene: Annotated[dict[str, Rule], Field(min_length=1)]
+
+
+def load(path: Path = RULES_FILE) -> StoryRules:
+    with open(path, "rb") as f:
+        return StoryRules.model_validate(tomllib.load(f))
+
+
+RULES = load()
+LIMITS = RULES.limits
+FORBID = RULES.forbid
+EVERYWHERE_NEVER = RULES.prompt.everywhere_never
+
+
+def rule_for(key: str) -> Rule:
+    """Raises ValueError for a key the app could not have sent."""
+    try:
+        return RULES.scene[key]
+    except KeyError:
+        raise ValueError(f"unknown puzzle key: {key}") from None

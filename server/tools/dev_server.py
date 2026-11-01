@@ -7,7 +7,7 @@ Never use it for a demo of the AI story.
 """
 import uvicorn
 
-from app.keys import rule_for
+from app.rules import rule_for
 from app.main import create_app
 from app.models import Draft, DraftScene
 

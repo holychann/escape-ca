@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .keys import rule_for
+from .rules import rule_for
 
 Age = Literal["LITTLE", "CAPTAIN", "DETECTIVE"]
 Theme = Literal["STAR_TRAIN", "SEA_SUB", "FOREST_SHIP"]

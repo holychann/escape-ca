@@ -1,7 +1,6 @@
 """The words the writer gets. Everything in them comes from enums and numbers the app sent, never free text."""
-from .keys import rule_for
 from .models import AGE_LABEL, THEME_LABEL, EpisodeRequest
-from .checker import BUBBLE_MAX, HINT_MAX, SPEECH_MAX
+from .rules import EVERYWHERE_NEVER, LIMITS, rule_for
 
 SYSTEM = """너는 '차량탈출' 앱의 이야기 작가다. 주차한 차 안에서 아이와 부모가 차의 공조와 조명을 써서 함께 푸는 퍼즐 이야기를, 진행자 '루미'의 대사로 쓴다. 루미의 말은 차 스피커로 아이에게 그대로 읽힌다.
 
@@ -28,9 +27,6 @@ SYSTEM = """너는 '차량탈출' 앱의 이야기 작가다. 주차한 차 안�
 - 수석 탐정(10~12세): 단서를 듣고 스스로 추리하게 하는 말을 쓴다. 다만 정답 말은 그대로 넣는다.
 여러 단계가 함께 타면 가장 어린 아이에게 맞춘다."""
 
-# the car is parked: the checker rejects these anywhere, so the writer is told up front
-EVERYWHERE_NEVER = ("출발", "시동", "운전해", "운전하", "운전을", "기어", "핸들", "브레이크", "차 문", "창문을 열")
-
 SEASON = {"SPRING": "봄", "SUMMER": "여름", "AUTUMN": "가을", "WINTER": "겨울"}
 TIME = {"MORNING": "아침", "AFTERNOON": "낮", "EVENING": "저녁", "NIGHT": "밤"}
 
@@ -55,7 +51,8 @@ def user_message(req: EpisodeRequest) -> str:
         f"- 기다리는 시간: 약 {req.minutes}분",
         f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)",
         f"- 세계: {world}",
-        f"- 길이: bubble {BUBBLE_MAX}자 이내, hint {HINT_MAX}자 이내, speech {SPEECH_MAX[req.youngest]}자 이내(2~3문장)",
+        f"- 길이: bubble {LIMITS.bubble}자 이내, hint {LIMITS.hint}자 이내, "
+        f"speech {getattr(LIMITS.speech, req.youngest)}자 이내(2~3문장)",
         "",
         "써야 할 장면 (scenes 배열에 key마다 정확히 하나씩, key는 그대로 적는다)",
     ]
