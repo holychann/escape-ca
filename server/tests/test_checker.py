@@ -53,7 +53,9 @@ def test_scene_never_written_is_dropped():
 
 @pytest.mark.parametrize("text", [
     "괴물이 나타났어!", "피가 났대", "차 문을 열어 봐", "창문을 열자", "벨트를 풀어 봐", "이제 출발하자",
-    "시동을 걸어", "네 이름이 뭐야?", "Let us go", "기어를 바꿔",
+    "시동을 걸어", "네 이름이 뭐야?", "Let us go", "기어를 바꿔", "코피가 났어",
+    # reassuring still names the fear; the story never needs it
+    "무서워하지 마",
 ])
 def test_bad_words(text):
     assert bad_words(text)
@@ -61,6 +63,7 @@ def test_bad_words(text):
 
 @pytest.mark.parametrize("text", [
     "기차 문을 열려면 함께 눌러야 해", "김이 모락모락 피어올라", "운전석 불을 켜 줘", "죽순이 쑥쑥", "칼국수 냄새",
+    "커피가 따뜻해", "소피가 웃었어", "피자를 먹자",
 ])
 def test_ordinary_words_pass(text):
     assert bad_words(text) == []
