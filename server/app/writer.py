@@ -59,7 +59,7 @@ class GeminiWriter:
     def __init__(self, model: str | None = None, client: genai.Client | None = None):
         self.model = model or os.environ.get("STORY_MODEL", GEMINI_MODEL)
         self._client = client
-        # token counts of the last call, read by tools/sample.py to work out the cost
+        # token counts of the last call, read by tools/story_spec.py to work out the cost
         self.last_usage: types.GenerateContentResponseUsageMetadata | None = None
 
     @property

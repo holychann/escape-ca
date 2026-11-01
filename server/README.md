@@ -20,6 +20,7 @@ AI는 정답을 정하지 않고 문장만 씁니다. 서버나 AI가 실패하�
   3. 정답 일치: 장면마다 정답 말(예: "왼쪽")이 있고 다른 정답 말(예: "오른쪽")이 없어야 함. 벨트 미션이 아닌 장면은 "안전 지킴이"에게 부탁해야 함
 - **규칙 파일** (`app/story_rules.toml`): 길이 제한, 금지 패턴, 정답 키 20개마다 모델에게 알려 줄 장면 설명과 꼭 넣을 말, 쓰지 말 말이 모두 여기 있습니다. 작성기에게 알려 주는 말과 검사기가 확인하는 말이 같은 곳에서 나옵니다.
   서버가 시작할 때 파일을 검사해서, 모르는 항목 이름, 깨진 정규식, 빈 단어 묶음이 있으면 서버가 뜨지 않습니다(오타가 검사를 몰래 약하게 만들지 않도록). 바꾼 뒤에는 `pytest`로 서로 바뀔 수 있는 정답끼리 상대의 정답 말을 막는지도 확인합니다.
+- 검사 부품(금지 패턴, 길이, 꼭 넣을 말, 판정 범위)과 표본 측정 명령은 [textgate](https://github.com/leekwangeun/textgate) 라이브러리를 씁니다. 나이별 말 길이와 안전 지킴이 규칙처럼 차량탈출에만 있는 규칙은 `app/checker.py`에 있습니다.
 - 판 전체 문장(제목, 첫인사, 칭찬)에 문제가 있으면 그 초안은 버립니다. 장면 하나만 문제면 그 장면만 빼고, 차는 그 장면을 기본 문장으로 진행합니다. 한 번 더 써 보고 더 깨끗한 초안을 고릅니다.
 - **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고). 설치 ID는 기록하지 않습니다.
 - **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편 (환경 변수로 조정)
@@ -46,7 +47,9 @@ adb reverse tcp:8787 tcp:8787
 
 ```powershell
 .\.venv\Scripts\python -m pytest -q          # 검사기, API, 작성기 (실제 모델을 부르지 않음)
-.\.venv\Scripts\python -m tools.sample 30    # 실제 모델로 30편을 써서 검사 통과율, 토큰 수, 비용 측정 (유료 호출)
+.\.venv\Scripts\textgate sample tools.story_spec:SPEC -n 30                 # 실제 모델로 30편: 통과율, 실패 원인, 시간, 토큰 수, 비용 (유료 호출)
+.\.venv\Scripts\textgate recheck tools.story_spec:SPEC "data/sample-*.jsonl"  # 저장된 초안을 지금 규칙으로 다시 판정 (호출 없음, 무료)
+.\.venv\Scripts\textgate try app/story_rules.toml "커피가 따뜻해"              # 문장 하나가 어떤 금지 패턴에 걸리는지
 .\.venv\Scripts\python -m tools.dev_server   # 키 없이 앱 연결만 확인하는 개발용 서버 (문장에 [개발용] 표시)
 ```
 

@@ -21,11 +21,11 @@ def make_episode(req: EpisodeRequest, writer: Writer, attempts: int = 2) -> Epis
             log.warning("attempt %d: writer failed: %r", attempt, e)
             continue
         verdict = check(draft, req)
-        log.info("attempt %d: episode=%s scenes=%s", attempt, verdict.episode, verdict.scenes)
+        log.info("attempt %d: episode=%s scenes=%s", attempt, verdict.whole, verdict.items)
         if not verdict.usable:
             continue
         episode = to_episode(draft, verdict, req, uuid.uuid4().hex, model)
-        if best is None or len(verdict.scenes) < len(best[0].scenes):
+        if best is None or len(verdict.items) < len(best[0].items):
             best = (verdict, episode)
         if verdict.clean:
             break

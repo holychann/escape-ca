@@ -7,22 +7,15 @@ the checker makes sure the words still point at the same answer.
 The file is checked once when the server starts. An unknown field, a broken pattern or an empty word group stops
 the server, so a typo in the file can never quietly make a check weaker.
 """
-import re
 import tomllib
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import Field, PositiveInt
+from textgate import Forbid, Group, Word
+from textgate.rules import Strict as _Strict
 
 RULES_FILE = Path(__file__).with_name("story_rules.toml")
-
-Word = Annotated[str, Field(min_length=1)]
-# one of these words is enough
-Group = Annotated[list[Word], Field(min_length=1)]
-
-
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class SpeechLimits(_Strict):
@@ -39,12 +32,6 @@ class Limits(_Strict):
     success: PositiveInt
     treasure: PositiveInt
     speech: SpeechLimits
-
-
-class Forbid(_Strict):
-    label: Word
-    patterns: Annotated[list[re.Pattern[str]], Field(min_length=1)]
-    quote_match: bool = True
 
 
 class Prompt(_Strict):

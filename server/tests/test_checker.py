@@ -22,7 +22,7 @@ def test_every_hand_written_scene_passes():
     keys = list(GOOD)
     req = request([keys[i:i + 2] for i in range(0, len(keys), 2)])
     v = check(draft(req.keys), req)
-    assert v.clean, (v.episode, v.scenes)
+    assert v.clean, (v.whole, v.items)
 
 
 def test_wrong_side_is_dropped_but_the_rest_stays():
@@ -32,15 +32,15 @@ def test_wrong_side_is_dropped_but_the_rest_stays():
     d.scenes[0].speech = GOOD["ROOMS:RIGHT"][1]
     v = check(d, req)
     assert v.usable
-    assert set(v.scenes) == {"ROOMS:LEFT"}
-    assert any("다른 정답 말" in p for p in v.scenes["ROOMS:LEFT"])
+    assert set(v.items) == {"ROOMS:LEFT"}
+    assert any("다른 정답 말" in p for p in v.items["ROOMS:LEFT"])
 
 
 def test_missing_answer_word_and_missing_guardian():
     req = request([["DUST:OUTSIDE"]])
     d = draft(req.keys)
     d.scenes[0].speech = "먼지 구름이 몰려와! 어떻게 하지?"
-    problems = check(d, req).scenes["DUST:OUTSIDE"]
+    problems = check(d, req).items["DUST:OUTSIDE"]
     assert "정답 말 빠짐: 밖에서" in problems
     assert "안전 지킴이에게 부탁하지 않음" in problems
 
@@ -48,7 +48,7 @@ def test_missing_answer_word_and_missing_guardian():
 def test_scene_never_written_is_dropped():
     req = request([["FOG"], ["BELT"]])
     v = check(draft(["FOG"]), req)
-    assert v.scenes == {"BELT": ["장면 없음"]}
+    assert v.items == {"BELT": ["장면 없음"]}
 
 
 @pytest.mark.parametrize("text", [
@@ -79,12 +79,12 @@ def test_little_ones_get_shorter_speech():
     req = request([["FOG"]], ages=("LITTLE", "DETECTIVE"))
     d = draft(req.keys)
     d.scenes[0].speech = "앞 유리가 뿌예! " + "안전 지킴이에게 유리를 닦는 바람을 부탁하자. " * 4
-    assert any("speech 길이" in p for p in check(d, req).scenes["FOG"])
+    assert any("speech 길이" in p for p in check(d, req).items["FOG"])
 
 
 def test_theme_must_match_the_parents_choice():
     req = request([["FOG"]], theme="SEA_SUB")
-    assert "고른 테마와 다름" in check(draft(req.keys), req).episode
+    assert "고른 테마와 다름" in check(draft(req.keys), req).whole
 
 
 def test_unknown_or_duplicate_keys_are_refused():
@@ -113,4 +113,4 @@ def test_a_bad_praise_line_is_left_out_not_the_whole_draft():
     assert v.usable
     assert to_episode(d, v, request([["FOG"]]), "0" * 32, "m").success == ["대단해!", "최고야!"]
     d.success = ["대단해!", "기차가 출발해!"]
-    assert "칭찬 문장 부족" in check(d, request([["FOG"]])).episode
+    assert "칭찬 문장 부족" in check(d, request([["FOG"]])).whole
