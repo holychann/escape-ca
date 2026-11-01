@@ -1,0 +1,108 @@
+"""Asks the story model (Claude or Gemini) for a draft in the fixed JSON shape. API keys stay on this server only."""
+import os
+from typing import Protocol
+
+import anthropic
+from google import genai
+from google.genai import types
+
+from .models import DRAFT_SCHEMA, Draft
+
+DEFAULT_MODEL = "claude-opus-5-5"
+GEMINI_MODEL = "gemini-3.6-flash"
+
+
+class WriterError(Exception):
+    pass
+
+
+class Writer(Protocol):
+    def write(self, system: str, user: str) -> tuple[Draft, str]:
+        """Returns the draft and the model that wrote it."""
+
+
+class ClaudeWriter:
+    def __init__(self, model: str | None = None, client: anthropic.Anthropic | None = None):
+        self.model = model or os.environ.get("STORY_MODEL", DEFAULT_MODEL)
+        self._client = client
+
+    @property
+    def client(self) -> anthropic.Anthropic:
+        # made on first use, so the server starts (and tests run) without a key
+        if self._client is None:
+            self._client = anthropic.Anthropic(timeout=90.0, max_retries=1)
+        return self._client
+
+    def write(self, system: str, user: str) -> tuple[Draft, str]:
+        extra = {}
+        # a policy decline on these models is retried server side on the recommended model
+        if self.model.startswith(("claude-opus", "claude-sonnet", "claude-fable")):
+            extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
+        response = self.client.beta.messages.create(
+            model=self.model,
+            max_tokens=16000,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            # short creative writing with fixed rules: low effort is enough and keeps the wait short
+            output_config={"effort": "low", "format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
+            **extra,
+        )
+        if response.stop_reason != "end_turn":
+            raise WriterError(f"stop_reason={response.stop_reason}")
+        text = next((b.text for b in response.content if b.type == "text"), None)
+        if text is None:
+            raise WriterError("no text block")
+        return Draft.model_validate_json(text), response.model
+
+
+class GeminiWriter:
+    def __init__(self, model: str | None = None, client: genai.Client | None = None):
+        self.model = model or os.environ.get("STORY_MODEL", GEMINI_MODEL)
+        self._client = client
+        # token counts of the last call, read by tools/sample.py to work out the cost
+        self.last_usage: types.GenerateContentResponseUsageMetadata | None = None
+
+    @property
+    def client(self) -> genai.Client:
+        # reads GEMINI_API_KEY; made on first use for the same reason as ClaudeWriter
+        if self._client is None:
+            self._client = genai.Client(http_options=types.HttpOptions(
+                # also sent as the server deadline: a draft takes 40~70 s, more when Google is busy
+                timeout=150_000,
+                # busy and per-minute limits pass in seconds; a timed-out draft is not tried again here
+                retry_options=types.HttpRetryOptions(
+                    attempts=3, initial_delay=5, max_delay=30, http_status_codes=[429, 500, 503]),
+            ))
+        return self._client
+
+    def write(self, system: str, user: str) -> tuple[Draft, str]:
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=user,
+            config=types.GenerateContentConfig(
+                system_instruction=system,
+                response_mime_type="application/json",
+                response_json_schema=DRAFT_SCHEMA,
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
+                max_output_tokens=16000,
+            ),
+        )
+        self.last_usage = response.usage_metadata
+        candidate = response.candidates[0] if response.candidates else None
+        if candidate is None:
+            raise WriterError(f"no candidate, prompt_feedback={response.prompt_feedback}")
+        if candidate.finish_reason != types.FinishReason.STOP:
+            raise WriterError(f"finish_reason={candidate.finish_reason}")
+        if not response.text:
+            raise WriterError("no text")
+        return Draft.model_validate_json(response.text), response.model_version or self.model
+
+
+def make_writer() -> Writer:
+    """STORY_PROVIDER picks the model maker; without it, a Gemini key alone means Gemini."""
+    provider = os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
+    if provider == "gemini":
+        return GeminiWriter()
+    if provider == "claude":
+        return ClaudeWriter()
+    raise ValueError(f"unknown STORY_PROVIDER: {provider}")
