@@ -29,8 +29,8 @@ class StoryTest {
         assertEquals("FOG", StoryKeys.key(Puzzle.FoggyWindow))
         assertEquals("SEAT:REAR_LEFT", StoryKeys.key(Puzzle.SeatSearch(Seat.REAR_LEFT)))
         assertEquals(
-            "TOGETHER:CHILD_ONCE_PARENT_TWICE:TIMING",
-            StoryKeys.key(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.CHILD_ONCE_PARENT_TWICE, childReachesLight = false)),
+            "TOGETHER:CHILD_ONCE_PARENT_TWICE",
+            StoryKeys.key(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.CHILD_ONCE_PARENT_TWICE)),
         )
         assertEquals("BELT", StoryKeys.key(Puzzle.BeltMission))
     }
@@ -65,7 +65,7 @@ class StoryTest {
     private val json = """
         {"storyId":"0123456789abcdef0123456789abcdef","model":"m","theme":"SEA_SUB","title":"잠수함 대소동",
          "intro":"안녕!","success":["최고야!","해냈어!"],"treasureGift":"선물!","treasureBadge":"배지!",
-         "scenes":{"ROOMS:LEFT":{"bubble":"펭귄 방은?","speech":"펭귄은 왼쪽 방이야. 안전 지킴이에게 부탁하자.","hint":"왼쪽!"}},
+         "scenes":{"ROOMS:LEFT":{"bubble":"펭귄 방은?","speech":"펭귄은 왼쪽 방이야. 안전 지킴이에게 알려 주자.","hint":"왼쪽!"}},
          "dropped":["ROOMS:RIGHT"]}
     """.trimIndent()
 
@@ -80,7 +80,7 @@ class StoryTest {
         // dropped by the server's checker: the app's own lines
         assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = false)), story.scene(Puzzle.TwoRooms(penguinLeft = false)))
         assertEquals("theme_sea_sub", story.themePicture)
-        assertEquals(listOf("theme_sea_sub"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME, true)).pictures)
+        assertEquals(listOf("theme_sea_sub"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
         assertEquals("해냈어!", story.success(3))
         assertEquals(story, Story.parse(story.toJson()))
     }

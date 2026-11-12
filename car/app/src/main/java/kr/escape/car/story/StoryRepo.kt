@@ -128,7 +128,6 @@ class StoryRepo(
             .put("setup", JSONObject()
                 .put("ages", JSONArray(s.setup.ages.map { it.name }))
                 .put("minutes", s.setup.minutes)
-                .put("childReachesLight", s.setup.childReachesLight)
                 .put("childSeat", s.setup.childSeat.name))
             .put("keys", JSONArray(s.keys))
             .put("story", s.story.toJson())
@@ -141,7 +140,6 @@ class StoryRepo(
                 Setup(
                     ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
                     minutes = st.getInt("minutes"),
-                    childReachesLight = st.getBoolean("childReachesLight"),
                     childSeat = Seat.valueOf(st.getString("childSeat")),
                 ),
                 List(keys.length()) { keys.getString(it) },

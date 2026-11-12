@@ -56,6 +56,8 @@ import kotlinx.coroutines.delay
 import kr.escape.car.car.VehicleSource
 import kr.escape.car.engine.Age
 import kr.escape.car.engine.CarState
+import kr.escape.car.engine.Friend
+import kr.escape.car.engine.FriendBook
 import kr.escape.car.engine.Gear
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
@@ -84,6 +86,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var lumi: Lumi
     private lateinit var game: Game
     private lateinit var stories: StoryRepo
+    private lateinit var book: FriendBook
     private val scope = MainScope()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +94,8 @@ class MainActivity : ComponentActivity() {
         source = VehicleSource(this).also { it.start() }
         lumi = Lumi(this)
         stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope)
-        game = Game(source.state, lumi, stories)
+        book = FriendBook(File(filesDir, "friends.txt"))
+        game = Game(source.state, lumi, stories, book)
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Ink, background = Soft, surface = Card)) {
                 LaunchedEffect(Unit) {
@@ -100,7 +104,7 @@ class MainActivity : ComponentActivity() {
                         delay(200)
                     }
                 }
-                App(game, source, lumi, stories)
+                App(game, source, lumi, stories, book)
             }
         }
     }
@@ -121,8 +125,9 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRepo) {
+private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRepo, book: FriendBook) {
     val ui by game.ui.collectAsState()
+    val met by book.met.collectAsState()
     val car by source.state.collectAsState()
     val speaking by lumi.speaking.collectAsState()
     val storyStatus by stories.status.collectAsState()
@@ -139,13 +144,13 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    KidStage(ui, speaking, Modifier.weight(1f).fillMaxWidth())
+                    KidStage(ui, met, speaking, Modifier.weight(1f).fillMaxWidth())
                     ParentPanel(game, ui, car, speaking, lumi, storyStatus, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     ParentPanel(game, ui, car, speaking, lumi, storyStatus, Modifier.width(440.dp).fillMaxHeight())
-                    KidStage(ui, speaking, Modifier.weight(1f).fillMaxHeight())
+                    KidStage(ui, met, speaking, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -325,6 +330,7 @@ private fun ParentPanel(
             Badge("안전 지킴이 (부모님)")
             Text("정답이에요!", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
             Text("아이를 칭찬해 주세요", fontSize = 20.sp, color = Secondary)
+            ui.newFriend?.let { Text("새 친구 ${it.label}, 도감에 들어왔어요", fontSize = 22.sp, color = Mint) }
             Spacer(Modifier.weight(1f))
             SafetyLine(ui, car)
             BigButton(if (ui.index + 1 < ui.puzzles.size) "다음 퍼즐" else "보물 열기", Ink) { game.next() }
@@ -378,18 +384,13 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: Story
                 game.setup { it.copy(minutes = m) }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Choice("선물 준비됨", "글로브박스", ui.setup.giftReady, Modifier.weight(1f)) {
-                game.setup { it.copy(giftReady = !it.giftReady) }
-            }
-            Choice("독서등 손 닿음", "안 닿으면 \"지금!\"", ui.setup.childReachesLight, Modifier.weight(1f)) {
-                game.setup { it.copy(childReachesLight = !it.childReachesLight) }
-            }
+        Choice("선물 준비됨", "글로브박스", ui.setup.giftReady, Modifier.fillMaxWidth()) {
+            game.setup { it.copy(giftReady = !it.giftReady) }
         }
         Spacer(Modifier.weight(1f))
-        if (car.hvacPower == false) Text("공조 전원을 켜 주세요", fontSize = 22.sp, color = Coral, fontWeight = FontWeight.Bold)
+        if (car.hvacPower == false) Text("시작 전에 공조 전원을 켜 주세요", fontSize = 22.sp, color = Coral, fontWeight = FontWeight.Bold)
         blockers.forEach { Text("• ${it.message}", fontSize = 20.sp, color = Coral) }
-        Text("아이가 요청하면 안전 지킴이가 확인하고 눌러요", fontSize = 18.sp, color = Secondary)
+        Text("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", fontSize = 18.sp, color = Secondary)
         val storyLine = when (storyStatus) {
             StoryRepo.Status.READY -> "AI 이야기가 준비됐어요"
             StoryRepo.Status.WRITING -> "AI 이야기를 만드는 중이에요. 기다리지 않고 시작해도 돼요"
@@ -433,7 +434,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
         Badge("안전 지킴이 (부모님)")
         Text(p.title, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
         Text(
-            if (p == Puzzle.BeltMission) "아이가 스스로 매도록 기다려 주세요" else "아이가 요청하면 확인하고 바꿔 주세요",
+            if (p == Puzzle.BeltMission) "아이가 스스로 매도록 기다려 주세요" else "아이가 가리킨 버튼을 확인하고, 말한 대로 눌러 주세요",
             fontSize = 20.sp, color = Secondary,
         )
         Column(
@@ -464,7 +465,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
 }
 
 @Composable
-private fun KidStage(ui: GameUi, speaking: Boolean, modifier: Modifier) {
+private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, modifier: Modifier) {
     Column(
         modifier.clip(RoundedCornerShape(32.dp)).background(Stage).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -475,7 +476,8 @@ private fun KidStage(ui: GameUi, speaking: Boolean, modifier: Modifier) {
             Phase.SETUP -> "어디로 탐험 갈까?" to listOf("theme_star_train")
             Phase.INTRO -> (ui.story?.title ?: "오늘은 별빛 기차가 고장 났대!") to listOf(ui.story?.themePicture ?: "theme_star_train")
             Phase.PLAYING -> p?.let { ui.scene(it).let { s -> s.bubble to s.pictures } } ?: ("" to emptyList())
-            Phase.SOLVED -> "정답! 별 하나 획득!" to listOf(successPicture(p))
+            Phase.SOLVED -> ui.newFriend?.let { "새 친구 ${it.label}!" to listOf(successPicture(p), it.picture) }
+                ?: ("정답! 별 하나 획득!" to listOf(successPicture(p)))
             Phase.TREASURE -> (if (ui.setup.giftReady) "보물 상자가 열렸어!" else "탐험 배지 획득!") to
                 listOf(if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
             Phase.RESTORE -> "처음 설정으로 돌려 놓자" to listOf("window_fresh_air")
@@ -502,6 +504,31 @@ private fun KidStage(ui: GameUi, speaking: Boolean, modifier: Modifier) {
             horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) { pictures.forEach { Picture(it, Modifier.weight(1f).fillMaxHeight()) } }
+        if (ui.phase == Phase.SETUP || ui.phase == Phase.TREASURE) FriendShelf(met, ui.metToday)
+    }
+}
+
+/** 친구 도감: friends met so far in color, the rest as grey shapes to find by solving puzzles. */
+@Composable
+private fun FriendShelf(met: Set<Friend>, today: List<Friend>) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Card).padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("친구 도감 ${met.size}/${Friend.entries.size}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Friend.entries.forEach { f ->
+                val found = f in met
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(104.dp).clip(CircleShape).background(if (f in today) Sun else Soft)
+                            .border(3.dp, if (found) Ink else Line, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Picture(if (found) f.picture else f.silhouette, Modifier.size(92.dp)) }
+                    Text(if (found) f.label else "누구일까?", fontSize = 18.sp, color = if (found) Ink else Secondary)
+                }
+            }
+        }
     }
 }
 

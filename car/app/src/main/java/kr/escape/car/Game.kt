@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kr.escape.car.engine.CarState
+import kr.escape.car.engine.Friend
+import kr.escape.car.engine.FriendBook
 import kr.escape.car.engine.HoldJudge
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
@@ -36,6 +38,10 @@ data class GameUi(
     val snapshot: Snapshot? = null,
     /** Words from the story server for this episode; null means the app's own [Lines]. */
     val story: Story? = null,
+    /** The friend the puzzle just solved put in the book for the first time. */
+    val newFriend: Friend? = null,
+    /** Friends first met in this episode, in order, for the treasure screen. */
+    val metToday: List<Friend> = emptyList(),
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -47,7 +53,12 @@ data class GameUi(
  * One episode from the parent's setup to "처음 설정으로". The car state comes in through [tick]; the rule engine
  * decides every answer and Lumi only speaks.
  */
-class Game(private val car: StateFlow<CarState>, private val lumi: Lumi, private val stories: StoryRepo? = null) {
+class Game(
+    private val car: StateFlow<CarState>,
+    private val lumi: Lumi,
+    private val stories: StoryRepo? = null,
+    private val book: FriendBook? = null,
+) {
     private val _ui = MutableStateFlow(GameUi())
     val ui: StateFlow<GameUi> = _ui
 
@@ -81,7 +92,7 @@ class Game(private val car: StateFlow<CarState>, private val lumi: Lumi, private
         together = (p as? Puzzle.Together)?.let { TogetherJudge(it) }
         _ui.update { ui ->
             val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
-            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false)
+            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null)
         }
         lumi.say(_ui.value.scene(p).speech)
     }
@@ -134,8 +145,12 @@ class Game(private val car: StateFlow<CarState>, private val lumi: Lumi, private
         hold = null
         together = null
         val ui = _ui.value
-        _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
-        lumi.say(ui.story?.success(ui.stars) ?: Lines.SUCCESS)
+        val friend = ui.puzzle?.let(Friend::of)?.takeIf { book?.meet(it) == true }
+        _ui.update {
+            it.copy(phase = Phase.SOLVED, stars = it.stars + 1, newFriend = friend, metToday = it.metToday + listOfNotNull(friend))
+        }
+        val praise = ui.story?.success(ui.stars) ?: Lines.SUCCESS
+        lumi.say(if (friend == null) praise else "$praise ${Lines.newFriend(friend)}")
     }
 
     /** 이야기 신고 from the parent's screen. */

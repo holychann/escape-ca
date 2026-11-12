@@ -54,10 +54,9 @@ class EngineTest {
         assertFalse(Puzzle.DustCloud(fromOutside = false).solvedBy(parked))
 
         val rooms = Puzzle.TwoRooms(penguinLeft = true)
-        assertTrue(rooms.solvedBy(parked.copy(dual = true, tempLeft = 18f, tempRight = 26f)))
-        assertFalse(rooms.solvedBy(parked.copy(dual = true, tempLeft = 26f, tempRight = 18f)))
-        assertFalse(rooms.solvedBy(parked.copy(dual = false, tempLeft = 18f, tempRight = 26f)))
-        assertFalse(rooms.solvedBy(parked.copy(dual = true, tempLeft = 21f, tempRight = 22f)))
+        assertTrue(rooms.solvedBy(parked.copy(dual = false, tempLeft = 18f, tempRight = 26f)))
+        assertFalse(rooms.solvedBy(parked.copy(dual = false, tempLeft = 26f, tempRight = 18f)))
+        assertFalse(rooms.solvedBy(parked.copy(dual = false, tempLeft = 21f, tempRight = 22f)))
 
         assertTrue(Puzzle.FoggyWindow.solvedBy(parked.copy(defrostFront = true)))
         assertTrue(Puzzle.SeatSearch(Seat.REAR_LEFT).solvedBy(parked.copy(readingLights = mapOf(Seat.REAR_LEFT to true))))
@@ -98,7 +97,7 @@ class EngineTest {
 
     @Test
     fun togetherSameTimeWithinWindow() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME, childReachesLight = true))
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME))
         assertFalse(judge.update(lights(false, false), 0))
         assertFalse(judge.update(lights(false, true), 100))
         assertTrue(judge.update(lights(true, true), 1200))
@@ -106,7 +105,7 @@ class EngineTest {
 
     @Test
     fun togetherTooFarApartFails() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME, childReachesLight = true))
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME))
         judge.update(lights(false, false), 0)
         judge.update(lights(false, true), 100)
         assertFalse(judge.update(lights(true, true), 3000))
@@ -114,14 +113,14 @@ class EngineTest {
 
     @Test
     fun togetherIgnoresLightsAlreadyOn() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME, childReachesLight = true))
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME))
         assertFalse(judge.update(lights(true, true), 0))
         assertFalse(judge.update(lights(true, true), 500))
     }
 
     @Test
     fun togetherChildOnceParentTwice() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.CHILD_ONCE_PARENT_TWICE, childReachesLight = true))
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.CHILD_ONCE_PARENT_TWICE))
         judge.update(lights(false, false), 0)
         assertFalse(judge.update(lights(false, true), 100))
         assertFalse(judge.update(lights(true, true), 900))
@@ -131,18 +130,11 @@ class EngineTest {
 
     @Test
     fun togetherFanWhileChildLit() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.FAN_WHILE_LIT, childReachesLight = true))
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.FAN_WHILE_LIT))
         judge.update(lights(false, false).copy(fanSpeed = 2), 0)
         assertFalse(judge.update(lights(false, false).copy(fanSpeed = 3), 100))
         assertFalse(judge.update(lights(false, true).copy(fanSpeed = 3), 200))
         assertTrue(judge.update(lights(false, true).copy(fanSpeed = 4), 300))
-    }
-
-    @Test
-    fun timingGameWhenChildCannotReach() {
-        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME, childReachesLight = false))
-        judge.update(lights(false, false), 0)
-        assertTrue(judge.update(lights(true, false), 400))
     }
 
     @Test

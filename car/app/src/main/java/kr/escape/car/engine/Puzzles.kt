@@ -35,7 +35,6 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
     /** ③ 두 방 온도 맞추기: the penguin's side colder than the fox's side by at least [GAP] degrees. */
     data class TwoRooms(val penguinLeft: Boolean) : Puzzle("두 방 온도 맞추기", setOf(Device.DUAL_TEMPERATURE)) {
         override fun solvedBy(s: CarState): Boolean {
-            if (s.dual != true) return false
             val left = s.tempLeft ?: return false
             val right = s.tempRight ?: return false
             val (penguin, fox) = if (penguinLeft) left to right else right to left
@@ -54,7 +53,7 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
     }
 
     /** ⑥ 하나 둘 셋, 동시에!: judged on light events over time by [TogetherJudge], not on one snapshot. */
-    data class Together(val childSeat: Seat, val rhythm: Rhythm, val childReachesLight: Boolean) :
+    data class Together(val childSeat: Seat, val rhythm: Rhythm) :
         Puzzle("하나 둘 셋, 동시에!", setOf(Device.READING_LIGHT))
 
     /** 벨트 딸깍 미션: no car signal at all, the parent confirms with a button. */
@@ -70,7 +69,6 @@ data class Setup(
     val ages: List<Age> = listOf(Age.CAPTAIN),
     val minutes: Int = 10,
     val giftReady: Boolean = false,
-    val childReachesLight: Boolean = true,
     val childSeat: Seat = Seat.REAR_RIGHT,
 )
 
@@ -89,7 +87,7 @@ object Planner {
             Puzzle.TwoRooms(penguinLeft = rnd.nextBoolean()),
             Puzzle.FoggyWindow,
             Puzzle.SeatSearch(Seat.entries.random(rnd)),
-            Puzzle.Together(setup.childSeat, Rhythm.entries.random(rnd), setup.childReachesLight),
+            Puzzle.Together(setup.childSeat, Rhythm.entries.random(rnd)),
         ).filter { s.devices.containsAll(it.devices) }.shuffled(rnd)
         val picks = candidates.take(puzzleCount(setup.minutes)).toMutableList()
         // the belt mission sits after the second puzzle, as a short break between car puzzles
@@ -150,7 +148,6 @@ class HoldJudge(private val puzzle: Puzzle, private val holdMs: Long = 1000) {
 
 /**
  * ⑥ 하나 둘 셋, 동시에!. Watches when the driver's and the child's reading lights come on.
- * A child who cannot reach the light plays the "지금!" timing game instead: the driver light alone counts.
  */
 class TogetherJudge(private val puzzle: Puzzle.Together, private val windowMs: Long = 1500) {
     private var lastLights: Map<Seat, Boolean>? = null
@@ -165,7 +162,6 @@ class TogetherJudge(private val puzzle: Puzzle.Together, private val windowMs: L
             return false
         }
         val solved = when {
-            !puzzle.childReachesLight -> turnedOn(s, Seat.DRIVER)
             puzzle.rhythm == Rhythm.SAME_TIME -> sameTime(s, nowMs)
             puzzle.rhythm == Rhythm.CHILD_ONCE_PARENT_TWICE -> sequence(s, nowMs)
             else -> fanWhileLit(s)

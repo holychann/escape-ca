@@ -36,6 +36,13 @@ class Limits(_Strict):
 
 class Prompt(_Strict):
     everywhere_never: list[Word]
+    bubble_never: list[Word]
+
+
+class Friend(_Strict):
+    name: Word
+    look: Word
+    trait: Word
 
 
 class Rule(_Strict):
@@ -46,7 +53,7 @@ class Rule(_Strict):
     never: list[Word] = []
     # the hint must point the same way as the speech
     hint_must: list[Group] = []
-    # Lumi asks the 안전 지킴이 to do it (the belt mission is the child's own job)
+    # Lumi has the child point the found button out to the 안전 지킴이 (the belt mission needs no car button)
     needs_guardian: bool = True
 
 
@@ -54,6 +61,7 @@ class StoryRules(_Strict):
     limits: Limits
     forbid: Annotated[list[Forbid], Field(min_length=1)]
     prompt: Prompt
+    cast: Annotated[list[Friend], Field(min_length=1)]
     scene: Annotated[dict[str, Rule], Field(min_length=1)]
 
 
@@ -66,6 +74,8 @@ RULES = load()
 LIMITS = RULES.limits
 FORBID = RULES.forbid
 EVERYWHERE_NEVER = RULES.prompt.everywhere_never
+BUBBLE_NEVER = RULES.prompt.bubble_never
+CAST = RULES.cast
 
 
 def rule_for(key: str) -> Rule:

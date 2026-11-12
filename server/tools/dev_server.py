@@ -19,7 +19,7 @@ class TemplateWriter:
         for key in keys:
             rule = rule_for(key)
             words = " ".join(group[0] for group in rule.must)
-            ask = "" if not rule.needs_guardian else " 안전 지킴이에게 부탁하자!"
+            ask = "" if not rule.needs_guardian else " 찾으면 안전 지킴이에게 가리켜 알려 주자!"
             hint = " ".join(group[0] for group in rule.hint_must) or "다시 들어 보자."
             scenes.append(DraftScene(key=key, bubble="[개발용] 장면", speech=f"[개발용] {words}.{ask}", hint=f"[개발용] {hint}"))
         draft = Draft(

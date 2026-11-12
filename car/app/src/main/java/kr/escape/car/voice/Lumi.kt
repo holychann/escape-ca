@@ -49,6 +49,7 @@ class Lumi(context: Context) {
                 // the SDK only accepts listeners once initialize() has set it up
                 runCatching { t.addEventListener(events) }
                 runCatching { t.setLocale(Locale.KOREA) }
+                runCatching { t.setSpeakerType(VOICE) }.onFailure { log("목소리 바꾸기 실패: ${it.message}") }
                 pending?.let { say(it) }
                 pending = null
             }.let { }
@@ -82,4 +83,12 @@ class Lumi(context: Context) {
     }
 
     private fun log(msg: String) = Log.i("EscapeCar", msg)
+
+    companion object {
+        /**
+         * The car's Korean voices are HAEUN (the default, the one navigation uses), SEOYOON, EUNWOO and SANGHYEOK.
+         * Lumi takes a different one so the story does not sound like route guidance.
+         */
+        const val VOICE = "SEOYOON"
+    }
 }

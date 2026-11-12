@@ -27,6 +27,7 @@ data class CarState(
     val fanSpeed: Int? = null,
     val fanSpeedRange: IntRange = 1..8,
     val fanDirection: FanDir = FanDir.UNKNOWN,
+    /** HVAC_DUAL_ON: true couples every zone to the driver's temperature, so the two rooms need it off. */
     val dual: Boolean? = null,
     val tempLeft: Float? = null,
     val tempRight: Float? = null,
@@ -89,7 +90,7 @@ data class Snapshot(
         if (recirculation != null && now.recirculation != recirculation) add(if (recirculation) "내기 순환" else "외기 유입")
         if (fanSpeed != null && now.fanSpeed != fanSpeed) add("풍량 ${fanSpeed}단")
         if (fanDirection != FanDir.UNKNOWN && now.fanDirection != fanDirection) add("풍향")
-        if (dual != null && now.dual != dual) add(if (dual) "좌우 온도 따로" else "좌우 온도 같이")
+        if (dual != null && now.dual != dual) add(if (dual) "좌우 온도 같이" else "좌우 온도 따로")
         if (tempLeft != null && now.tempLeft != tempLeft) add("운전석 온도 ${tempLeft}도")
         if (tempRight != null && now.tempRight != tempRight) add("조수석 온도 ${tempRight}도")
         if (defrostFront != null && now.defrostFront != defrostFront) add(if (defrostFront) "앞 유리 성에 제거 켜기" else "앞 유리 성에 제거 끄기")

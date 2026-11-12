@@ -30,7 +30,7 @@ class StoryRepoTest {
 
     // the shape the app writes, as saved on the emulator
     private val stored = """
-        {"setup":{"ages":["CAPTAIN"],"minutes":10,"childReachesLight":true,"childSeat":"REAR_RIGHT"},
+        {"setup":{"ages":["CAPTAIN"],"minutes":10,"childSeat":"REAR_RIGHT"},
          "keys":["SEAT:REAR_RIGHT","WIND:FLOOR:STRONG","BELT","DUST:OUTSIDE"],
          "story":{"storyId":"7b7c564a6a284c9881821fe55b9ae1a5","theme":"SEA_SUB","title":"잠수함","intro":"안녕!",
           "success":["최고!"],"treasureGift":"선물!","treasureBadge":"배지!",

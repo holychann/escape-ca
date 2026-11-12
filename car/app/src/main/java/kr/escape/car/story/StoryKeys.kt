@@ -18,7 +18,7 @@ object StoryKeys {
         is Puzzle.TwoRooms -> if (p.penguinLeft) "ROOMS:LEFT" else "ROOMS:RIGHT"
         Puzzle.FoggyWindow -> "FOG"
         is Puzzle.SeatSearch -> "SEAT:${p.seat.name}"
-        is Puzzle.Together -> "TOGETHER:${p.rhythm.name}:${if (p.childReachesLight) "REACH" else "TIMING"}"
+        is Puzzle.Together -> "TOGETHER:${p.rhythm.name}"
         Puzzle.BeltMission -> "BELT"
     }
 
@@ -47,7 +47,7 @@ object StoryKeys {
                 "ROOMS" -> Puzzle.TwoRooms(penguinLeft = parts[1] == "LEFT")
                 "FOG" -> Puzzle.FoggyWindow
                 "SEAT" -> Puzzle.SeatSearch(Seat.valueOf(parts[1]))
-                "TOGETHER" -> Puzzle.Together(childSeat, Rhythm.valueOf(parts[1]), childReachesLight = parts[2] == "REACH")
+                "TOGETHER" -> Puzzle.Together(childSeat, Rhythm.valueOf(parts[1]))
                 "BELT" -> Puzzle.BeltMission
                 else -> null
             }

@@ -3,7 +3,7 @@ import pytest
 from app.checker import bad_words, check, to_episode
 from app.rules import rule_for
 from app.models import EpisodeRequest
-from app.prompt import user_message
+from app.prompt import SYSTEM, user_message
 from tests.fakes import GOOD, draft
 
 
@@ -42,7 +42,20 @@ def test_missing_answer_word_and_missing_guardian():
     d.scenes[0].speech = "먼지 구름이 몰려와! 어떻게 하지?"
     problems = check(d, req).items["DUST:OUTSIDE"]
     assert "정답 말 빠짐: 밖에서" in problems
-    assert "안전 지킴이에게 부탁하지 않음" in problems
+    assert "안전 지킴이에게 알리는 말 빠짐" in problems
+
+
+def test_bubble_naming_the_button_is_dropped():
+    req = request([["FOG"]])
+    d = draft(req.keys)
+    d.scenes[0].bubble = "앞 유리 성에 제거"
+    assert "말풍선에 버튼 말: 성에" in check(d, req).items["FOG"]
+
+
+def test_gift_line_must_name_the_guardian():
+    req = request([["FOG"]])
+    d = draft(req.keys, treasureGift="탐험 지킴이님, 글로브박스의 보물을 전해 주세요!")
+    assert "선물 문장에 안전 지킴이 빠짐" in check(d, req).whole
 
 
 def test_scene_never_written_is_dropped():
@@ -78,7 +91,7 @@ def test_bad_episode_line_rejects_the_whole_draft():
 def test_little_ones_get_shorter_speech():
     req = request([["FOG"]], ages=("LITTLE", "DETECTIVE"))
     d = draft(req.keys)
-    d.scenes[0].speech = "앞 유리가 뿌예! " + "안전 지킴이에게 유리를 닦는 바람을 부탁하자. " * 4
+    d.scenes[0].speech = "앞 유리가 뿌예! " + "유리를 닦는 바람을 찾아 안전 지킴이에게 가리켜 알려 주자. " * 4
     assert any("speech 길이" in p for p in check(d, req).items["FOG"])
 
 
@@ -97,13 +110,20 @@ def test_unknown_or_duplicate_keys_are_refused():
 
 
 def test_prompt_carries_only_the_rules_not_free_text():
-    req = request([["ROOMS:LEFT", "ROOMS:RIGHT"], ["TOGETHER:CHILD_ONCE_PARENT_TWICE:REACH"]])
+    req = request([["ROOMS:LEFT", "ROOMS:RIGHT"], ["TOGETHER:CHILD_ONCE_PARENT_TWICE"]])
     msg = user_message(req)
     assert "key=ROOMS:LEFT" in msg and "key=ROOMS:RIGHT" in msg
     assert "쓰지 말 말: \"오른쪽\"" in msg
     assert "\"한번\", \"두번\"" in msg
     assert "겨울 저녁, 바깥 기온 3도" in msg
     assert "0123456789abcdef0123" not in msg
+
+
+def test_prompt_keeps_puzzle_order_and_the_fixed_cast():
+    msg = user_message(request([["ROOMS:LEFT", "ROOMS:RIGHT"], ["FOG"]]))
+    assert msg.index("1번째 퍼즐 (아래 장면 중 하나만 나온다)") < msg.index("key=ROOMS:LEFT") < msg.index("2번째 퍼즐") < msg.index("key=FOG")
+    for name in ("펭귄 선장", "사막여우", "토끼 기관사", "수달 요리사", "새싹 로봇", "투덜이 기계"):
+        assert name in SYSTEM
 
 
 def test_a_bad_praise_line_is_left_out_not_the_whole_draft():

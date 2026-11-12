@@ -28,7 +28,7 @@ SLOTS = [
     lambda r: r.sample(["ROOMS:LEFT", "ROOMS:RIGHT"], 2),
     lambda r: ["FOG"],
     lambda r: [f"SEAT:{s}" for s in r.sample(["DRIVER", "PASSENGER", "REAR_LEFT", "REAR_RIGHT"], 4)],
-    lambda r: [f"TOGETHER:{r.choice(['SAME_TIME', 'CHILD_ONCE_PARENT_TWICE', 'FAN_WHILE_LIT'])}:{r.choice(['REACH', 'REACH', 'TIMING'])}"],
+    lambda r: [f"TOGETHER:{r.choice(['SAME_TIME', 'CHILD_ONCE_PARENT_TWICE', 'FAN_WHILE_LIT'])}"],
 ]
 
 

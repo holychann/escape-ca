@@ -8,7 +8,7 @@ own reviewed lines there instead.
 from textgate import Verdict, find_forbidden, missing, norm, present, too_long
 
 from .models import Draft, Episode, EpisodeRequest, SceneText
-from .rules import FORBID, LIMITS, Rule, rule_for
+from .rules import BUBBLE_NEVER, FORBID, LIMITS, Rule, rule_for
 
 
 def bad_words(text: str) -> list[str]:
@@ -30,8 +30,9 @@ def check_scene(rule: Rule, scene: SceneText, youngest: str) -> list[str]:
     problems += [f"정답 말 빠짐: {'/'.join(g)}" for g in missing(scene.speech, rule.must)]
     problems += [f"힌트에 정답 말 빠짐: {'/'.join(g)}" for g in missing(scene.hint, rule.hint_must)]
     problems += [f"다른 정답 말: {w}" for w in present("|".join([scene.bubble, scene.speech, scene.hint]), rule.never)]
+    problems += [f"말풍선에 버튼 말: {w}" for w in present(scene.bubble, BUBBLE_NEVER)]
     if rule.needs_guardian and "안전지킴이" not in norm(scene.speech):
-        problems.append("안전 지킴이에게 부탁하지 않음")
+        problems.append("안전 지킴이에게 알리는 말 빠짐")
     return problems
 
 
@@ -46,6 +47,8 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
         v.whole.append("칭찬 문장 부족")
     if req.theme and draft.theme != req.theme:
         v.whole.append("고른 테마와 다름")
+    if "안전지킴이" not in norm(draft.treasureGift):
+        v.whole.append("선물 문장에 안전 지킴이 빠짐")
     episode_text = " ".join([draft.title, draft.intro, draft.treasureGift, draft.treasureBadge])
     v.whole += bad_words(episode_text)
 
