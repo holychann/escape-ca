@@ -93,7 +93,10 @@ async function storyServerUp() {
 
 function detached(cmd, args, opts = {}) {
   const out = opts.logFile ? openSync(opts.logFile, 'a') : 'ignore';
-  spawn(cmd, args, { cwd: opts.cwd, detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref();
+  const child = spawn(cmd, args, { cwd: opts.cwd, detached: true, stdio: ['ignore', out, out], windowsHide: true });
+  // a missing program (no server/.venv, no emulator) must not take the remote down with it
+  child.on('error', (e) => log(`실행 실패: ${cmd} (${e.code || e.message})`));
+  child.unref();
 }
 
 // After a crash the emulator keeps the report and, on the next start, waits on a "send report?" window
@@ -143,6 +146,7 @@ const ACTIONS = {
   },
   storyServer: async () => {
     if (await storyServerUp()) return log('이야기 서버가 이미 켜져 있어요');
+    if (!existsSync(PYTHON)) return log('이야기 서버가 설치돼 있지 않아요(server/.venv). 앱은 기본 이야기로 진행돼요');
     detached(PYTHON, ['-m', 'uvicorn', 'app.main:app', '--env-file', '.env', '--host', '127.0.0.1', '--port', '8787'], {
       cwd: join(ROOT, 'server'),
       logFile: STORY_LOG,
@@ -207,7 +211,8 @@ async function keepLinked(ready) {
   if (Date.now() - lastLinkCheck < 5000) return;
   lastLinkCheck = Date.now();
   // the server takes a few seconds to come up; starting it again meanwhile would only fail on the port
-  if (Date.now() - storyStartedAt > 30_000 && !(await storyServerUp())) {
+  // without server/.venv there is nothing to start; the app plays its own lines
+  if (existsSync(PYTHON) && Date.now() - storyStartedAt > 30_000 && !(await storyServerUp())) {
     storyStartedAt = Date.now();
     await ACTIONS.storyServer();
   }
