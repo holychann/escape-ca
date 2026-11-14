@@ -78,7 +78,15 @@ object Safety {
         s.recirculation == true && recirculationSinceMs != null && nowMs - recirculationSinceMs >= RECIRCULATION_LIMIT_MS
 }
 
-/** Climate and lights as the parent left them before the game, to ask for them back at the end. */
+/**
+ * Puts the car back as the parent left it: the one time the app changes the car, at 처음 설정으로, while parked.
+ * [done] gets the labels of what could not be put back (the parent turns those back by hand).
+ */
+interface CarRestorer {
+    fun restore(target: Snapshot, done: (failed: List<String>) -> Unit)
+}
+
+/** Climate and lights as the parent left them before the game, to put them back at the end. */
 data class Snapshot(
     val recirculation: Boolean?,
     val fanSpeed: Int?,

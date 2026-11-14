@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
         lumi = Lumi(this)
         stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope)
         book = FriendBook(File(filesDir, "friends.txt"))
-        game = Game(source.state, lumi, stories, book)
+        game = Game(source.state, lumi, stories, book, restorer = source)
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
         stories.savedSetup()?.let { saved -> game.setup { saved } }
         setContent {
@@ -330,17 +330,30 @@ private fun ParentPanel(
         Phase.RESTORE -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
             PanelTitle("처음 설정으로")
+            // live: as the car reports each value back, its line disappears
             val changes = ui.snapshot?.changes(car).orEmpty()
             Middle {
-                if (changes.isEmpty()) {
-                    BodyText("모두 처음 설정과 같아요", color = Clay.MintDeep, weight = FontWeight.Medium)
-                } else {
-                    BodyText("게임 전에 저장해 둔 설정과 달라진 곳이에요. 시작할 때 설정으로 돌려 주세요")
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { changes.forEach { RestoreRow(it) } }
+                when {
+                    ui.restoring -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(Modifier.size(28.dp), color = Clay.Mint, strokeWidth = 4.dp, trackColor = Clay.MintSoft, strokeCap = StrokeCap.Round)
+                        BodyText("게임 전에 저장해 둔 설정으로 차를 되돌리는 중이에요", size = 21.sp, color = Clay.MintDeep, weight = FontWeight.Medium)
+                    }
+                    changes.isEmpty() -> CheckLabelText(if (ui.restoreTried) "공조와 독서등을 게임 전 설정으로 모두 되돌렸어요" else "모두 처음 설정과 같아요")
+                    else -> BodyText(
+                        if (ui.restoreTried) "아래는 되돌리지 못했어요. 직접 돌려 주세요"
+                        else "게임 전에 저장해 둔 설정과 달라진 곳이에요",
+                    )
+                }
+                if (changes.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { changes.forEach { RestoreRow(it) } }
+                ui.restoreNote?.let { Notice(it) }
+                if (changes.isNotEmpty() && !ui.restoring) {
+                    ClayButton("다시 되돌리기", ClayStyle.GHOST, Modifier.fillMaxWidth()) { game.restore() }
                 }
             }
             ReportRow(game, ui)
-            ClayButton("다 돌렸어요", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp) { game.reset() }
+            ClayButton(if (changes.isEmpty()) "처음 화면으로" else "다 돌렸어요", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = !ui.restoring) {
+                game.reset()
+            }
         }
     }
 }
@@ -753,7 +766,11 @@ private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, view: Stor
         Phase.SOLVED -> "정답! 별 하나 획득!" to (story?.picture("cover") ?: successPicture(p))
         Phase.TREASURE -> (if (ui.setup.giftReady) "보물 상자가 열렸어!" else "탐험 배지 획득!") to
             (story?.picture("ending") ?: if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
-        Phase.RESTORE -> "처음 설정으로 돌려 놓자" to theme
+        Phase.RESTORE -> when {
+            ui.restoring -> "차를 처음처럼 정리하는 중!"
+            ui.restoreTried -> "정리 끝! 다음에 또 만나"
+            else -> "처음 설정으로 돌려 놓자"
+        } to theme
     }
     val shape = RoundedCornerShape(48.dp)
     Box(modifier.clip(shape).background(Clay.NightBottom)) {

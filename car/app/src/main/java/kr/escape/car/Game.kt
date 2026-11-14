@@ -3,6 +3,7 @@ package kr.escape.car
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kr.escape.car.engine.CarRestorer
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.FriendBook
@@ -44,6 +45,12 @@ data class GameUi(
     val newFriend: Friend? = null,
     /** Friends first met in this episode, in order, for the treasure screen. */
     val metToday: List<Friend> = emptyList(),
+    /** 처음 설정으로: the app is putting the car back right now. */
+    val restoring: Boolean = false,
+    /** The app has tried to put the car back at least once (what is still different is left to the parent). */
+    val restoreTried: Boolean = false,
+    /** Why the app did not put the car back (not parked); the parent can try again. */
+    val restoreNote: String? = null,
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -60,6 +67,7 @@ class Game(
     private val lumi: Lumi,
     private val stories: StoryRepo? = null,
     private val book: FriendBook? = null,
+    private val restorer: CarRestorer? = null,
 ) {
     private val _ui = MutableStateFlow(GameUi())
     val ui: StateFlow<GameUi> = _ui
@@ -136,7 +144,24 @@ class Game(
         lumi.repeat()
     }
 
-    fun finish() = _ui.update { it.copy(phase = Phase.RESTORE, held = false) }
+    /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
+    fun finish() {
+        _ui.update { it.copy(phase = Phase.RESTORE, held = false) }
+        restore()
+    }
+
+    /** Puts the car back to the snapshot taken at the start; only while parked (the parent can try again after P). */
+    fun restore() {
+        val target = _ui.value.snapshot ?: return
+        val r = restorer ?: return
+        if (_ui.value.restoring) return
+        if (StopReason.DRIVING in Safety.startBlockers(car.value)) {
+            _ui.update { it.copy(restoreNote = "주차(P)한 뒤 다시 되돌려 주세요") }
+            return
+        }
+        _ui.update { it.copy(restoring = true, restoreNote = null) }
+        r.restore(target) { _ -> _ui.update { it.copy(restoring = false, restoreTried = true) } }
+    }
 
     fun reset() {
         lumi.stop()
