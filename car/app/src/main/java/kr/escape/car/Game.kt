@@ -35,6 +35,8 @@ data class GameUi(
     val held: Boolean = false,
     val hintHeard: Boolean = false,
     val recirculationWarning: Boolean = false,
+    /** Something left on from before keeps this puzzle from counting; the parent screen says what to turn off. */
+    val resetNeeded: String? = null,
     val snapshot: Snapshot? = null,
     /** Words from the story server for this episode; null means the app's own [Lines]. */
     val story: Story? = null,
@@ -92,7 +94,7 @@ class Game(
         together = (p as? Puzzle.Together)?.let { TogetherJudge(it) }
         _ui.update { ui ->
             val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
-            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null)
+            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, resetNeeded = null)
         }
         lumi.say(_ui.value.scene(p).speech)
     }
@@ -147,7 +149,10 @@ class Game(
         val ui = _ui.value
         val friend = ui.puzzle?.let(Friend::of)?.takeIf { book?.meet(it) == true }
         _ui.update {
-            it.copy(phase = Phase.SOLVED, stars = it.stars + 1, newFriend = friend, metToday = it.metToday + listOfNotNull(friend))
+            it.copy(
+                phase = Phase.SOLVED, stars = it.stars + 1, newFriend = friend, metToday = it.metToday + listOfNotNull(friend),
+                resetNeeded = null,
+            )
         }
         val praise = ui.story?.success(ui.stars) ?: Lines.SUCCESS
         lumi.say(if (friend == null) praise else "$praise ${Lines.newFriend(friend)}")
@@ -187,6 +192,8 @@ class Game(
 
         if (ui.phase != Phase.PLAYING) return
         val done = hold?.update(s, nowMs) == true || together?.update(s, nowMs) == true
+        val reset = hold?.resetNeeded(s) ?: together?.resetNeeded()
+        if (reset != ui.resetNeeded) _ui.update { it.copy(resetNeeded = reset) }
         if (done) solved()
     }
 }

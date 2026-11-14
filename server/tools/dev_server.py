@@ -5,6 +5,8 @@
 Its stories are plain templates built from the checker's own rules and its episodes say model "dev-template".
 Never use it for a demo of the AI story.
 """
+import re
+
 import uvicorn
 
 from app.rules import rule_for
@@ -14,7 +16,8 @@ from app.models import Draft, DraftScene
 
 class TemplateWriter:
     def write(self, system: str, user: str) -> tuple[Draft, str]:
-        keys = [line.split("key=", 1)[1] for line in user.splitlines() if "key=" in line]
+        # prompt.py writes each scene as "[key=FOG]"
+        keys = re.findall(r"\[key=([^\]]+)\]", user)
         scenes = []
         for key in keys:
             rule = rule_for(key)
@@ -27,7 +30,8 @@ class TemplateWriter:
             title="[개발용] 잠수함",
             intro="[개발용] 서버에서 받은 이야기야.",
             success=["[개발용] 칭찬 하나", "[개발용] 칭찬 둘", "[개발용] 칭찬 셋"],
-            treasureGift="[개발용] 선물 시간!",
+            # the checker drops the whole draft unless the gift line names the 안전 지킴이
+            treasureGift="[개발용] 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 거야.",
             treasureBadge="[개발용] 배지 받았어!",
             scenes=scenes,
         )

@@ -3,7 +3,10 @@
 # The console only passes values to the car while a browser session is alive, so `vc session` keeps one open.
 # usage: bash vc.sh <cmd> [args]   e.g. bash vc.sh driver true; bash vc.sh fan 2; bash vc.sh dir driver 2
 VC="http://127.0.0.1:8088"
-ADB="${ADB:-$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe}"
+if [ -z "$ADB" ]; then
+  if [ -n "$LOCALAPPDATA" ]; then ADB="$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe"   # Windows Git Bash
+  else ADB="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"; fi             # macOS
+fi
 "$ADB" forward tcp:8088 tcp:8088 >/dev/null
 curl -s -m 2 -o /dev/null -X POST "$VC/browser/session?client=escape-car"
 put() { curl -s -m 5 -o /dev/null -X PUT "$VC/vehicle/$1"; }

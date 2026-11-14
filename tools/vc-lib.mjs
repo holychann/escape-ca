@@ -3,9 +3,16 @@
 // The emulator only passes a console change on to the car (and so to the app) while a console session is alive,
 // so a connection keeps sending the session signal until it is closed.
 import { execFile, execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const ADB = process.env.ADB || join(process.env.LOCALAPPDATA || '', 'Android/Sdk/platform-tools/adb.exe');
+export const WIN = process.platform === 'win32';
+/** Android SDK: Windows keeps the old fixed place; macOS/Linux take ANDROID_HOME or Android Studio's default. */
+export const SDK = WIN
+  ? join(process.env.LOCALAPPDATA || '', 'Android/Sdk')
+  : process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT ||
+    join(homedir(), process.platform === 'darwin' ? 'Library/Android/sdk' : 'Android/Sdk');
+export const ADB = process.env.ADB || join(SDK, 'platform-tools', WIN ? 'adb.exe' : 'adb');
 export const VC = 'http://127.0.0.1:8088';
 /** Reading lights name their areas by position; the seat sensor uses driver/passenger/rear_*. */
 export const LIGHT_AREA = { driver: 'front_left', passenger: 'front_right', rear_left: 'rear_left', rear_right: 'rear_right' };

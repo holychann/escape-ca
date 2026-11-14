@@ -61,3 +61,11 @@ copy .env.example .env
 `퍼즐리모컨.bat`을 더블클릭하면 에뮬레이터 옆에 리모컨 창이 뜹니다. 위에서부터 [에뮬레이터 켜기], [이야기 서버 켜기], [앱 설치와 연결], [한 번에 맞추기]를 누른 뒤 퍼즐 카드의 정답 버튼으로 풀어 봅니다.
 
 리모컨 없이 명령으로 하는 방법과 퍼즐별 정답 넣는 법은 [에뮬레이터_테스트_방법.md](에뮬레이터_테스트_방법.md)에 있습니다.
+
+## macOS에서
+
+- 아무 폴더에나 받아도 됩니다(경로에 한글만 없으면 됨). 빌드 결과는 기본 위치 `car/app/build`에 생깁니다.
+- 앱: `cd car && ./gradlew assembleDebug`
+- 서버: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, 실행은 `.venv/bin/python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787`
+- 리모컨: `퍼즐리모컨.command`를 더블클릭하거나 `node tools/remote/server.mjs`. Android SDK는 `ANDROID_HOME`, 없으면 `~/Library/Android/sdk`에서 찾습니다.
+- Pleos 에뮬레이터 이미지가 Apple Silicon(arm64)에서 도는지는 아직 확인하지 않았습니다.

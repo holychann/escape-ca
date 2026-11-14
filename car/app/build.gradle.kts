@@ -6,7 +6,10 @@ plugins {
 
 // The project lives under a non-ASCII folder and aapt2 cannot open such paths on Windows,
 // so build outputs go to an ASCII folder and the app keeps no res/ directory of its own.
-layout.buildDirectory.set(file("C:/dev/build/escape-car/app"))
+// On macOS/Linux the default car/app/build is used (a "C:/..." path would become a folder named "C:" there).
+if (System.getProperty("os.name").startsWith("Windows")) {
+    layout.buildDirectory.set(file("C:/dev/build/escape-car/app"))
+}
 
 // The story server. On the emulator: run it on this PC and `adb reverse tcp:8787 tcp:8787`.
 // For a build that talks to a deployed server: ./gradlew assembleRelease -PstoryUrl=https://...

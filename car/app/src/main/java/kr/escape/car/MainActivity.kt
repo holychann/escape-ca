@@ -388,8 +388,12 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: Story
             game.setup { it.copy(giftReady = !it.giftReady) }
         }
         Spacer(Modifier.weight(1f))
-        if (car.hvacPower == false) Text("시작 전에 공조 전원을 켜 주세요", fontSize = 22.sp, color = Coral, fontWeight = FontWeight.Bold)
         blockers.forEach { Text("• ${it.message}", fontSize = 20.sp, color = Coral) }
+        // with no puzzle this car can play, game.begin() would return without a word
+        val playable = Planner.plan(ui.setup, car).isNotEmpty()
+        if (blockers.isEmpty() && !playable) {
+            Text("• 차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요", fontSize = 20.sp, color = Coral)
+        }
         Text("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", fontSize = 18.sp, color = Secondary)
         val storyLine = when (storyStatus) {
             StoryRepo.Status.READY -> "AI 이야기가 준비됐어요"
@@ -398,7 +402,7 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: Story
             StoryRepo.Status.NONE -> null
         }
         if (storyLine != null) Text(storyLine, fontSize = 18.sp, color = if (storyStatus == StoryRepo.Status.READY) Mint else Secondary)
-        BigButton("오늘의 이야기 만들기", Ink, enabled = blockers.isEmpty()) { game.begin() }
+        BigButton("오늘의 이야기 만들기", Ink, enabled = blockers.isEmpty() && playable) { game.begin() }
     }
 }
 
@@ -437,6 +441,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
             if (p == Puzzle.BeltMission) "아이가 스스로 매도록 기다려 주세요" else "아이가 가리킨 버튼을 확인하고, 말한 대로 눌러 주세요",
             fontSize = 20.sp, color = Secondary,
         )
+        ui.resetNeeded?.let { Text(it, fontSize = 22.sp, color = Coral, fontWeight = FontWeight.Bold) }
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Soft).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

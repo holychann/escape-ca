@@ -18,6 +18,8 @@ class EngineTest {
         assertEquals(listOf(StopReason.DRIVING), Safety.startBlockers(parked.copy(uxRestricted = true)))
         assertEquals(listOf(StopReason.NO_DRIVER), Safety.startBlockers(parked.copy(driverSeated = null)))
         assertEquals(listOf(StopReason.DOOR_OPEN), Safety.startBlockers(parked.copy(doorOpen = true)))
+        assertEquals(listOf(StopReason.HVAC_OFF), Safety.startBlockers(parked.copy(hvacPower = false)))
+        assertEquals(emptyList<StopReason>(), Safety.startBlockers(parked.copy(hvacPower = true)))
     }
 
     @Test
@@ -84,6 +86,19 @@ class EngineTest {
     }
 
     @Test
+    fun holdJudgeAsksToUndoAnAnswerAlreadyShowing() {
+        val judge = HoldJudge(Puzzle.FoggyWindow)
+        val on = parked.copy(defrostFront = true)
+        judge.update(on, 0)
+        assertTrue(judge.resetNeeded(on) != null)
+        judge.update(parked, 200)
+        assertNull(judge.resetNeeded(parked))
+        assertFalse(judge.update(on, 400))
+        assertNull(judge.resetNeeded(on))
+        assertTrue(judge.update(on, 1400))
+    }
+
+    @Test
     fun refreshMovesAnswersAwayFromTheCurrentState() {
         val lit = parked.copy(readingLights = mapOf(Seat.REAR_LEFT to true), recirculation = true)
         val seat = Planner.refresh(Puzzle.SeatSearch(Seat.REAR_LEFT), lit, Random(3)) as Puzzle.SeatSearch
@@ -135,6 +150,29 @@ class EngineTest {
         assertFalse(judge.update(lights(false, false).copy(fanSpeed = 3), 100))
         assertFalse(judge.update(lights(false, true).copy(fanSpeed = 3), 200))
         assertTrue(judge.update(lights(false, true).copy(fanSpeed = 4), 300))
+    }
+
+    @Test
+    fun togetherAsksToTurnOffLightsLeftOnAndThenCountsThem() {
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME))
+        judge.update(lights(true, false), 0)
+        assertEquals("먼저 운전석 독서등을 꺼 주세요", judge.resetNeeded())
+        assertFalse(judge.update(lights(true, true), 100))
+        assertFalse(judge.update(lights(false, false), 500))
+        assertNull(judge.resetNeeded())
+        assertTrue(judge.update(lights(true, true), 900))
+    }
+
+    @Test
+    fun fanWhileLitNeedsTheChildToSwitchOnNotALightLeftOn() {
+        val judge = TogetherJudge(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.FAN_WHILE_LIT))
+        judge.update(lights(false, true).copy(fanSpeed = 2), 0)
+        // the parent alone raising the fan must not solve it
+        assertFalse(judge.update(lights(false, true).copy(fanSpeed = 3), 100))
+        assertEquals("먼저 뒷좌석 오른쪽 독서등을 꺼 주세요", judge.resetNeeded())
+        assertFalse(judge.update(lights(false, false).copy(fanSpeed = 3), 200))
+        assertFalse(judge.update(lights(false, true).copy(fanSpeed = 3), 300))
+        assertTrue(judge.update(lights(false, true).copy(fanSpeed = 4), 400))
     }
 
     @Test

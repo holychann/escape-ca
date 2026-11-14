@@ -144,6 +144,13 @@ class HoldJudge(private val puzzle: Puzzle, private val holdMs: Long = 1000) {
         val start = since ?: nowMs.also { since = it }
         return nowMs - start >= holdMs
     }
+
+    /**
+     * The answer was already showing when the puzzle began (a defroster left on, every reading light lit), so it
+     * cannot count until it is undone once. The parent is told, or the puzzle looks stuck.
+     */
+    fun resetNeeded(s: CarState): String? =
+        if (!armed && puzzle.solvedBy(s)) "이미 정답 상태예요. 한 번 끈 다음, 아이가 가리키면 다시 켜 주세요" else null
 }
 
 /**
@@ -154,13 +161,21 @@ class TogetherJudge(private val puzzle: Puzzle.Together, private val windowMs: L
     private var lastFan: Int? = null
     private val ons = ArrayDeque<Pair<Seat, Long>>()
 
+    /**
+     * The two seats whose light was already on when the puzzle began (often left on by 우리 자리 조사). Only a light
+     * switched on counts, so each must go off once; until then the parent is asked to turn it off.
+     */
+    private val stale = mutableSetOf<Seat>()
+
     fun update(s: CarState, nowMs: Long): Boolean {
         // the first snapshot only sets the baseline: a light already on is not a press
         if (lastLights == null) {
             lastLights = s.readingLights
             lastFan = s.fanSpeed
+            stale += listOf(Seat.DRIVER, puzzle.childSeat).filter { s.readingLights[it] == true }
             return false
         }
+        stale.removeAll { s.readingLights[it] != true }
         val solved = when {
             puzzle.rhythm == Rhythm.SAME_TIME -> sameTime(s, nowMs)
             puzzle.rhythm == Rhythm.CHILD_ONCE_PARENT_TWICE -> sequence(s, nowMs)
@@ -198,6 +213,10 @@ class TogetherJudge(private val puzzle: Puzzle.Together, private val windowMs: L
     private fun fanWhileLit(s: CarState): Boolean {
         val before = lastFan ?: return false
         val now = s.fanSpeed ?: return false
-        return s.readingLights[puzzle.childSeat] == true && now > before
+        // a light left on from before is not the child's turn: without this the parent solves it alone
+        return puzzle.childSeat !in stale && s.readingLights[puzzle.childSeat] == true && now > before
     }
+
+    fun resetNeeded(): String? =
+        if (stale.isEmpty()) null else "먼저 ${stale.joinToString(", ") { it.label }} 독서등을 꺼 주세요"
 }

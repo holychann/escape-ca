@@ -7,16 +7,22 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adbAsync, connect, seatName, sleep } from '../vc-lib.mjs';
+import { SDK, WIN, adbAsync, connect, seatName, sleep } from '../vc-lib.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const PORT = 8790;
 const PKG = 'kr.escape.car';
-const APK = 'C:/dev/build/escape-car/app/outputs/apk/debug/app-debug.apk';
-const EMULATOR = join(process.env.LOCALAPPDATA || '', 'Android/Sdk/emulator/emulator.exe');
+// Windows builds into C:/dev/build (see car/app/build.gradle.kts); elsewhere Gradle's default car/app/build
+const APK = WIN
+  ? 'C:/dev/build/escape-car/app/outputs/apk/debug/app-debug.apk'
+  : join(ROOT, 'car', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const EMULATOR = join(SDK, 'emulator', WIN ? 'emulator.exe' : 'emulator');
 const EMULATOR_PROCS = ['qemu-system-x86_64.exe', 'emulator.exe'];
-const PYTHON = join(ROOT, 'server', '.venv', 'Scripts', 'python.exe');
+const PYTHON = WIN ? join(ROOT, 'server', '.venv', 'Scripts', 'python.exe') : join(ROOT, 'server', '.venv', 'bin', 'python');
+const STORY_LOG = WIN ? 'C:/dev/build/story-server.log' : join(tmpdir(), 'escape-car-story-server.log');
+// macOS/Linux: the emulator and its qemu child both carry "-avd pleos" on their command line
+const AVD_MATCH = '-avd pleos';
 
 const logs = [];
 const log = (m) => {
@@ -46,7 +52,10 @@ async function quiet(args, timeout = 5000) {
 
 const run = (cmd, args) =>
   new Promise((ok) => execFile(cmd, args, { encoding: 'utf8', timeout: 10_000, windowsHide: true }, (_e, out) => ok(out || '')));
-const emulatorRunning = async () => (await run('tasklist', ['/FI', `IMAGENAME eq ${EMULATOR_PROCS[0]}`, '/NH'])).includes(EMULATOR_PROCS[0]);
+const emulatorRunning = async () =>
+  WIN
+    ? (await run('tasklist', ['/FI', `IMAGENAME eq ${EMULATOR_PROCS[0]}`, '/NH'])).includes(EMULATOR_PROCS[0])
+    : (await run('pgrep', ['-f', '--', AVD_MATCH])).trim() !== '';
 
 // The emulator can freeze while adb still lists it, and then every shell command just hangs.
 // Three unanswered checks in a row (about 15 s) count as frozen rather than slow.
@@ -127,7 +136,8 @@ const ACTIONS = {
   emulatorRestart: async () => {
     dropCar();
     log('에뮬레이터를 끄는 중이에요');
-    for (const p of EMULATOR_PROCS) await run('taskkill', ['/F', '/T', '/IM', p]);
+    if (WIN) for (const p of EMULATOR_PROCS) await run('taskkill', ['/F', '/T', '/IM', p]);
+    else await run('pkill', ['-9', '-f', '--', AVD_MATCH]);
     for (let i = 0; i < 20 && (await emulatorRunning()); i++) await sleep(500);
     launchEmulator();
   },
@@ -135,7 +145,7 @@ const ACTIONS = {
     if (await storyServerUp()) return log('이야기 서버가 이미 켜져 있어요');
     detached(PYTHON, ['-m', 'uvicorn', 'app.main:app', '--env-file', '.env', '--host', '127.0.0.1', '--port', '8787'], {
       cwd: join(ROOT, 'server'),
-      logFile: 'C:/dev/build/story-server.log',
+      logFile: STORY_LOG,
     });
     log('이야기 서버를 켜는 중이에요');
   },

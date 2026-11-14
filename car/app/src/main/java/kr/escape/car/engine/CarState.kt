@@ -41,6 +41,7 @@ enum class StopReason(val message: String) {
     DRIVING("기어를 P로 두면 이어서 할 수 있어요"),
     DOOR_OPEN("문이 닫히면 이어서 할 수 있어요"),
     NO_DRIVER("운전석에 보호자가 앉아 있어야 시작할 수 있어요"),
+    HVAC_OFF("공조 전원을 켜야 시작할 수 있어요"),
     TIME_UP("20분이 지났어요. 잠깐 쉬어요"),
 }
 
@@ -59,6 +60,9 @@ object Safety {
         if (driving(s)) add(StopReason.DRIVING)
         if (s.doorOpen) add(StopReason.DOOR_OPEN)
         if (s.driverSeated != true) add(StopReason.NO_DRIVER)
+        // temperatures cannot be read with the climate off, so the climate puzzles would never count.
+        // Unknown (null: the car does not report it) does not block.
+        if (s.hvacPower == false) add(StopReason.HVAC_OFF)
     }
 
     /** First reason to pause right now, or null to keep playing. Driving wins over a door so the parent sees why. */
