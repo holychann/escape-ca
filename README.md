@@ -64,7 +64,8 @@ copy .env.example .env
 
 ## macOS에서
 
-- 아무 폴더에나 받아도 됩니다(경로에 한글만 없으면 됨). 빌드 결과는 기본 위치 `car/app/build`에 생깁니다.
+- 아무 폴더에나 받아도 됩니다(경로에 한글만 없으면 됨). 빌드 결과는 `car/app/build.nosync`에 생깁니다. iCloud의 '데스크탑 및 문서' 동기화가 빌드 파일을 `이름 2.dex`처럼 복제해 빌드를 깨뜨리는데, `.nosync`로 끝나는 폴더는 동기화하지 않기 때문입니다.
+- JDK는 21을 씁니다. Android Studio에 들어 있는 Java 25로는 이 프로젝트의 Gradle 8.10이 돌지 않으니, Android Studio의 Gradle JDK도 21로 맞춰 주세요.
 - 앱: `cd car && ./gradlew assembleDebug`
 - 서버: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, 실행은 `.venv/bin/python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787`
 - 리모컨: `퍼즐리모컨.command`를 더블클릭하거나 `node tools/remote/server.mjs`. Android SDK는 `ANDROID_HOME`, 없으면 `~/Library/Android/sdk`에서 찾습니다.

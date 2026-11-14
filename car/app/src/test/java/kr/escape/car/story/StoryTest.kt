@@ -80,7 +80,8 @@ class StoryTest {
         // dropped by the server's checker: the app's own lines
         assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = false)), story.scene(Puzzle.TwoRooms(penguinLeft = false)))
         assertEquals("theme_sea_sub", story.themePicture)
-        assertEquals(listOf("theme_sea_sub"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
+        // the together puzzle has its own stage picture (the train door), whatever the theme
+        assertEquals(listOf("scene_together"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
         assertEquals("해냈어!", story.success(3))
         assertEquals(story, Story.parse(story.toJson()))
     }

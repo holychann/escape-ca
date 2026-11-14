@@ -6,9 +6,13 @@ plugins {
 
 // The project lives under a non-ASCII folder and aapt2 cannot open such paths on Windows,
 // so build outputs go to an ASCII folder and the app keeps no res/ directory of its own.
-// On macOS/Linux the default car/app/build is used (a "C:/..." path would become a folder named "C:" there).
-if (System.getProperty("os.name").startsWith("Windows")) {
-    layout.buildDirectory.set(file("C:/dev/build/escape-car/app"))
+// On macOS, iCloud "Desktop & Documents" sync copies busy build files as "name 2.dex" and the dex merge then fails
+// ("defined multiple times"); iCloud skips folders named *.nosync, so the build goes to car/app/build.nosync.
+// Linux keeps the default car/app/build.
+val hostOs = System.getProperty("os.name")
+when {
+    hostOs.startsWith("Windows") -> layout.buildDirectory.set(file("C:/dev/build/escape-car/app"))
+    hostOs.startsWith("Mac") -> layout.buildDirectory.set(file("build.nosync"))
 }
 
 // The story server. On the emulator: run it on this PC and `adb reverse tcp:8787 tcp:8787`.

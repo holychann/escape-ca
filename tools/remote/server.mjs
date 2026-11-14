@@ -13,10 +13,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const PORT = 8790;
 const PKG = 'kr.escape.car';
-// Windows builds into C:/dev/build (see car/app/build.gradle.kts); elsewhere Gradle's default car/app/build
+// where car/app/build.gradle.kts puts the build: C:/dev/build on Windows, build.nosync on macOS, build on Linux
 const APK = WIN
   ? 'C:/dev/build/escape-car/app/outputs/apk/debug/app-debug.apk'
-  : join(ROOT, 'car', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+  : join(ROOT, 'car', 'app', process.platform === 'darwin' ? 'build.nosync' : 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const EMULATOR = join(SDK, 'emulator', WIN ? 'emulator.exe' : 'emulator');
 const EMULATOR_PROCS = ['qemu-system-x86_64.exe', 'emulator.exe'];
 const PYTHON = WIN ? join(ROOT, 'server', '.venv', 'Scripts', 'python.exe') : join(ROOT, 'server', '.venv', 'bin', 'python');

@@ -28,7 +28,7 @@ data class Story(
         }
 
     fun scene(p: Puzzle): Scene {
-        val base = Lines.scene(p).let { if (p is Puzzle.Together) it.copy(pictures = listOf(themePicture)) else it }
+        val base = Lines.scene(p)
         val words = scenes[StoryKeys.key(p)] ?: return base
         return base.copy(bubble = words.bubble, speech = words.speech, hint = words.hint)
     }

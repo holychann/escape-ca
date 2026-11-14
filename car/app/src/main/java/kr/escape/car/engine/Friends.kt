@@ -13,8 +13,6 @@ enum class Friend(val label: String, val picture: String) {
     FENNEC_FOX("사막여우", "crew_fennec_fox"),
     RABBIT_ENGINEER("토끼 기관사", "crew_rabbit_engineer");
 
-    val silhouette: String get() = "${picture}_silhouette"
-
     companion object {
         /** The friend a puzzle helps; solving it the first time puts that friend in the book. */
         fun of(p: Puzzle): Friend? = when (p) {
