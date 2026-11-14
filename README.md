@@ -27,7 +27,7 @@
 git clone https://github.com/leekwangeun/escape-car.git C:\dev\escape
 ```
 
-서버가 쓰는 `textgate` 라이브러리도 비공개 저장소라서, GitHub에서 `escape-car`와 `textgate` 두 저장소의 초대를 모두 수락해야 설치됩니다.
+서버가 쓰는 검사 라이브러리 [`textgate`](https://github.com/leekwangeun/textgate)는 공개 저장소라서, 서버의 `pip install -r requirements.txt`가 GitHub에서 같이 받아 설치합니다(git이 깔려 있어야 합니다).
 
 ## 2. 차 앱
 

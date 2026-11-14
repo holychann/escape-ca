@@ -5,12 +5,9 @@ personal, foreign), and the answer (each scene says its own answer and never the
 episode-wide lines rejects the whole draft; a problem in one scene drops only that scene, and the car plays its
 own reviewed lines there instead.
 """
-try:  # the private textgate library when installed, else the same checks built in (app/gate.py)
-    from textgate import Verdict, find_forbidden, missing, norm, present, too_long
-except ImportError:
-    from .gate import Verdict, find_forbidden, missing, norm, present, too_long
-
 import re
+
+from textgate import Verdict, find_forbidden, missing, norm, present, too_long
 
 from .models import Draft, Episode, EpisodeRequest, NewFriend, SceneText
 from .rules import BUBBLE_NEVER, CAST, FORBID, LIMITS, Rule, rule_for
@@ -76,8 +73,6 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
         problems = too_long(name, text, ART_MAX) + bad_words(text)
         problems += [f"정답이 보이는 말: {w}" for w in present(text, extra)]
         problems += [f"버튼 말: {w}" for w in present(text, BUBBLE_NEVER)]
-        if not text.strip():
-            problems.append("설명 없음")
         if problems:
             out[name] = problems
 
@@ -100,8 +95,8 @@ def friend_problems(friend: NewFriend | None, req: EpisodeRequest) -> list[str]:
     if friend is None:
         return ["새 친구 없음"]
     fields = {"name": friend.name, "look": friend.look, "trait": friend.trait, "hello": friend.hello}
+    # too_long also reports an empty field
     problems = [p for name, text in fields.items() for p in too_long(name, text, FRIEND_MAX[name])]
-    problems += [f"{name} 비어 있음" for name, text in fields.items() if not text.strip()]
     if not re.fullmatch(r"[가-힣 ]{2,10}", friend.name.strip()):
         problems.append("이름은 우리말 2~10자")
     if norm(friend.name) in TAKEN:
