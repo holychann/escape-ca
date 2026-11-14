@@ -87,6 +87,28 @@ class StoryTest {
     }
 
     @Test
+    fun aDrawnPictureReplacesTheScenesOwnOnlyOnceItIsOnTheDevice() {
+        val base = Story.parse(JSONObject(json))
+        val words = base.scenes.getValue("ROOMS:LEFT").copy(picture = "p1")
+        val fromServer = base.copy(scenes = base.scenes + ("ROOMS:LEFT" to words), images = mapOf("p1" to "/v1/images/x/p1.webp"))
+        // still on the server: the app's own picture
+        assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures, fromServer.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures)
+        val local = fromServer.copy(images = mapOf("p1" to "/data/story_images/x/p1.webp", "cover" to "/data/story_images/x/cover.webp"))
+        assertEquals(listOf("file:/data/story_images/x/p1.webp"), local.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures)
+        assertEquals("file:/data/story_images/x/cover.webp", local.picture("cover"))
+        assertEquals(null, local.picture("ending"))
+        assertEquals(local, Story.parse(local.toJson()))
+    }
+
+    @Test
+    fun aWishAsksForThatStoryAndItsPictures() {
+        val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
+        val body = StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(wish = "  공룡 섬에서 보물찾기 "), listOf(Puzzle.BeltMission), now)
+        assertEquals("공룡 섬에서 보물찾기", body.getString("wish"))
+        assertEquals(true, body.getBoolean("pictures"))
+    }
+
+    @Test
     fun requestCarriesOnlyEnumsNumbersAndKeys() {
         val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
         val puzzles = listOf(Puzzle.TwoRooms(penguinLeft = true), Puzzle.BeltMission)

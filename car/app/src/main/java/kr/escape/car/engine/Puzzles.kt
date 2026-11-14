@@ -70,6 +70,8 @@ data class Setup(
     val minutes: Int = 10,
     val giftReady: Boolean = false,
     val childSeat: Seat = Seat.REAR_RIGHT,
+    /** The story the family asked for ("공룡 섬에서 보물찾기"); blank lets the story server choose. Puzzles ignore it. */
+    val wish: String = "",
 )
 
 /** Picks this episode's puzzles and their answers at random, only from devices this car has. */

@@ -115,11 +115,15 @@ fun BodyText(
 
 // ---------- images ----------
 
+/** A picture by name: an asset in assets/img, or "file:/…" for a picture the story server drew for this episode. */
 @Composable
 fun rememberAsset(name: String): ImageBitmap? {
     val context = LocalContext.current
     return remember(name) {
-        runCatching { context.assets.open("img/$name.webp").use { BitmapFactory.decodeStream(it).asImageBitmap() } }.getOrNull()
+        runCatching {
+            if (name.startsWith("file:")) BitmapFactory.decodeFile(name.removePrefix("file:"))?.asImageBitmap()
+            else context.assets.open("img/$name.webp").use { BitmapFactory.decodeStream(it).asImageBitmap() }
+        }.getOrNull()
     }
 }
 

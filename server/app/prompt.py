@@ -40,6 +40,21 @@ _BASE = """너는 '차량탈출' 앱의 이야기 작가다. 주차한 차 안�
 - success는 어느 퍼즐 뒤에 나와도 어울리는 칭찬으로 쓴다.
 - title은 오늘의 목표가 드러나게 짓는다.
 
+가족이 바란 이야기 (wish)
+- 조건에 '가족이 바란 이야기'가 있으면 그것을 오늘의 세계와 사건으로 삼는다. 예: '공룡 섬에서 보물찾기'면 친구들이 공룡 섬에 가서 보물을 찾는 이야기로 쓴다.
+- 위의 규칙이 바람보다 앞선다. 바람에 무섭거나 위험한 부분이 있으면 귀엽고 안전한 일로 바꿔 쓴다(예: 무서운 공룡 → 배고픈 아기 공룡).
+- 실제 사람, 다른 만화나 영화의 캐릭터, 상표는 쓰지 않는다. 그런 이름이 있으면 그 분위기만 살려 우리 친구들의 이야기로 쓴다.
+- 바람에 아이 이름이 있어도 이름을 쓰지 않고 '탐험대장'이라고 부른다.
+- 세계가 바뀌어도 퍼즐의 상황과 정답은 그대로다. 예: 공룡 섬이어도 새싹 화분은 위쪽이나 아래쪽에 있고, 그 정답 말을 그대로 넣는다.
+- world에는 오늘의 세계를 한 줄로 적고, theme에는 별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 가장 가까운 것을 적는다.
+
+그림 설명 (art)
+- art는 그림 작가에게 줄 장면 설명이다. 쉬운 우리말 1~2문장으로, 어디에서 어떤 친구가 무엇을 하는지와 분위기만 쓴다.
+- art.puzzles는 퍼즐 순서대로 한 장씩, 그 퍼즐에서 곤란해하는 친구와 장소를 쓴다. 같은 퍼즐의 정답이 여러 개여도 그림은 하나다.
+- 그림에는 정답 단서를 절대 넣지 않는다. 위쪽, 아래쪽, 왼쪽, 오른쪽, 안에서, 밖에서, 자리 이름(운전석, 조수석, 뒷좌석), 버튼 이름(성에, 내기, 외기, 풍향, 풍량, 독서등, 온도)은 art에 쓰지 않는다. 정답은 루미의 말로만 알려 준다.
+- 그림에 글자, 숫자, 표지판은 넣지 않는다. 등장시키는 친구는 친구 도감의 친구와 루미뿐이다.
+- art.cover는 오늘의 모험이 시작되는 표지, art.ending은 목표를 이룬 마지막 장면이다.
+
 나이 단계
 - 꼬마 탐험대(4~6세): 아주 짧고 쉬운 말, 소리 흉내말, 한 번에 한 가지만.
 - 탐험대장(7~9세): 짧은 이유 한 가지를 붙인다.
@@ -80,17 +95,19 @@ def user_message(req: EpisodeRequest) -> str:
     now = f"{SEASON[ctx.season]} {TIME[ctx.timeOfDay]}"
     if ctx.outsideTempC is not None:
         now += f", 바깥 기온 {ctx.outsideTempC}도"
-    world = (
-        f"{THEME_LABEL[req.theme]} (theme에 {req.theme})"
-        if req.theme
-        else "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절과 시간에 어울리는 하나를 골라 theme에 적는다"
-    )
+    if req.wish:
+        world = "가족이 바란 이야기에 맞는 세계를 새로 정해 world에 적고, theme에는 셋 중 가장 가까운 것을 적는다"
+    elif req.theme:
+        world = f"{THEME_LABEL[req.theme]} (theme에 {req.theme}, world에도 그대로)"
+    else:
+        world = "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절과 시간에 어울리는 하나를 골라 theme와 world에 적는다"
     lines = [
         "오늘의 조건",
         f"- 함께 타는 아이: {', '.join(AGE_LABEL[a] for a in req.ages)}",
         f"- 기다리는 시간: 약 {req.minutes}분",
         f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)",
         f"- 세계: {world}",
+        *([f"- 가족이 바란 이야기: «{req.wish}» (위 '가족이 바란 이야기' 규칙대로 반영한다)"] if req.wish else []),
         f"- 길이: bubble {LIMITS.bubble}자 이내, hint {LIMITS.hint}자 이내, "
         f"speech {getattr(LIMITS.speech, req.youngest)}자 이내(2~3문장)",
         "",
@@ -104,6 +121,7 @@ def user_message(req: EpisodeRequest) -> str:
         "",
         "그 밖에 title(오늘의 탐험 카드 제목), intro(루미의 첫인사와 오늘의 사건), success(서로 다른 칭찬 3개), "
         "treasureGift(안전 지킴이가 글로브박스에서 선물을 꺼내 줄 때), treasureBadge(선물 없이 탐험 배지를 받을 때)도 쓴다.",
+        f"- art.puzzles는 퍼즐 수와 같은 {len(req.puzzles)}개를 퍼즐 순서대로 쓴다. 정답 단서는 그림 설명에 넣지 않는다.",
         f"- 어느 문장에도 쓰지 말 말: {_quote(EVERYWHERE_NEVER)} (이야기 속 탈것을 말할 때도 마찬가지)",
     ]
     return "\n".join(lines)

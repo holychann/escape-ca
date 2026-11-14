@@ -26,6 +26,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -52,7 +56,9 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
@@ -72,6 +78,7 @@ import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.Safety
 import kr.escape.car.engine.StopReason
 import kr.escape.car.story.StoryClient
+import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.ui.AssetImage
 import kr.escape.car.ui.Badge
@@ -143,10 +150,16 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val car by source.state.collectAsState()
     val speaking by lumi.speaking.collectAsState()
     val storyStatus by stories.status.collectAsState()
+    val preview by stories.preview.collectAsState()
+    val rejection by stories.rejection.collectAsState()
+    val view = StoryView(storyStatus, preview, rejection)
     // while the parent is choosing, the next episode is written in the background
+    var askedWish by remember { mutableStateOf(ui.setup.wish) }
     LaunchedEffect(ui.phase, ui.setup, car.devices, car.fanSpeedRange) {
         if (ui.phase != Phase.SETUP) return@LaunchedEffect
-        delay(1500)
+        // a new story wish is asked for at once, so the last story's "준비 완료" does not linger;
+        // other changes wait a moment for the car to report every device
+        if (ui.setup.wish != askedWish) askedWish = ui.setup.wish else delay(1500)
         stories.prepare(ui.setup, source.state.value)
     }
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Clay.NightTop, Clay.NightBottom)))) {
@@ -156,14 +169,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(ui, met, speaking, Modifier.weight(1f).fillMaxWidth())
-                    ParentPanel(game, ui, car, speaking, lumi, storyStatus, Modifier.fillMaxWidth())
+                    KidStage(ui, met, speaking, preview, Modifier.weight(1f).fillMaxWidth())
+                    ParentPanel(game, ui, car, speaking, lumi, view, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
-                    ParentPanel(game, ui, car, speaking, lumi, storyStatus, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(ui, met, speaking, Modifier.weight(1f).fillMaxHeight())
+                    ParentPanel(game, ui, car, speaking, lumi, view, Modifier.width(panelWidth).fillMaxHeight())
+                    KidStage(ui, met, speaking, preview, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -261,11 +274,11 @@ private fun ParentPanel(
     car: CarState,
     speaking: Boolean,
     lumi: Lumi,
-    storyStatus: StoryRepo.Status,
+    view: StoryView,
     modifier: Modifier,
 ) {
     when (ui.phase) {
-        Phase.SETUP -> SetupPanel(game, ui, car, storyStatus, modifier)
+        Phase.SETUP -> SetupPanel(game, ui, car, view, modifier)
         Phase.INTRO -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
             PanelTitle(ui.story?.title ?: "오늘의 이야기")
@@ -328,7 +341,7 @@ private fun ParentPanel(
 }
 
 @Composable
-private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: StoryRepo.Status, modifier: Modifier) {
+private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, modifier: Modifier) {
     val blockers = Safety.startBlockers(car)
     // with no puzzle this car can play, game.begin() would return without a word
     val playable = Planner.plan(ui.setup, car).isNotEmpty()
@@ -336,6 +349,7 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: Story
         Badge("부모님 준비")
         PanelTitle("시작하기 전에 골라 주세요", 48)
         Middle {
+            WishBox(ui.setup.wish, view) { wish -> game.setup { it.copy(wish = wish) } }
             FieldLabel("아이 나이 · 형제자매는 두 명까지")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 for (age in Age.entries) ChoiceTile(age.years, age.label, ui.setup.ages.contains(age), Modifier.weight(1f)) {
@@ -355,21 +369,99 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, storyStatus: Story
             Spacer(Modifier.height(4.dp))
             blockers.forEach { Notice(it.message) }
             if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
-            val storyLine = when (storyStatus) {
-                StoryRepo.Status.READY -> "AI 이야기가 준비됐어요 · 정답은 규칙 엔진이 정해요"
-                StoryRepo.Status.WRITING -> "AI 이야기를 만드는 중이에요. 기다리지 않고 시작해도 돼요"
-                StoryRepo.Status.OFFLINE -> "AI 이야기를 받지 못해 기본 이야기로 해요"
-                StoryRepo.Status.NONE -> null
-            }
-            if (storyLine != null) {
-                if (storyStatus == StoryRepo.Status.READY) CheckLabelText(storyLine) else BodyText(storyLine, size = 19.sp)
-            }
             BodyText("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", size = 19.sp)
         }
         ClayButton("오늘의 이야기 만들기", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = blockers.isEmpty() && playable) {
             game.begin()
         }
     }
+}
+
+/** What the story server is doing for the setup screen: its status, the story it has ready, why it refused a wish. */
+private data class StoryView(val status: StoryRepo.Status, val preview: Story?, val rejection: List<String>)
+
+private val WISH_IDEAS = listOf("공룡 섬에서 보물찾기", "우주 정거장 구조대", "과자 나라 축제", "눈 오는 숲속 마을", "바닷속 인어 왕국", "로봇 도시 운동회")
+
+/**
+ * 오늘의 이야기 소원: the family types or picks the story they want; the story server writes it around today's puzzles
+ * and draws its world. The puzzles and their answers stay the rule engine's.
+ */
+@Composable
+private fun WishBox(wish: String, view: StoryView, onWish: (String) -> Unit) {
+    var draft by remember(wish) { mutableStateOf(wish) }
+    val shape = RoundedCornerShape(28.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, if (wish.isNotBlank()) Clay.Sun else Clay.Line, shape)
+            .padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ClayGlyph(ClayIcon.STAR, Clay.SunLip, Modifier.size(30.dp))
+            KidText("오늘의 이야기 소원", 32.sp)
+        }
+        BodyText("듣고 싶은 이야기를 적거나 골라 주세요. AI가 오늘 퍼즐에 맞춰 이야기와 그림을 새로 만들어요", size = 19.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val field = RoundedCornerShape(20.dp)
+            BasicTextField(
+                value = draft,
+                onValueChange = { draft = it.take(StoryRepo.WISH_MAX) },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 24.sp, color = Clay.Ink),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onWish(draft.trim()) }),
+                modifier = Modifier.weight(1f).height(80.dp).clip(field).background(Clay.Cream).border(2.dp, Clay.LineSoft, field),
+                decorationBox = { inner ->
+                    Box(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
+                        if (draft.isEmpty()) BodyText("예: 공룡 섬에서 보물찾기", size = 22.sp, color = Clay.Muted)
+                        inner()
+                    }
+                },
+            )
+            ClayButton("만들기", ClayStyle.SUN, Modifier.width(150.dp), height = 80.dp, enabled = draft.isNotBlank() && draft.trim() != wish) {
+                onWish(draft.trim())
+            }
+        }
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            WISH_IDEAS.forEach { idea -> WishChip(idea, idea == wish) { draft = idea; onWish(idea) } }
+        }
+        WishStatus(wish, view) { onWish("") }
+        BodyText("아이 이름이나 사는 곳은 적지 말아 주세요", size = 17.sp, color = Clay.Muted)
+    }
+}
+
+@Composable
+private fun WishChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    KidText(
+        text, 22.sp, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Clay.Sun else Clay.CreamDeep)
+            .clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+    )
+}
+
+@Composable
+private fun WishStatus(wish: String, view: StoryView, onClear: () -> Unit) {
+    val story = view.preview
+    when (view.status) {
+        StoryRepo.Status.WRITING -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ClayGlyph(ClayIcon.WAVE, Clay.Mint, Modifier.size(28.dp))
+            BodyText(
+                if (wish.isBlank()) "AI 이야기를 만드는 중이에요. 기다리지 않고 시작해도 돼요"
+                else "‘$wish’ 이야기와 그림을 만드는 중이에요 · 30초~1분",
+                size = 19.sp, color = Clay.MintDeep, weight = FontWeight.Medium,
+            )
+        }
+        StoryRepo.Status.READY -> CheckLabelText(
+            if (story == null) "AI 이야기가 준비됐어요"
+            else "‘${story.title}’ 준비 완료" + if (story.images.isNotEmpty()) " · 그림 ${story.images.size}장" else "",
+        )
+        StoryRepo.Status.REJECTED -> Notice("이 소원은 다르게 적어 주세요 (${view.rejection.joinToString(", ").ifEmpty { "안전 규칙" }})")
+        StoryRepo.Status.OFFLINE -> BodyText("이야기 서버에 연결하지 못해 기본 이야기로 해요", size = 19.sp)
+        StoryRepo.Status.NONE -> Unit
+    }
+    if (wish.isNotBlank()) Text(
+        "소원 지우기", fontSize = 18.sp, color = Clay.Muted, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline,
+        modifier = Modifier.clickable(onClick = onClear).padding(vertical = 4.dp),
+    )
 }
 
 @Composable
@@ -608,16 +700,21 @@ private fun lumiFace(ui: GameUi) = when (ui.phase) {
 }
 
 @Composable
-private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, modifier: Modifier) {
+private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, preview: Story?, modifier: Modifier) {
     val p = ui.puzzle
-    val theme = ui.story?.themePicture ?: "theme_star_train"
+    val story = ui.story
+    val theme = story?.picture("cover") ?: story?.themePicture ?: "theme_star_train"
     val (bubble, picture) = when (ui.phase) {
-        Phase.SETUP -> "어디로 탐험 갈까?" to "theme_star_train"
+        Phase.SETUP -> when {
+            preview != null -> preview.title to (preview.picture("cover") ?: preview.themePicture)
+            ui.setup.wish.isNotBlank() -> "‘${ui.setup.wish}’ 좋아!" to "theme_star_train"
+            else -> "어디로 탐험 갈까?" to "theme_star_train"
+        }
         Phase.INTRO -> (ui.story?.title ?: "별빛 기차가 고장 났대!") to theme
         Phase.PLAYING -> p?.let { ui.scene(it).let { s -> s.bubble to (s.pictures.firstOrNull() ?: theme) } } ?: ("" to theme)
-        Phase.SOLVED -> "정답! 별 하나 획득!" to successPicture(p)
+        Phase.SOLVED -> "정답! 별 하나 획득!" to (story?.picture("cover") ?: successPicture(p))
         Phase.TREASURE -> (if (ui.setup.giftReady) "보물 상자가 열렸어!" else "탐험 배지 획득!") to
-            (if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
+            (story?.picture("ending") ?: if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
         Phase.RESTORE -> "처음 설정으로 돌려 놓자" to theme
     }
     val shape = RoundedCornerShape(48.dp)

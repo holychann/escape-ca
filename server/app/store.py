@@ -46,7 +46,9 @@ class Store:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def episode(self, ep: Episode, req: EpisodeRequest) -> None:
-        self._append("episodes.jsonl", {"ages": req.ages, "keys": req.keys, "episode": ep.model_dump()})
+        # the family's wish is free text they typed, so only whether there was one is kept
+        self._append("episodes.jsonl", {"ages": req.ages, "keys": req.keys, "wish": req.wish is not None,
+                                        "episode": ep.model_dump()})
 
     def report(self, r: Report) -> None:
         self._append("reports.jsonl", r.model_dump())

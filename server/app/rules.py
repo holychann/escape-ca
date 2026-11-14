@@ -12,8 +12,12 @@ from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, PositiveInt
-from textgate import Forbid, Group, Word
-from textgate.rules import Strict as _Strict
+try:  # the private textgate library when installed, else the same rule types built in (app/gate.py)
+    from textgate import Forbid, Group, Word
+    from textgate.rules import Strict as _Strict
+except ImportError:
+    from .gate import Forbid, Group, Word
+    from .gate import Strict as _Strict
 
 RULES_FILE = Path(__file__).with_name("story_rules.toml")
 
