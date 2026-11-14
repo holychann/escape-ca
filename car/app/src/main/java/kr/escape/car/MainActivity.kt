@@ -34,6 +34,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
@@ -53,6 +54,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -154,7 +156,8 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val storyStatus by stories.status.collectAsState()
     val preview by stories.preview.collectAsState()
     val rejection by stories.rejection.collectAsState()
-    val view = StoryView(storyStatus, preview, rejection)
+    val waited = rememberElapsedSeconds(storyStatus == StoryRepo.Status.WRITING, ui.setup.wish)
+    val view = StoryView(storyStatus, preview, rejection, waited)
     // while the parent is choosing, the next episode is written in the background
     var askedWish by remember { mutableStateOf(ui.setup.wish) }
     LaunchedEffect(ui.phase, ui.setup, car.devices, car.fanSpeedRange) {
@@ -171,14 +174,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(ui, met, speaking, preview, Modifier.weight(1f).fillMaxWidth())
+                    KidStage(ui, met, speaking, view, Modifier.weight(1f).fillMaxWidth())
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(ui, met, speaking, preview, Modifier.weight(1f).fillMaxHeight())
+                    KidStage(ui, met, speaking, view, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -386,7 +389,33 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
 }
 
 /** What the story server is doing for the setup screen: its status, the story it has ready, why it refused a wish. */
-private data class StoryView(val status: StoryRepo.Status, val preview: Story?, val rejection: List<String>)
+private data class StoryView(val status: StoryRepo.Status, val preview: Story?, val rejection: List<String>, val waited: Int = 0)
+
+/** Whole seconds since [running] turned on (and since [key] last changed while it was on); 0 while it is off. */
+@Composable
+private fun rememberElapsedSeconds(running: Boolean, key: Any?): Int {
+    var seconds by remember { mutableStateOf(0) }
+    LaunchedEffect(running, key) {
+        seconds = 0
+        if (!running) return@LaunchedEffect
+        val start = SystemClock.elapsedRealtime()
+        while (true) {
+            delay(1000)
+            seconds = ((SystemClock.elapsedRealtime() - start) / 1000).toInt()
+        }
+    }
+    return seconds
+}
+
+/**
+ * What Lumi is doing while a wish is made. The server does not report its steps, so this follows the measured
+ * times: the words take about 10 s, the pictures about 15 s more.
+ */
+private fun wishStep(waited: Int) = when {
+    waited < 10 -> "루미가 이야기를 쓰고 있어요"
+    waited < 25 -> "친구들 그림을 그리고 있어요"
+    else -> "거의 다 됐어요!"
+}
 
 private val WISH_IDEAS = listOf("공룡 섬에서 보물찾기", "우주 정거장 구조대", "과자 나라 축제", "눈 오는 숲속 마을", "바닷속 인어 왕국", "로봇 도시 운동회")
 
@@ -450,11 +479,11 @@ private fun WishChip(text: String, selected: Boolean, onClick: () -> Unit) {
 private fun WishStatus(wish: String, view: StoryView, onClear: () -> Unit) {
     val story = view.preview
     when (view.status) {
-        StoryRepo.Status.WRITING -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ClayGlyph(ClayIcon.WAVE, Clay.Mint, Modifier.size(28.dp))
+        StoryRepo.Status.WRITING -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(Modifier.size(26.dp), color = Clay.Mint, strokeWidth = 4.dp, trackColor = Clay.MintSoft, strokeCap = StrokeCap.Round)
             BodyText(
                 if (wish.isBlank()) "AI 이야기를 만드는 중이에요. 기다리지 않고 시작해도 돼요"
-                else "‘$wish’ 이야기와 그림을 만드는 중이에요 · 30초~1분",
+                else "${wishStep(view.waited)} · ${view.waited}초",
                 size = 19.sp, color = Clay.MintDeep, weight = FontWeight.Medium,
             )
         }
@@ -708,7 +737,8 @@ private fun lumiFace(ui: GameUi) = when (ui.phase) {
 }
 
 @Composable
-private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, preview: Story?, modifier: Modifier) {
+private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, view: StoryView, modifier: Modifier) {
+    val preview = view.preview
     val p = ui.puzzle
     val story = ui.story
     val theme = story?.picture("cover") ?: story?.themePicture ?: "theme_star_train"
@@ -744,6 +774,30 @@ private fun KidStage(ui: GameUi, met: Set<Friend>, speaking: Boolean, preview: S
         }
         if (ui.phase == Phase.SOLVED) ui.newFriend?.let { NewFriendPop(it) }
         if (ui.phase == Phase.SETUP) FriendBook(met, ui.metToday)
+        if (ui.phase == Phase.SETUP && view.status == StoryRepo.Status.WRITING && ui.setup.wish.isNotBlank()) {
+            WishingOverlay(ui.setup.wish, view.waited)
+        }
+    }
+}
+
+/** While a wish is being made: the stage dims and Lumi thinks inside a spinning ring, with what she is doing. */
+@Composable
+private fun BoxScope.WishingOverlay(wish: String, waited: Int) {
+    Box(Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.72f)))
+    Column(
+        Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Box(Modifier.size(220.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                Modifier.fillMaxSize(), color = Clay.Sun, strokeWidth = 10.dp,
+                trackColor = Color.White.copy(alpha = 0.15f), strokeCap = StrokeCap.Round,
+            )
+            Portrait("lumi_thinking", 176.dp, ringWidth = 0.dp)
+        }
+        KidText(wishStep(waited), 48.sp, color = Clay.Cream, textAlign = TextAlign.Center)
+        BodyText("‘$wish’ · ${waited}초 · 보통 30초쯤 걸려요", size = 22.sp, color = Clay.Cream.copy(alpha = 0.8f), textAlign = TextAlign.Center)
     }
 }
 

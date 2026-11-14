@@ -8,6 +8,7 @@ A story wish shows up in the title and world, and every picture is a plain card 
 Never use it for a demo of the AI story.
 """
 import io
+import os
 import re
 import time
 
@@ -50,12 +51,13 @@ class TemplateWriter:
 
 
 class CardPainter:
-    """A plain coloured card per picture, after a short wait, so the app's waiting and showing can be seen."""
+    """A plain coloured card per picture, after a wait (DEV_PAINT_SECONDS, default 1.5), so the app's waiting
+    screen can be seen without paying for real pictures."""
 
     COLORS = [(255, 197, 49), (255, 122, 89), (46, 196, 166), (77, 163, 255), (155, 123, 255), (30, 43, 94)]
 
     def paint(self, description: str) -> bytes:
-        time.sleep(1.5)
+        time.sleep(float(os.environ.get("DEV_PAINT_SECONDS", "1.5")))
         n = int(re.search(r"(\d+)", description).group(1)) if re.search(r"퍼즐 (\d+)", description) else 0
         im = Image.new("RGB", (1536, 1024), self.COLORS[n % len(self.COLORS)])
         d = ImageDraw.Draw(im)
