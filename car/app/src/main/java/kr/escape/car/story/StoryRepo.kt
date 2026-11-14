@@ -113,6 +113,9 @@ class StoryRepo(
         return ready
     }
 
+    /** The choices the episode kept on disk was written for, so the setup screen can start from them after a restart. */
+    fun savedSetup(): Setup? = saved?.setup
+
     /** 이야기 신고: fire and forget; a parent's report must never stop the game. */
     fun report(storyId: String, reason: String) {
         scope.launch(io) { runCatching { client.report(storyId, reason) } }

@@ -72,7 +72,7 @@ class Game(
     fun setup(change: (Setup) -> Setup) = _ui.update { it.copy(setup = change(it.setup)) }
 
     /**
-     * 오늘의 이야기 만들기: plays the episode the story server already wrote for this setup, or plans one and plays
+     * The start button (이 이야기로 시작하기 / 기본 이야기로 시작하기): plays the episode the story server already wrote for this setup, or plans one and plays
      * the app's own lines. Remembers the climate as the parent left it, then starts writing the next episode.
      */
     fun begin() {

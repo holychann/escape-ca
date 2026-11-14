@@ -115,6 +115,8 @@ class MainActivity : ComponentActivity() {
         stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope)
         book = FriendBook(File(filesDir, "friends.txt"))
         game = Game(source.state, lumi, stories, book)
+        // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
+        stories.savedSetup()?.let { saved -> game.setup { saved } }
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Clay.Ink, background = Clay.NightBottom, surface = Clay.Cream)) {
                 LaunchedEffect(Unit) {
@@ -371,7 +373,13 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
             if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
             BodyText("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", size = 19.sp)
         }
-        ClayButton("오늘의 이야기 만들기", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = blockers.isEmpty() && playable) {
+        // the one button that starts the game; its words say which story it starts
+        val start = when (view.status) {
+            StoryRepo.Status.READY -> "이 이야기로 시작하기"
+            StoryRepo.Status.WRITING -> "기다리지 않고 기본 이야기로 시작"
+            else -> "기본 이야기로 시작하기"
+        }
+        ClayButton(start, ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = blockers.isEmpty() && playable) {
             game.begin()
         }
     }
@@ -417,7 +425,7 @@ private fun WishBox(wish: String, view: StoryView, onWish: (String) -> Unit) {
                     }
                 },
             )
-            ClayButton("만들기", ClayStyle.SUN, Modifier.width(150.dp), height = 80.dp, enabled = draft.isNotBlank() && draft.trim() != wish) {
+            ClayButton("소원 빌기", ClayStyle.SUN, Modifier.width(190.dp), height = 80.dp, enabled = draft.isNotBlank() && draft.trim() != wish) {
                 onWish(draft.trim())
             }
         }
