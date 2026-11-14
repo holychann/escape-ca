@@ -27,12 +27,25 @@ ART = Art(
 
 
 class FakePainter:
+    """Scenes go to ``calls``, portraits to ``portraits``; ``with_friend`` lists the scenes drawn with the portrait."""
+
     def __init__(self, fail: set[str] = frozenset()):
         self.calls: list[str] = []
+        self.portraits: list[str] = []
+        self.with_friend: list[str] = []
         self.fail = fail
 
-    def paint(self, description: str) -> bytes:
+    def paint(self, description: str, friend: bytes | None = None) -> bytes:
         self.calls.append(description)
+        if friend:
+            self.with_friend.append(description)
+        return self._picture(description)
+
+    def portrait(self, description: str) -> bytes:
+        self.portraits.append(description)
+        return self._picture(description)
+
+    def _picture(self, description: str) -> bytes:
         if any(f in description for f in self.fail):
             raise RuntimeError("refused")
         out = io.BytesIO()
@@ -81,7 +94,7 @@ def test_pictures_are_drawn_served_and_tied_to_their_scenes(tmp_path):
     painter = FakePainter()
     c = client(tmp_path, FakeWriter(draft(KEYS, art=ART, world="공룡 섬")), painter)
     ep = c.post("/v1/episode", json={**BODY, "wish": "공룡 섬에서 보물찾기", "pictures": True}).json()
-    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending"} and len(painter.calls) == 5
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending", "friend"} and len(painter.calls) == 5
     assert ep["world"] == "공룡 섬"
     assert ep["scenes"]["ROOMS:LEFT"]["picture"] == "p1" and ep["scenes"]["ROOMS:RIGHT"]["picture"] == "p1"
     assert ep["scenes"]["FOG"]["picture"] == "p2"
@@ -110,9 +123,9 @@ def test_a_failed_picture_is_left_to_the_app(tmp_path):
     assert ep["scenes"]["ROOMS:LEFT"]["picture"] == "p1"
 
 
-def test_no_pictures_unless_asked(tmp_path):
+def test_no_scene_pictures_unless_asked(tmp_path):
     painter = FakePainter()
-    ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter).post("/v1/episode", json=BODY).json()
-    assert ep["images"] == {} and painter.calls == []
+    ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART, friend=None)), painter).post("/v1/episode", json=BODY).json()
+    assert ep["images"] == {} and painter.calls == [] and painter.portraits == []
     record = json.loads((tmp_path / "episodes.jsonl").read_text(encoding="utf-8"))
     assert record["wish"] is False

@@ -1,6 +1,7 @@
 package kr.escape.car.story
 
 import kr.escape.car.engine.Puzzle
+import kr.escape.car.engine.StoryFriend
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -24,6 +25,8 @@ data class Story(
     val images: Map<String, String> = emptyMap(),
     /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
     val scenePictures: Map<String, String> = emptyMap(),
+    /** Today's new friend, who joins the friend book at the treasure; its portrait is [picture] "friend". */
+    val friend: StoryFriend? = null,
 ) {
     /** [picture] names this scene's picture in [images]. */
     data class Words(val bubble: String, val speech: String, val hint: String, val picture: String? = null)
@@ -54,6 +57,7 @@ data class Story(
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
         .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
+        .put("friend", friend?.let { JSONObject().put("name", it.name).put("look", it.look).put("trait", it.trait).put("hello", it.hello) } ?: JSONObject.NULL)
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
                 o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint).put("picture", w.picture ?: JSONObject.NULL))
@@ -88,6 +92,10 @@ data class Story(
                 world = o.optString("world", ""),
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
                 scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
+                // a friend with a missing field is no friend; the story still plays
+                friend = o.optJSONObject("friend")?.let { f ->
+                    runCatching { StoryFriend(f.getString("name"), f.getString("look"), f.getString("trait"), f.getString("hello")) }.getOrNull()
+                },
             )
         }
     }

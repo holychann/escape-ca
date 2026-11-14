@@ -4,7 +4,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .checker import Verdict, art_problems, check, to_episode
+from .checker import Verdict, art_problems, check, friend_problems, to_episode
 from .models import Draft, Episode, EpisodeRequest, SceneText
 from .painter import Painter
 from .prompt import SYSTEM, user_message
@@ -25,13 +25,15 @@ def make_episode(req: EpisodeRequest, writer: Writer, attempts: int = 2) -> tupl
             log.warning("attempt %d: writer failed: %r", attempt, e)
             continue
         verdict = check(draft, req)
-        log.info("attempt %d: episode=%s scenes=%s", attempt, verdict.whole, verdict.items)
+        friend = friend_problems(draft.friend, req)
+        log.info("attempt %d: episode=%s scenes=%s friend=%s", attempt, verdict.whole, verdict.items, friend)
         if not verdict.usable:
             continue
         episode = to_episode(draft, verdict, req, uuid.uuid4().hex, model)
-        if best is None or len(verdict.items) < len(best[0].items):
+        # fewer dropped scenes first; with as many, a story that brings its new friend
+        if best is None or _score(verdict, episode) < _score(best[0], best[1]):
             best = (verdict, episode, draft)
-        if verdict.clean:
+        if verdict.clean and episode.friend is not None:
             break
     if best is None:
         return None
@@ -39,6 +41,10 @@ def make_episode(req: EpisodeRequest, writer: Writer, attempts: int = 2) -> tupl
     if verdict.items:
         episode = repair(req, writer, episode, set(verdict.items))
     return episode, draft
+
+
+def _score(verdict: Verdict, episode: Episode) -> tuple[int, bool]:
+    return len(verdict.items), episode.friend is None
 
 
 def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str]) -> Episode:
@@ -67,35 +73,47 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str]) -> E
     return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]})
 
 
-def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path) -> Episode:
-    """Draw the cover, one picture per puzzle and the ending side by side; a picture that is refused or fails is
-    left out and the app shows its own picture there."""
-    art = draft.art
-    skip = art_problems(draft, req)
-    if skip:
-        log.info("pictures not drawn: %s", skip)
+def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path, scenes: bool = True) -> Episode:
+    """Draw today's new friend's portrait and, when [scenes], the cover, one picture per puzzle and the ending.
+
+    Everything is drawn side by side, except that the cover and the ending wait for the portrait so they can show the
+    same friend. A picture that is refused or fails is left out and the app shows its own picture there.
+    """
     wanted: dict[str, str] = {}
-    if art is not None:
-        wanted["cover"] = art.cover
-        wanted["ending"] = art.ending
-        for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
-            # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
-            avoid = sorted({w for key in req.puzzles[i - 1] for w in rule_for(key).art_never})
-            wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
-    wanted = {name: text for name, text in wanted.items() if name not in skip}
-    if not wanted:
+    if scenes:
+        art = draft.art
+        skip = art_problems(draft, req)
+        if skip:
+            log.info("pictures not drawn: %s", skip)
+        if art is not None:
+            wanted["cover"] = art.cover
+            wanted["ending"] = art.ending
+            for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
+                # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
+                avoid = sorted({w for key in req.puzzles[i - 1] for w in rule_for(key).art_never})
+                wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
+        wanted = {name: text for name, text in wanted.items() if name not in skip}
+    friend = ep.friend
+    if not wanted and friend is None:
         return ep
 
-    def one(item: tuple[str, str]) -> tuple[str, bytes | None]:
-        name, text = item
+    def draw(name: str, job) -> tuple[str, bytes | None]:
         try:
-            return name, painter.paint(text)
+            return name, job()
         except Exception as e:  # refusal, timeout, no image part
             log.warning("picture %s failed: %r", name, e)
             return name, None
 
-    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
-        drawn = dict(pool.map(one, wanted.items()))
+    drawn: dict[str, bytes | None] = {}
+    with ThreadPoolExecutor(max_workers=len(wanted) + 1) as pool:
+        later = {"cover", "ending"} if friend is not None else set()
+        first = {n: pool.submit(draw, n, lambda t=t: painter.paint(t)) for n, t in wanted.items() if n not in later}
+        if friend is not None:
+            face = f"{friend.name}. {friend.look}" + (f" (사는 곳: {ep.world})" if ep.world else "")
+            drawn["friend"] = pool.submit(draw, "friend", lambda: painter.portrait(face)).result()[1]
+            portrait = drawn["friend"]
+            first |= {n: pool.submit(draw, n, lambda t=wanted[n]: painter.paint(t, portrait)) for n in later if n in wanted}
+        drawn |= dict(f.result() for f in first.values())
 
     out = folder / ep.storyId
     images = {}
@@ -104,13 +122,13 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
             out.mkdir(parents=True, exist_ok=True)
             (out / f"{name}.webp").write_bytes(data)
             images[name] = f"/v1/images/{ep.storyId}/{name}.webp"
-    scenes = dict(ep.scenes)
+    scenes_out = dict(ep.scenes)
     pictures = {}
     for i, slot in enumerate(req.puzzles, start=1):
         if f"p{i}" in images:
             for key in slot:
                 # the picture shows the world, never the answer, so it suits the app's own lines for this key too
                 pictures[key] = f"p{i}"
-                if key in scenes:
-                    scenes[key] = scenes[key].model_copy(update={"picture": f"p{i}"})
-    return ep.model_copy(update={"images": images, "scenes": scenes, "pictures": pictures})
+                if key in scenes_out:
+                    scenes_out[key] = scenes_out[key].model_copy(update={"picture": f"p{i}"})
+    return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})

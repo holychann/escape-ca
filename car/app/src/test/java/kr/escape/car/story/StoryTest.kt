@@ -132,4 +132,26 @@ class StoryTest {
         assertEquals("EVENING", body.getJSONObject("context").getString("timeOfDay"))
         assertEquals("""[["ROOMS:LEFT","ROOMS:RIGHT"],["BELT"]]""", body.getJSONArray("puzzles").toString())
     }
+
+    @Test
+    fun todaysNewFriendComesWithTheStoryAndSurvivesSaving() {
+        val o = JSONObject(
+            """{"storyId":"s1","theme":"SEA_SUB","title":"바닷속","intro":"안녕","success":["좋아"],"treasureGift":"g","treasureBadge":"b",
+               "scenes":{},"images":{"friend":"/data/story_images/s1/friend.webp"},
+               "friend":{"name":"방울 해마","look":"분홍 해마","trait":"노래를 좋아해","hello":"반가워!"}}""",
+        )
+        val story = Story.parse(o)
+        assertEquals("방울 해마", story.friend?.name)
+        assertEquals(Story.FILE + "/data/story_images/s1/friend.webp", story.picture("friend"))
+        assertEquals(story, Story.parse(story.toJson()))
+        // a friend with a missing field is left out, the story still plays
+        o.getJSONObject("friend").remove("hello")
+        assertNull(Story.parse(o).friend)
+    }
+
+    @Test
+    fun particlesFollowTheLastSyllable() {
+        assertEquals("펭귄 선장과", Lines.withAnd("펭귄 선장"))
+        assertEquals("토끼 기관사와", Lines.withAnd("토끼 기관사"))
+    }
 }

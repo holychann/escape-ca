@@ -98,6 +98,20 @@ class Art(BaseModel):
     ending: str
 
 
+class NewFriend(BaseModel):
+    """Today's new friend: someone who lives in today's world and joins the friend book when the treasure is found.
+
+    The six book friends stay the heroes of the puzzles; this one comes along on the adventure. The look is what the
+    painter draws the friend's portrait from, so it never names an answer either.
+    """
+
+    name: str
+    look: str
+    trait: str
+    # what the friend says when it joins the book
+    hello: str
+
+
 class Draft(BaseModel):
     """Exactly the shape the model is told to fill (see DRAFT_SCHEMA)."""
 
@@ -111,6 +125,8 @@ class Draft(BaseModel):
     # the day's world in one line ("공룡이 사는 화산섬"); empty in drafts written before wishes existed
     world: str = ""
     art: Art | None = None
+    # None in drafts written before every story brought a new friend
+    friend: NewFriend | None = None
 
 
 def _text(description: str) -> dict:
@@ -152,8 +168,20 @@ DRAFT_SCHEMA = {
             "required": ["cover", "puzzles", "ending"],
             "additionalProperties": False,
         },
+        "friend": {
+            "type": "object",
+            "description": "오늘의 세계에 사는 새 친구 한 명. 보물을 찾으면 친구 도감에 들어온다",
+            "properties": {
+                "name": _text("짧은 우리말 이름 2~8자. 예: 아기 공룡 뽀득"),
+                "look": _text("얼굴 그림을 그릴 생김새 한 줄: 무엇인지, 색, 소품 하나"),
+                "trait": _text("성격과 좋아하는 것 한 문장"),
+                "hello": _text("도감에 들어올 때 새 친구가 하는 인사 한마디"),
+            },
+            "required": ["name", "look", "trait", "hello"],
+            "additionalProperties": False,
+        },
     },
-    "required": ["theme", "world", "title", "intro", "success", "treasureGift", "treasureBadge", "scenes", "art"],
+    "required": ["theme", "world", "title", "intro", "success", "treasureGift", "treasureBadge", "scenes", "art", "friend"],
     "additionalProperties": False,
 }
 
@@ -176,6 +204,8 @@ class Episode(BaseModel):
     images: dict[str, str] = {}
     # answer key -> its puzzle's picture name, also for a key whose words were dropped (it plays the app's own lines)
     pictures: dict[str, str] = {}
+    # today's new friend, its portrait in images["friend"]; None when the draft had none or it failed the checks
+    friend: NewFriend | None = None
 
 
 class Report(BaseModel):

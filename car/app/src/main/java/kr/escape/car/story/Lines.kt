@@ -27,6 +27,14 @@ object Lines {
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
 
     fun newFriend(f: Friend) = "새 친구 ${f.label}, 친구 도감에 쏙 들어왔어!"
+    fun newGuest(name: String) = "오늘 함께한 새 친구 $name, 친구 도감에 쏙 들어왔어!"
+
+    /** [word] with 과 or 와, whichever its last syllable takes ("펭귄 선장과", "토끼 기관사와"). */
+    fun withAnd(word: String): String {
+        val last = word.trimEnd().lastOrNull() ?: return word
+        val closed = last in '가'..'힣' && (last - '가') % 28 != 0
+        return word + if (closed) "과" else "와"
+    }
 
     fun scene(p: Puzzle): Scene = when (p) {
         is Puzzle.WindPath -> wind(p)

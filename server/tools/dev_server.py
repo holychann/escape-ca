@@ -8,6 +8,7 @@ A story wish shows up in the title and world, and every picture is a plain card 
 Never use it for a demo of the AI story.
 """
 import io
+import itertools
 import os
 import re
 import time
@@ -16,9 +17,12 @@ import uvicorn
 from PIL import Image, ImageDraw
 
 from app.main import create_app
-from app.models import Art, Draft, DraftScene
+from app.models import Art, Draft, DraftScene, NewFriend
 from app.painter import to_webp
 from app.rules import rule_for
+
+
+_FRIEND_NAMES = itertools.cycle(["가", "나", "다", "라", "마", "바", "사", "아", "자", "차"])
 
 
 class TemplateWriter:
@@ -46,6 +50,13 @@ class TemplateWriter:
             treasureBadge="[개발용] 배지 받았어!",
             scenes=scenes,
             art=Art(cover=f"{world} 표지", puzzles=[f"{world} 퍼즐 {i}" for i in range(1, slots + 1)], ending=f"{world} 마지막"),
+            # a different friend each time, so the book can be seen growing
+            friend=NewFriend(
+                name=f"꼬마 친구 {next(_FRIEND_NAMES)}",
+                look="동그란 몸에 별 모자를 쓴 꼬마",
+                trait="[개발용] 노래를 좋아해.",
+                hello="[개발용] 반가워, 탐험대장!",
+            ),
         )
         return draft, "dev-template"
 
@@ -56,14 +67,23 @@ class CardPainter:
 
     COLORS = [(255, 197, 49), (255, 122, 89), (46, 196, 166), (77, 163, 255), (155, 123, 255), (30, 43, 94)]
 
-    def paint(self, description: str) -> bytes:
+    def paint(self, description: str, friend: bytes | None = None) -> bytes:
         time.sleep(float(os.environ.get("DEV_PAINT_SECONDS", "1.5")))
-        n = int(re.search(r"(\d+)", description).group(1)) if re.search(r"퍼즐 (\d+)", description) else 0
-        im = Image.new("RGB", (1536, 1024), self.COLORS[n % len(self.COLORS)])
+        n = int(re.search(r"퍼즐 (\d+)", description).group(1)) if re.search(r"퍼즐 (\d+)", description) else 0
+        return self._card((1536, 1024), self.COLORS[n % len(self.COLORS)], f"DEV PICTURE {'cover/ending' if n == 0 else n}")
+
+    def portrait(self, description: str) -> bytes:
+        time.sleep(float(os.environ.get("DEV_PAINT_SECONDS", "1.5")))
+        return self._card((640, 640), self.COLORS[hash(description) % len(self.COLORS)], "DEV FRIEND")
+
+    @staticmethod
+    def _card(size: tuple[int, int], color, label: str) -> bytes:
+        im = Image.new("RGB", size, color)
         d = ImageDraw.Draw(im)
-        for r in range(0, 900, 60):
-            d.ellipse((768 - r, 512 - r, 768 + r, 512 + r), outline=(255, 255, 255), width=4)
-        d.text((60, 60), f"DEV PICTURE {'cover/ending' if n == 0 else n}", fill=(255, 255, 255))
+        w, h = size
+        for r in range(0, max(size), 60):
+            d.ellipse((w / 2 - r, h / 2 - r, w / 2 + r, h / 2 + r), outline=(255, 255, 255), width=4)
+        d.text((40, 40), label, fill=(255, 255, 255))
         out = io.BytesIO(); im.save(out, "PNG")
         return to_webp(out.getvalue())
 

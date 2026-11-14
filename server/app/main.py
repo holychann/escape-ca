@@ -2,7 +2,7 @@
 
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
-GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
+GET  /v1/images/{storyId}/{name}    one of those pictures (WebP), or today's new friend's portrait
 POST /v1/report                     a parent reports a story (이야기 신고)
 GET  /health
 """
@@ -57,14 +57,15 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
         ep, draft = made
-        if req.pictures and painter is not None:
-            ep = paint_pictures(ep, draft, req, painter, images)
+        # today's new friend gets its portrait for the friend book on every story; the scenes only when asked
+        if painter is not None and (req.pictures or ep.friend is not None):
+            ep = paint_pictures(ep, draft, req, painter, images, scenes=req.pictures)
         store.episode(ep, req)
         return ep
 
     @app.get("/v1/images/{story_id}/{name}.webp")
     def image(story_id: str, name: str) -> FileResponse:
-        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|p[1-6]", name):
+        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|friend|p[1-6]", name):
             raise HTTPException(status_code=404)
         path = images / story_id / f"{name}.webp"
         if not path.is_file():

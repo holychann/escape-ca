@@ -7,6 +7,7 @@ import kr.escape.car.engine.CarRestorer
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.FriendBook
+import kr.escape.car.engine.Guest
 import kr.escape.car.engine.HoldJudge
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
@@ -20,6 +21,7 @@ import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.voice.Lumi
+import java.io.File
 
 enum class Phase { SETUP, INTRO, PLAYING, SOLVED, TREASURE, RESTORE }
 
@@ -43,6 +45,12 @@ data class GameUi(
     val story: Story? = null,
     /** The friend the puzzle just solved put in the book for the first time. */
     val newFriend: Friend? = null,
+    /** A friend already in the book that the puzzle just solved helped again (one heart more). */
+    val closer: Friend? = null,
+    /** How many puzzles [closer] has helped with now. */
+    val closerTimes: Int = 0,
+    /** Today's new friend from the story, put in the book when the treasure is found. */
+    val newGuest: Guest? = null,
     /** Friends first met in this episode, in order, for the treasure screen. */
     val metToday: List<Friend> = emptyList(),
     /** 처음 설정으로: the app is putting the car back right now. */
@@ -102,7 +110,7 @@ class Game(
         together = (p as? Puzzle.Together)?.let { TogetherJudge(it) }
         _ui.update { ui ->
             val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
-            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, resetNeeded = null)
+            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, closer = null, resetNeeded = null)
         }
         lumi.say(_ui.value.scene(p).speech)
     }
@@ -110,14 +118,17 @@ class Game(
     fun next() {
         val ui = _ui.value
         if (ui.index + 1 < ui.puzzles.size) startPuzzle(ui.index + 1) else {
-            _ui.update { it.copy(phase = Phase.TREASURE) }
             val story = ui.story
-            lumi.say(
-                when {
-                    ui.setup.giftReady -> story?.treasureGift ?: Lines.TREASURE_GIFT
-                    else -> story?.treasureBadge ?: Lines.TREASURE_BADGE
-                }
-            )
+            // today's new friend joins the book only once the adventure is done
+            val guest = story?.friend?.let { f ->
+                book?.welcome(story.storyId, f, story.title, story.picture("friend")?.removePrefix(Story.FILE)?.let(::File))
+            }
+            _ui.update { it.copy(phase = Phase.TREASURE, newGuest = guest, closer = null) }
+            val treasure = when {
+                ui.setup.giftReady -> story?.treasureGift ?: Lines.TREASURE_GIFT
+                else -> story?.treasureBadge ?: Lines.TREASURE_BADGE
+            }
+            lumi.say(if (guest == null) treasure else "$treasure ${Lines.newGuest(guest.name)}")
         }
     }
 
@@ -172,10 +183,14 @@ class Game(
         hold = null
         together = null
         val ui = _ui.value
-        val friend = ui.puzzle?.let(Friend::of)?.takeIf { book?.meet(it) == true }
+        val helper = ui.puzzle?.let(Friend::of)
+        val first = helper != null && book?.meet(helper) == true
+        val friend = helper?.takeIf { first }
+        val closer = helper?.takeIf { !first && book != null }
         _ui.update {
             it.copy(
                 phase = Phase.SOLVED, stars = it.stars + 1, newFriend = friend, metToday = it.metToday + listOfNotNull(friend),
+                closer = closer, closerTimes = closer?.let { c -> book?.book?.value?.crew?.get(c) } ?: 0,
                 resetNeeded = null,
             )
         }

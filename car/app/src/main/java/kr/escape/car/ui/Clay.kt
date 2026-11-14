@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -146,6 +147,34 @@ fun Portrait(name: String, size: Dp, ring: Color = Clay.Cream, ringWidth: Dp = 5
     ) { AssetImage(name, Modifier.size(size), dim = dim) }
 }
 
+/**
+ * A friend's round face: a picture (an asset name or "file:…"), or the first letter of the name when none was drawn.
+ * [hidden] blurs it behind a question mark, for today's friend still to come.
+ */
+@Composable
+fun FriendFace(
+    picture: String?, name: String, size: Dp,
+    ring: Color = Clay.Cream, ringWidth: Dp = 5.dp, dim: Boolean = false, hidden: Boolean = false,
+) {
+    val bmp = picture?.let { rememberAsset(it) }
+    Box(
+        Modifier.size(size).clip(CircleShape).background(if (dim) Clay.Disabled else Clay.CreamDeep).border(ringWidth, ring, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bmp != null) Image(
+            bmp, contentDescription = null, contentScale = ContentScale.Crop,
+            modifier = Modifier.size(size).then(if (hidden) Modifier.blur(size / 6) else Modifier),
+            alpha = if (dim) 0.45f else 1f,
+            colorFilter = if (dim) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null,
+        )
+        if (hidden) Box(Modifier.size(size).background(Clay.NightBottom.copy(alpha = 0.35f)))
+        if (hidden || bmp == null) KidText(
+            if (hidden) "?" else name.trim().take(1), (size.value * 0.42f).sp,
+            color = if (hidden) Clay.Cream else Clay.SunLip,
+        )
+    }
+}
+
 // ---------- buttons and tiles ----------
 
 enum class ClayStyle(val fill: Color, val lip: Color, val text: Color, val border: Color?) {
@@ -247,7 +276,7 @@ fun CheckLabel(label: String, ok: Boolean) {
 
 // ---------- line icons ----------
 
-enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE }
+enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART }
 
 /** Simple rounded line icons drawn in code, so they take any color and need no resources. */
 @Composable
@@ -291,6 +320,7 @@ fun ClayGlyph(icon: ClayIcon, color: Color, modifier: Modifier = Modifier) {
                 drawLine(color, Offset(w / 2, w * 0.28f), Offset(w / 2, w * 0.86f), w * 0.1f)
             }
             ClayIcon.WAVE -> wave(color, w)
+            ClayIcon.HEART -> drawPath(heartPath(w), color)
         }
     }
 }
@@ -301,6 +331,23 @@ private fun DrawScope.wave(color: Color, w: Float) {
     heights.forEachIndexed { i, h ->
         val x = bar * (1 + 2 * i) - bar / 2
         drawLine(color, Offset(x + bar / 2, w * (0.5f - h / 2.2f)), Offset(x + bar / 2, w * (0.5f + h / 2.2f)), bar, StrokeCap.Round)
+    }
+}
+
+fun heartPath(w: Float): Path = Path().apply {
+    moveTo(w * 0.5f, w * 0.88f)
+    cubicTo(w * 0.12f, w * 0.62f, w * 0.02f, w * 0.38f, w * 0.14f, w * 0.22f)
+    cubicTo(w * 0.28f, w * 0.06f, w * 0.46f, w * 0.12f, w * 0.5f, w * 0.28f)
+    cubicTo(w * 0.54f, w * 0.12f, w * 0.72f, w * 0.06f, w * 0.86f, w * 0.22f)
+    cubicTo(w * 0.98f, w * 0.38f, w * 0.88f, w * 0.62f, w * 0.5f, w * 0.88f)
+    close()
+}
+
+/** [count] of [max] hearts: full ones in coral, the rest faint. */
+@Composable
+fun Hearts(count: Int, max: Int, size: Dp) {
+    Row(horizontalArrangement = Arrangement.spacedBy(size / 6)) {
+        repeat(max) { i -> ClayGlyph(ClayIcon.HEART, if (i < count) Clay.Coral else Clay.Line, Modifier.size(size)) }
     }
 }
 

@@ -10,8 +10,10 @@ try:  # the private textgate library when installed, else the same checks built 
 except ImportError:
     from .gate import Verdict, find_forbidden, missing, norm, present, too_long
 
-from .models import Draft, Episode, EpisodeRequest, SceneText
-from .rules import BUBBLE_NEVER, FORBID, LIMITS, Rule, rule_for
+import re
+
+from .models import Draft, Episode, EpisodeRequest, NewFriend, SceneText
+from .rules import BUBBLE_NEVER, CAST, FORBID, LIMITS, Rule, rule_for
 
 
 def bad_words(text: str) -> list[str]:
@@ -87,6 +89,31 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
     return out
 
 
+FRIEND_MAX = {"name": 10, "look": 60, "trait": 60, "hello": 40}
+# names the new friend cannot take: the book friends, Lumi and the two people in the car
+TAKEN = {norm(f.name) for f in CAST} | {norm(n) for n in ("루미", "탐험대장", "안전 지킴이")}
+
+
+def friend_problems(friend: NewFriend | None, req: EpisodeRequest) -> list[str]:
+    """A new friend stays in the book for good and its portrait sits on screen during every puzzle, so its words
+    hold to the bubble's rules: nothing scary, no button words and no word that tells one answer from another."""
+    if friend is None:
+        return ["새 친구 없음"]
+    fields = {"name": friend.name, "look": friend.look, "trait": friend.trait, "hello": friend.hello}
+    problems = [p for name, text in fields.items() for p in too_long(name, text, FRIEND_MAX[name])]
+    problems += [f"{name} 비어 있음" for name, text in fields.items() if not text.strip()]
+    if not re.fullmatch(r"[가-힣 ]{2,10}", friend.name.strip()):
+        problems.append("이름은 우리말 2~10자")
+    if norm(friend.name) in TAKEN:
+        problems.append("이미 있는 이름")
+    text = "|".join(fields.values())
+    problems += bad_words(text)
+    answers = sorted({w for slot in req.puzzles for w in answer_words(slot)})
+    problems += [f"정답이 보이는 말: {w}" for w in present(text, answers)]
+    problems += [f"버튼 말: {w}" for w in present(text, BUBBLE_NEVER)]
+    return problems
+
+
 def check(draft: Draft, req: EpisodeRequest) -> Verdict:
     """Episode-wide problems go to ``whole``, scene problems to ``items`` under the scene's key."""
     v = Verdict(checked=req.keys)
@@ -133,4 +160,6 @@ def to_episode(draft: Draft, verdict: Verdict, req: EpisodeRequest, story_id: st
         scenes=scenes,
         dropped=[k for k in req.keys if k in verdict.items],
         world=draft.world,
+        # a friend with a problem is left out; the story itself still plays
+        friend=None if friend_problems(draft.friend, req) else draft.friend,
     )

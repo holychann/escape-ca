@@ -192,8 +192,8 @@ const ACTIONS = {
   together: async ({ rhythm, child }) => (await car()).together(rhythm, child),
   // 처음부터
   resetFriends: async () => {
-    await asApp('rm', '-f', 'files/friends.txt');
-    log('친구 도감을 비웠어요. 앱을 다시 켜면 보여요');
+    await asApp('rm', '-rf', 'files/friend_book', 'files/friends.txt');
+    log('친구 도감을 비웠어요(이야기 친구 포함). 앱을 다시 켜면 보여요');
   },
   dropStory: async () => {
     await asApp('rm', '-f', 'files/next_episode.json');
@@ -233,15 +233,22 @@ async function readStatus() {
   const state = await emulatorState();
   const ready = state === 'ready';
   await keepLinked(ready);
-  const s = { emulator: state, storyServer: await storyServerUp(), app: false, friends: [], car: null, logs };
+  const s = { emulator: state, storyServer: await storyServerUp(), app: false, friends: [], guests: [], car: null, logs };
   if (!ready) {
     dropCar();
     if (state !== 'hung') appUser = null;
     return s;
   }
-  const [pid, friends] = await Promise.all([quiet(['shell', 'pidof', PKG]), asApp('cat', 'files/friends.txt')]);
+  const [pid, book] = await Promise.all([quiet(['shell', 'pidof', PKG]), asApp('cat', 'files/friend_book/book.json')]);
   s.app = !!pid;
-  s.friends = friends.split(/\s+/).filter((x) => /^[A-Z_]+$/.test(x));
+  // the app's friend book: the six puzzle friends with how many puzzles each helped, and the friends stories brought
+  try {
+    const b = JSON.parse(book);
+    s.friends = Object.keys(b.crew ?? {});
+    s.guests = (b.guests ?? []).map((g) => g.name);
+  } catch {
+    // no book yet (nothing solved since the app was installed)
+  }
   try {
     const st = await (await car()).state();
     const h = st.hvac;
