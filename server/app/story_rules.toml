@@ -141,6 +141,7 @@ trait = "바람을 싫어해서 바람이 불면 눈을 찡그리고 투덜거�
 #   never           none of these may be in the bubble, speech or hint
 #   hint_must       groups the hint must contain, so it points the same way
 #   needs_guardian  Lumi has the child point the found button out to the 안전 지킴이 (default true)
+#   art_never       what the drawn picture of this puzzle must not show, because it would give one answer away
 
 [scene."WIND:FACE:GENTLE"]
 situation = "바람길 열기: 새싹 로봇이 돌보는 새싹 화분이 위쪽에 있고, 반대쪽에는 바람을 싫어하는 투덜이 기계가 있다. 투덜이 기계가 어느 쪽인지는 말하지 않는다. 바람을 위쪽으로 살살 보내야 한다. 정답 조작은 풍향 얼굴 쪽, 풍량 약하게."
@@ -170,11 +171,13 @@ hint_must = [["아래쪽"]]
 situation = "먼지 구름 피하기: 수달 요리사의 수프에 먼지가 들어갈까 봐 걱정이다. 먼지 구름이 밖에서 몰려온다. 바깥 공기가 들어오지 않게 막아야 한다. 정답 조작은 내기 순환 켜기."
 must = [["밖에서"]]
 never = ["안에서"]
+art_never = ["먼지", "김", "수증기", "연기", "구름", "안개"]
 
 [scene."DUST:INSIDE"]
 situation = "먼지 구름 피하기: 수달 요리사가 수프를 끓여서 안에서 김이 모락모락 피어오른다. 바깥의 맑은 공기를 들여보내야 한다. 정답 조작은 내기 순환 끄기(외기 유입)."
 must = [["안에서"]]
 never = ["밖에서"]
+art_never = ["먼지", "김", "수증기", "연기", "구름", "안개"]
 
 [scene."ROOMS:LEFT"]
 situation = "두 방 온도 맞추기: 추위를 좋아하는 펭귄 선장과 따뜻한 걸 좋아하는 사막여우가 두 방에 산다. 펭귄 방은 왼쪽이다. 펭귄 방은 시원하게, 여우 방은 따뜻하게 해야 한다. 여우 방이 어느 쪽인지는 말하지 않는다. 정답 조작은 좌우 온도 따로, 왼쪽을 반대쪽보다 2도 이상 낮게."

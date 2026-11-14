@@ -22,6 +22,8 @@ data class Story(
     val world: String = "",
     /** Picture name ("cover", "p1".., "ending") -> the server path, and after [StoryRepo] downloads it, a local file. */
     val images: Map<String, String> = emptyMap(),
+    /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
+    val scenePictures: Map<String, String> = emptyMap(),
 ) {
     /** [picture] names this scene's picture in [images]. */
     data class Words(val bubble: String, val speech: String, val hint: String, val picture: String? = null)
@@ -37,13 +39,13 @@ data class Story(
     fun picture(name: String): String? = images[name]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }?.let { FILE + it }
 
     fun scene(p: Puzzle): Scene {
-        val base = Lines.scene(p)
-        val words = scenes[StoryKeys.key(p)] ?: return base
-        val drawn = words.picture?.let(::picture)
-        return base.copy(
-            bubble = words.bubble, speech = words.speech, hint = words.hint,
-            pictures = if (drawn != null) listOf(drawn) else base.pictures,
-        )
+        val key = StoryKeys.key(p)
+        val words = scenes[key]
+        // the drawn picture shows today's world, never the answer, so it goes with the app's own lines too
+        val drawn = (words?.picture ?: scenePictures[key])?.let(::picture)
+        val base = Lines.scene(p).let { if (drawn != null) it.copy(pictures = listOf(drawn)) else it }
+        if (words == null) return base
+        return base.copy(bubble = words.bubble, speech = words.speech, hint = words.hint)
     }
 
     fun success(n: Int): String = if (success.isEmpty()) Lines.SUCCESS else success[n % success.size]
@@ -51,7 +53,7 @@ data class Story(
     fun toJson(): JSONObject = JSONObject()
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
         .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
-        .put("world", world).put("images", JSONObject(images))
+        .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
                 o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint).put("picture", w.picture ?: JSONObject.NULL))
@@ -85,6 +87,7 @@ data class Story(
                 },
                 world = o.optString("world", ""),
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
+                scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
             )
         }
     }

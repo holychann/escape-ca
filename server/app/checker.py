@@ -55,7 +55,7 @@ def answer_words(slot: list[str]) -> list[str]:
     왼쪽 / 오른쪽, 밖에서 / 안에서, the seat names). A friend's name such as 펭귄 is in every variant and stays allowed.
     """
     rules = [rule_for(k) for k in slot]
-    words = {w for r in rules for w in r.never}
+    words = {w for r in rules for w in r.never} | {w for r in rules for w in r.art_never}
     for r in rules:
         for group in r.must:
             if not all(group in other.must for other in rules):

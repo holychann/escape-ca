@@ -48,22 +48,24 @@ def to_webp(png_or_jpeg: bytes, width: int = 1536) -> bytes:
 
 
 class GeminiPainter:
-    def __init__(self, model: str | None = None, client=None):
-        self.model = model or os.environ.get("IMAGE_MODEL", IMAGE_MODEL)
-        self._client = client
-        self.refs = [Image.open(ART_DIR / f"{n}.jpg") for n in ("ref_lumi", "ref_friends", "ref_style")]
+    """Shared by the threads that draw one episode's pictures at the same time, so everything it holds is made once
+    up front: one client (a client made lazily per thread got closed under another thread) and the reference pictures
+    as bytes (PIL images read lazily from several threads came back truncated)."""
 
-    @property
-    def client(self):
-        if self._client is None:
-            from google import genai
-            from google.genai import types
-            # one picture usually takes 10~20 s; a busy minute is tried again a few seconds later
-            self._client = genai.Client(http_options=types.HttpOptions(
-                timeout=120_000,
-                retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[429, 500, 503]),
-            ))
-        return self._client
+    def __init__(self, model: str | None = None, client=None):
+        from google import genai
+        from google.genai import types
+
+        self.model = model or os.environ.get("IMAGE_MODEL", IMAGE_MODEL)
+        # one picture usually takes 10~20 s; a busy minute is tried again a few seconds later
+        self.client = client or genai.Client(http_options=types.HttpOptions(
+            timeout=120_000,
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[429, 500, 503]),
+        ))
+        self.refs = [
+            types.Part.from_bytes(data=(ART_DIR / f"{n}.jpg").read_bytes(), mime_type="image/jpeg")
+            for n in ("ref_lumi", "ref_friends", "ref_style")
+        ]
 
     def paint(self, description: str) -> bytes:
         from google.genai import types

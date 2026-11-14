@@ -174,6 +174,8 @@ class Episode(BaseModel):
     world: str = ""
     # picture name -> path on this server ("cover", "p1".."p6", "ending"); empty when nothing was drawn
     images: dict[str, str] = {}
+    # answer key -> its puzzle's picture name, also for a key whose words were dropped (it plays the app's own lines)
+    pictures: dict[str, str] = {}
 
 
 class Report(BaseModel):

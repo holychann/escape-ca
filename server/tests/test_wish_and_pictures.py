@@ -65,6 +65,8 @@ def test_answer_words_are_what_tells_the_variants_apart():
     rooms = answer_words(["ROOMS:LEFT", "ROOMS:RIGHT"])
     assert "왼쪽" in rooms and "오른쪽" in rooms and "펭귄" not in rooms
     assert {"운전석", "조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽"} <= set(answer_words(["SEAT:DRIVER", "SEAT:PASSENGER", "SEAT:REAR_LEFT", "SEAT:REAR_RIGHT"]))
+    # dust from outside or steam from inside: the picture shows neither
+    assert {"먼지", "김"} <= set(answer_words(["DUST:OUTSIDE", "DUST:INSIDE"]))
 
 
 def test_a_picture_that_would_show_the_answer_is_not_drawn():
@@ -89,6 +91,16 @@ def test_pictures_are_drawn_served_and_tied_to_their_scenes(tmp_path):
     assert c.get(f"/v1/images/{ep['storyId']}/p9.webp").status_code == 404
     # the wish itself is never written down
     assert "보물찾기" not in (tmp_path / "episodes.jsonl").read_text(encoding="utf-8")
+
+
+def test_the_painter_is_told_what_the_dust_picture_must_not_show(tmp_path):
+    painter = FakePainter()
+    body = {**BODY, "puzzles": [["DUST:OUTSIDE", "DUST:INSIDE"], ["FOG"], ["BELT"]], "pictures": True}
+    keys = ["DUST:OUTSIDE", "DUST:INSIDE", "FOG", "BELT"]
+    client(tmp_path, FakeWriter(draft(keys, art=ART)), painter).post("/v1/episode", json=body)
+    dust = [c for c in painter.calls if c.startswith(ART.puzzles[0])]
+    assert dust and "그림에 절대 넣지 말 것" in dust[0] and "김" in dust[0]
+    assert not any("그림에 절대" in c for c in painter.calls if not c.startswith(ART.puzzles[0]))
 
 
 def test_a_failed_picture_is_left_to_the_app(tmp_path):

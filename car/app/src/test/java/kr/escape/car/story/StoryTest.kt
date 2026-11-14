@@ -101,6 +101,20 @@ class StoryTest {
     }
 
     @Test
+    fun aDroppedSceneKeepsItsPuzzlesDrawnPicture() {
+        val base = Story.parse(JSONObject(json))
+        val story = base.copy(
+            images = mapOf("p2" to "/data/story_images/x/p2.webp"),
+            scenePictures = mapOf("ROOMS:RIGHT" to "p2"),
+        )
+        // ROOMS:RIGHT was dropped by the server: the app's own words, today's picture
+        val scene = story.scene(Puzzle.TwoRooms(penguinLeft = false))
+        assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = false)).speech, scene.speech)
+        assertEquals(listOf("file:/data/story_images/x/p2.webp"), scene.pictures)
+        assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
     fun aWishAsksForThatStoryAndItsPictures() {
         val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
         val body = StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(wish = "  공룡 섬에서 보물찾기 "), listOf(Puzzle.BeltMission), now)
