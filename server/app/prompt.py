@@ -55,7 +55,7 @@ _BASE = """너는 '차량탈출' 앱의 이야기 작가다. 주차한 차 안�
 - name은 짧은 우리말 이름(2~8자)이다. 실제 사람, 다른 만화나 영화의 캐릭터, 상표 이름은 쓰지 않는다. 도감 친구, 루미, 탐험대장, 안전 지킴이와 같은 이름도 쓰지 않는다.
 - look은 그림 작가가 얼굴 그림을 그릴 수 있게 무엇인지, 몸 색, 소품 하나를 꾸밈말 없이 한 줄로 쓴다. trait은 성격과 좋아하는 것 한 문장, hello는 도감에 들어올 때 새 친구가 하는 인사 한마디다.
 - intro에서 루미가 새 친구를 이름으로 소개한다. 새 친구는 모험 내내 함께 다니며 장면에 짧게 나와도 되지만, 퍼즐의 주인공이나 정답을 알려 주는 역할은 하지 않는다.
-- treasureGift와 treasureBadge에서 새 친구도 고맙다고 인사한다. 새 친구가 도감에 들어왔다는 말은 앱이 따로 하므로 쓰지 않는다.
+- treasureGift와 treasureBadge에서 새 친구도 짧게 고맙다고 인사한다(길이 제한 안에서). 새 친구가 도감에 들어왔다는 말은 앱이 따로 하므로 쓰지 않는다.
 - friend의 어느 칸에도 정답 단서(위쪽, 아래쪽, 왼쪽, 오른쪽, 안에서, 밖에서, 자리 이름, 먼지, 김, 연기)와 버튼 이름(성에, 내기, 외기, 풍향, 풍량, 독서등, 온도, 버튼)은 쓰지 않는다.
 
 그림 설명 (art)
@@ -124,6 +124,9 @@ def user_message(req: EpisodeRequest) -> str:
         *([f"- 가족이 바란 이야기: «{req.wish}» (위 '가족이 바란 이야기' 규칙대로 반영한다)"] if req.wish else []),
         f"- 길이: bubble {LIMITS.bubble}자 이내, hint {LIMITS.hint}자 이내, "
         f"speech {getattr(LIMITS.speech, req.youngest)}자 이내(2~3문장)",
+        # a draft whose title, intro or treasure lines run long is thrown away whole, so the writer is told these too
+        f"- 길이: title {LIMITS.title}자, intro {LIMITS.intro}자, success 하나에 {LIMITS.success}자, "
+        f"treasureGift와 treasureBadge는 각각 {LIMITS.treasure}자 이내(띄어쓰기 포함, 두 문장 정도). 넘으면 이야기 전체를 못 쓴다",
         "",
         "써야 할 장면 (scenes 배열에 key마다 정확히 하나씩, key는 그대로 적는다)",
     ]

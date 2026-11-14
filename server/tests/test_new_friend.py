@@ -19,6 +19,12 @@ def test_the_writer_is_asked_for_a_new_friend():
     assert "friend(오늘의 세계에 사는 새 친구 한 명)" in user_message(EpisodeRequest.model_validate(BODY))
 
 
+def test_the_writer_is_told_every_episode_wide_length_limit():
+    # the treasure lines also greet today's friend; a draft whose treasure line runs long is thrown away whole
+    msg = user_message(EpisodeRequest.model_validate(BODY))
+    assert "treasureGift와 treasureBadge는 각각 90자 이내" in msg and "title 20자" in msg and "intro 180자" in msg
+
+
 def test_a_good_friend_comes_back_with_its_portrait(tmp_path):
     painter = FakePainter()
     c, r = post(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter, wish="별빛 기차 여행", pictures=True)
