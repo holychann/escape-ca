@@ -86,9 +86,9 @@ class Lumi(context: Context) {
 
     companion object {
         /**
-         * The car's Korean voices are HAEUN (the default, the one navigation uses), SEOYOON, EUNWOO and SANGHYEOK.
-         * Lumi takes a different one so the story does not sound like route guidance.
+         * The car's Korean voices in Gleo AI's own order (설정 > 목소리 > 음성 1~6): SEOYOON, EUNWOO, HAEUN, SANGHYEOK,
+         * SIA, DOHYUN. Lumi speaks with 음성 5, SIA.
          */
-        const val VOICE = "SEOYOON"
+        const val VOICE = "SIA"
     }
 }
