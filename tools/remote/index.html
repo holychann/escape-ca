@@ -68,7 +68,7 @@
 
   <section>
     <h2>시작 조건</h2>
-    <p class="now">주차(P), 운전석 착석, 공조 전원이 모두 켜져야 "오늘의 이야기 만들기"가 눌려요</p>
+    <p class="now">주차(P), 운전석 착석, 공조 전원이 모두 켜져야 앱의 시작 버튼이 눌려요</p>
     <div class="row"><button class="main" data-a="ready">한 번에 맞추기</button></div>
   </section>
 
@@ -145,6 +145,7 @@
       <button data-a="dropStory">AI 이야기 버리기</button>
       <button data-a="appRestart">앱 다시 켜기</button>
     </div>
+    <p class="now" id="guests"></p>
   </section>
 
   <section>
@@ -217,6 +218,7 @@ function render(s) {
     f.classList.toggle('met', met);
     f.textContent = (met ? '도감에 있음: ' : '풀면 해금: ') + f.dataset.name;
   });
+  $('#guests').textContent = s.guests?.length ? `이야기 친구 ${s.guests.length}명: ${s.guests.join(', ')}` : '이야기 친구는 아직 없어요(보물을 찾으면 그 이야기의 새 친구가 들어와요)';
   $('#log').textContent = s.logs.slice().reverse().join('\n') || '아직 기록이 없어요';
 }
 

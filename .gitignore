@@ -8,3 +8,4 @@ car/.gradle/
 car/.kotlin/
 car/build/
 car/app/build/
+car/app/build.nosync/

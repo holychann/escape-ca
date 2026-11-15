@@ -50,6 +50,12 @@ def test_scene_that_fails_twice_is_left_to_the_car(tmp_path):
     assert ep["dropped"] == ["ROOMS:LEFT"] and "ROOMS:LEFT" not in ep["scenes"]
 
 
+def test_a_scene_that_fails_twice_gets_one_repair_call(tmp_path):
+    w = FakeWriter(wrong_left_room(), wrong_left_room(), draft(["ROOMS:LEFT"]))
+    ep = client(w, tmp_path).post("/v1/episode", json=BODY).json()
+    assert w.calls == 3 and ep["dropped"] == [] and "ROOMS:LEFT" in ep["scenes"]
+
+
 def test_writer_failures_end_in_502(tmp_path):
     w = FakeWriter(WriterError("stop_reason=refusal"), draft(KEYS, intro="괴물이다!"))
     r = client(w, tmp_path).post("/v1/episode", json=BODY)

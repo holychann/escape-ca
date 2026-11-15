@@ -66,9 +66,17 @@ class StoryRepoTest {
 
     private class FakeClient(private val answer: () -> Story) : StoryClient("http://127.0.0.1:9") {
         var calls = 0
+        var lastRequest: JSONObject? = null
         override fun episode(request: JSONObject): Story {
             calls++
+            lastRequest = request
             return answer()
+        }
+
+        override fun download(path: String, to: java.io.File) {
+            if ("broken" in path) throw IOException("gone")
+            to.parentFile?.mkdirs()
+            to.writeText(path)
         }
     }
 
@@ -106,6 +114,35 @@ class StoryRepoTest {
             CoroutineScope(Dispatchers.Unconfined),
         )
         assertEquals(story, afterRestart.take(Setup(), parked)?.story)
+    }
+
+    @Test
+    fun aWishedStoryComesWithItsPicturesOnTheDevice() = runTest {
+        val base = Story.parse(JSONObject(stored).getJSONObject("story"))
+        val drawn = base.copy(storyId = "a".repeat(32), images = mapOf("cover" to "/v1/images/a/cover.webp", "p1" to "/v1/images/broken/p1.webp"))
+        val client = FakeClient { drawn }
+        val r = repoWith(client, keep = null)
+        val wish = Setup(wish = "공룡 섬에서 보물찾기")
+        r.prepare(wish, parked)
+        advanceUntilIdle()
+        assertEquals("공룡 섬에서 보물찾기", client.lastRequest?.getString("wish"))
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+        val story = r.preview.value!!
+        // the cover is on the device; the picture that failed to download is left out
+        assertEquals(setOf("cover"), story.images.keys)
+        assertEquals("/v1/images/a/cover.webp", java.io.File(story.images.getValue("cover")).readText())
+        // a story written for a wish is only played for that wish
+        assertNull(r.take(Setup(), parked))
+        assertNotNull(r.take(wish, parked))
+    }
+
+    @Test
+    fun aRefusedWishSaysWhy() = runTest {
+        val r = repoWith(FakeClient { throw WishRejected(listOf("무서운 말: 귀신")) }, keep = null)
+        r.prepare(Setup(wish = "귀신의 집"), parked)
+        advanceUntilIdle()
+        assertEquals(StoryRepo.Status.REJECTED, r.status.value)
+        assertEquals(listOf("무서운 말: 귀신"), r.rejection.value)
     }
 
     @Test

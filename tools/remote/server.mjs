@@ -7,16 +7,22 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adbAsync, connect, seatName, sleep } from '../vc-lib.mjs';
+import { SDK, WIN, adbAsync, connect, seatName, sleep } from '../vc-lib.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const PORT = 8790;
 const PKG = 'kr.escape.car';
-const APK = 'C:/dev/build/escape-car/app/outputs/apk/debug/app-debug.apk';
-const EMULATOR = join(process.env.LOCALAPPDATA || '', 'Android/Sdk/emulator/emulator.exe');
+// where car/app/build.gradle.kts puts the build: C:/dev/build on Windows, build.nosync on macOS, build on Linux
+const APK = WIN
+  ? 'C:/dev/build/escape-car/app/outputs/apk/debug/app-debug.apk'
+  : join(ROOT, 'car', 'app', process.platform === 'darwin' ? 'build.nosync' : 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const EMULATOR = join(SDK, 'emulator', WIN ? 'emulator.exe' : 'emulator');
 const EMULATOR_PROCS = ['qemu-system-x86_64.exe', 'emulator.exe'];
-const PYTHON = join(ROOT, 'server', '.venv', 'Scripts', 'python.exe');
+const PYTHON = WIN ? join(ROOT, 'server', '.venv', 'Scripts', 'python.exe') : join(ROOT, 'server', '.venv', 'bin', 'python');
+const STORY_LOG = WIN ? 'C:/dev/build/story-server.log' : join(tmpdir(), 'escape-car-story-server.log');
+// macOS/Linux: the emulator and its qemu child both carry "-avd pleos" on their command line
+const AVD_MATCH = '-avd pleos';
 
 const logs = [];
 const log = (m) => {
@@ -46,7 +52,10 @@ async function quiet(args, timeout = 5000) {
 
 const run = (cmd, args) =>
   new Promise((ok) => execFile(cmd, args, { encoding: 'utf8', timeout: 10_000, windowsHide: true }, (_e, out) => ok(out || '')));
-const emulatorRunning = async () => (await run('tasklist', ['/FI', `IMAGENAME eq ${EMULATOR_PROCS[0]}`, '/NH'])).includes(EMULATOR_PROCS[0]);
+const emulatorRunning = async () =>
+  WIN
+    ? (await run('tasklist', ['/FI', `IMAGENAME eq ${EMULATOR_PROCS[0]}`, '/NH'])).includes(EMULATOR_PROCS[0])
+    : (await run('pgrep', ['-f', '--', AVD_MATCH])).trim() !== '';
 
 // The emulator can freeze while adb still lists it, and then every shell command just hangs.
 // Three unanswered checks in a row (about 15 s) count as frozen rather than slow.
@@ -84,7 +93,10 @@ async function storyServerUp() {
 
 function detached(cmd, args, opts = {}) {
   const out = opts.logFile ? openSync(opts.logFile, 'a') : 'ignore';
-  spawn(cmd, args, { cwd: opts.cwd, detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref();
+  const child = spawn(cmd, args, { cwd: opts.cwd, detached: true, stdio: ['ignore', out, out], windowsHide: true });
+  // a missing program (no server/.venv, no emulator) must not take the remote down with it
+  child.on('error', (e) => log(`실행 실패: ${cmd} (${e.code || e.message})`));
+  child.unref();
 }
 
 // After a crash the emulator keeps the report and, on the next start, waits on a "send report?" window
@@ -127,15 +139,17 @@ const ACTIONS = {
   emulatorRestart: async () => {
     dropCar();
     log('에뮬레이터를 끄는 중이에요');
-    for (const p of EMULATOR_PROCS) await run('taskkill', ['/F', '/T', '/IM', p]);
+    if (WIN) for (const p of EMULATOR_PROCS) await run('taskkill', ['/F', '/T', '/IM', p]);
+    else await run('pkill', ['-9', '-f', '--', AVD_MATCH]);
     for (let i = 0; i < 20 && (await emulatorRunning()); i++) await sleep(500);
     launchEmulator();
   },
   storyServer: async () => {
     if (await storyServerUp()) return log('이야기 서버가 이미 켜져 있어요');
+    if (!existsSync(PYTHON)) return log('이야기 서버가 설치돼 있지 않아요(server/.venv). 앱은 기본 이야기로 진행돼요');
     detached(PYTHON, ['-m', 'uvicorn', 'app.main:app', '--env-file', '.env', '--host', '127.0.0.1', '--port', '8787'], {
       cwd: join(ROOT, 'server'),
-      logFile: 'C:/dev/build/story-server.log',
+      logFile: STORY_LOG,
     });
     log('이야기 서버를 켜는 중이에요');
   },
@@ -178,8 +192,8 @@ const ACTIONS = {
   together: async ({ rhythm, child }) => (await car()).together(rhythm, child),
   // 처음부터
   resetFriends: async () => {
-    await asApp('rm', '-f', 'files/friends.txt');
-    log('친구 도감을 비웠어요. 앱을 다시 켜면 보여요');
+    await asApp('rm', '-rf', 'files/friend_book', 'files/friends.txt');
+    log('친구 도감을 비웠어요(이야기 친구 포함). 앱을 다시 켜면 보여요');
   },
   dropStory: async () => {
     await asApp('rm', '-f', 'files/next_episode.json');
@@ -197,7 +211,8 @@ async function keepLinked(ready) {
   if (Date.now() - lastLinkCheck < 5000) return;
   lastLinkCheck = Date.now();
   // the server takes a few seconds to come up; starting it again meanwhile would only fail on the port
-  if (Date.now() - storyStartedAt > 30_000 && !(await storyServerUp())) {
+  // without server/.venv there is nothing to start; the app plays its own lines
+  if (existsSync(PYTHON) && Date.now() - storyStartedAt > 30_000 && !(await storyServerUp())) {
     storyStartedAt = Date.now();
     await ACTIONS.storyServer();
   }
@@ -218,15 +233,22 @@ async function readStatus() {
   const state = await emulatorState();
   const ready = state === 'ready';
   await keepLinked(ready);
-  const s = { emulator: state, storyServer: await storyServerUp(), app: false, friends: [], car: null, logs };
+  const s = { emulator: state, storyServer: await storyServerUp(), app: false, friends: [], guests: [], car: null, logs };
   if (!ready) {
     dropCar();
     if (state !== 'hung') appUser = null;
     return s;
   }
-  const [pid, friends] = await Promise.all([quiet(['shell', 'pidof', PKG]), asApp('cat', 'files/friends.txt')]);
+  const [pid, book] = await Promise.all([quiet(['shell', 'pidof', PKG]), asApp('cat', 'files/friend_book/book.json')]);
   s.app = !!pid;
-  s.friends = friends.split(/\s+/).filter((x) => /^[A-Z_]+$/.test(x));
+  // the app's friend book: the six puzzle friends with how many puzzles each helped, and the friends stories brought
+  try {
+    const b = JSON.parse(book);
+    s.friends = Object.keys(b.crew ?? {});
+    s.guests = (b.guests ?? []).map((g) => g.name);
+  } catch {
+    // no book yet (nothing solved since the app was installed)
+  }
   try {
     const st = await (await car()).state();
     const h = st.hvac;

@@ -80,9 +80,46 @@ class StoryTest {
         // dropped by the server's checker: the app's own lines
         assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = false)), story.scene(Puzzle.TwoRooms(penguinLeft = false)))
         assertEquals("theme_sea_sub", story.themePicture)
-        assertEquals(listOf("theme_sea_sub"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
+        // the together puzzle has its own stage picture (the train door), whatever the theme
+        assertEquals(listOf("scene_together"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
         assertEquals("해냈어!", story.success(3))
         assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
+    fun aDrawnPictureReplacesTheScenesOwnOnlyOnceItIsOnTheDevice() {
+        val base = Story.parse(JSONObject(json))
+        val words = base.scenes.getValue("ROOMS:LEFT").copy(picture = "p1")
+        val fromServer = base.copy(scenes = base.scenes + ("ROOMS:LEFT" to words), images = mapOf("p1" to "/v1/images/x/p1.webp"))
+        // still on the server: the app's own picture
+        assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures, fromServer.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures)
+        val local = fromServer.copy(images = mapOf("p1" to "/data/story_images/x/p1.webp", "cover" to "/data/story_images/x/cover.webp"))
+        assertEquals(listOf("file:/data/story_images/x/p1.webp"), local.scene(Puzzle.TwoRooms(penguinLeft = true)).pictures)
+        assertEquals("file:/data/story_images/x/cover.webp", local.picture("cover"))
+        assertEquals(null, local.picture("ending"))
+        assertEquals(local, Story.parse(local.toJson()))
+    }
+
+    @Test
+    fun aDroppedSceneKeepsItsPuzzlesDrawnPicture() {
+        val base = Story.parse(JSONObject(json))
+        val story = base.copy(
+            images = mapOf("p2" to "/data/story_images/x/p2.webp"),
+            scenePictures = mapOf("ROOMS:RIGHT" to "p2"),
+        )
+        // ROOMS:RIGHT was dropped by the server: the app's own words, today's picture
+        val scene = story.scene(Puzzle.TwoRooms(penguinLeft = false))
+        assertEquals(Lines.scene(Puzzle.TwoRooms(penguinLeft = false)).speech, scene.speech)
+        assertEquals(listOf("file:/data/story_images/x/p2.webp"), scene.pictures)
+        assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
+    fun aWishAsksForThatStoryAndItsPictures() {
+        val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
+        val body = StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(wish = "  공룡 섬에서 보물찾기 "), listOf(Puzzle.BeltMission), now)
+        assertEquals("공룡 섬에서 보물찾기", body.getString("wish"))
+        assertEquals(true, body.getBoolean("pictures"))
     }
 
     @Test
@@ -94,5 +131,27 @@ class StoryTest {
         assertEquals("AUTUMN", body.getJSONObject("context").getString("season"))
         assertEquals("EVENING", body.getJSONObject("context").getString("timeOfDay"))
         assertEquals("""[["ROOMS:LEFT","ROOMS:RIGHT"],["BELT"]]""", body.getJSONArray("puzzles").toString())
+    }
+
+    @Test
+    fun todaysNewFriendComesWithTheStoryAndSurvivesSaving() {
+        val o = JSONObject(
+            """{"storyId":"s1","theme":"SEA_SUB","title":"바닷속","intro":"안녕","success":["좋아"],"treasureGift":"g","treasureBadge":"b",
+               "scenes":{},"images":{"friend":"/data/story_images/s1/friend.webp"},
+               "friend":{"name":"방울 해마","look":"분홍 해마","trait":"노래를 좋아해","hello":"반가워!"}}""",
+        )
+        val story = Story.parse(o)
+        assertEquals("방울 해마", story.friend?.name)
+        assertEquals(Story.FILE + "/data/story_images/s1/friend.webp", story.picture("friend"))
+        assertEquals(story, Story.parse(story.toJson()))
+        // a friend with a missing field is left out, the story still plays
+        o.getJSONObject("friend").remove("hello")
+        assertNull(Story.parse(o).friend)
+    }
+
+    @Test
+    fun particlesFollowTheLastSyllable() {
+        assertEquals("펭귄 선장과", Lines.withAnd("펭귄 선장"))
+        assertEquals("토끼 기관사와", Lines.withAnd("토끼 기관사"))
     }
 }

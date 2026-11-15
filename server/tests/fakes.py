@@ -1,5 +1,5 @@
 """Hand-written drafts that pass every rule, and a writer that hands them out."""
-from app.models import Draft, DraftScene
+from app.models import Draft, DraftScene, NewFriend
 
 GOOD = {
     "WIND:FACE:GENTLE": ("새싹에게 바람을!", "위쪽 새싹이 목말라. 바람을 살살 보내는 버튼을 찾아서 안전 지킴이에게 가리켜 줄까?", "새싹은 위쪽에 있어!"),
@@ -16,6 +16,9 @@ GOOD = {
 }
 
 
+FRIEND = NewFriend(name="별똥 차장", look="노란 별 모양 몸에 작은 차장 모자를 쓴 꼬마", trait="기차 노래를 좋아하는 수줍은 친구야.", hello="반가워! 나도 이제 도감 친구야!")
+
+
 def draft(keys, **override) -> Draft:
     scenes = [DraftScene(key=k, bubble=GOOD[k][0], speech=GOOD[k][1], hint=GOOD[k][2]) for k in keys]
     fields = dict(
@@ -26,6 +29,7 @@ def draft(keys, **override) -> Draft:
         treasureGift="보물 상자가 열렸어! 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 거야.",
         treasureBadge="모두 도왔어! 탐험 배지를 받았어!",
         scenes=scenes,
+        friend=FRIEND,
     )
     fields.update(override)
     return Draft(**fields)

@@ -5,13 +5,17 @@
         android:name="android.hardware.type.automotive"
         android:required="true" />
 
-    <!-- Vehicle SDK: read only. The app never changes the car; it reads what the parent set. -->
+    <!-- Vehicle SDK: during the game the app only reads what the parent set; at the end (처음 설정으로) it puts back
+         the climate and reading lights as they were before the game, while parked. -->
     <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
     <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <!-- writes, only for 처음 설정으로 at the end (normal permissions, granted at install) -->
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
     <!-- AAOS gear, speed and driving restrictions -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
