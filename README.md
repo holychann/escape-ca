@@ -65,7 +65,7 @@ git clone https://github.com/leekwangeun/escape-car.git C:\dev\escape
 
 ## 2. 차 앱
 
-빌드 없이 바로 보려면 [Releases](https://github.com/leekwangeun/escape-car/releases)의 APK를 받아 아래 실행 단계로 넘어가면 됩니다.
+빌드 없이 바로 보려면 [`apk/`](apk/) 폴더의 제출용 release APK를 설치하고 위의 [APK로 바로 실행하기](#apk로-바로-실행하기)를 따르면 됩니다.
 
 ```powershell
 cd C:\dev\escape\car
