@@ -176,15 +176,23 @@ class EngineTest {
     }
 
     @Test
-    fun planUsesOnlyDevicesTheCarHasAndPutsBeltMissionThird() {
+    fun planUsesOnlyDevicesTheCarHasAndEndsEveryCourseWithTheBeltMission() {
         val noDual = parked.copy(devices = allDevices - Device.DUAL_TEMPERATURE)
         repeat(50) { seed ->
             val plan = Planner.plan(Setup(minutes = 15), noDual, Random(seed))
             assertEquals(5, plan.size)
-            assertEquals(Puzzle.BeltMission, plan[2])
             assertTrue(plan.none { it is Puzzle.TwoRooms })
         }
-        assertEquals(2, Planner.plan(Setup(minutes = 5), parked, Random(1)).size)
+        // every course, 5 minutes too: its car puzzles, then the belt mission once, as the last mission
+        for ((minutes, carPuzzles) in listOf(5 to 2, 10 to 3, 15 to 4)) {
+            repeat(20) { seed ->
+                val plan = Planner.plan(Setup(minutes = minutes), parked, Random(seed))
+                assertEquals(carPuzzles + 1, plan.size)
+                assertEquals(Puzzle.BeltMission, plan.last())
+                assertEquals(1, plan.count { it == Puzzle.BeltMission })
+            }
+        }
+        // no car puzzle this car can play: no game, not a belt mission alone
         assertTrue(Planner.plan(Setup(), parked.copy(devices = emptySet()), Random(1)).isEmpty())
     }
 
@@ -192,7 +200,7 @@ class EngineTest {
     fun windAnswersNeverOverlap() {
         repeat(50) { seed ->
             val p = Planner.plan(Setup(minutes = 15), parked.copy(devices = setOf(Device.FAN_DIRECTION, Device.FAN_SPEED)), Random(seed))
-            val wind = p.single() as Puzzle.WindPath
+            val wind = p.filterIsInstance<Puzzle.WindPath>().single()
             assertTrue(wind.speed == 1..2 || wind.speed == 6..8)
         }
     }

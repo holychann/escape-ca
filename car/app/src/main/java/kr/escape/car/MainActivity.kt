@@ -651,7 +651,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
     PanelCard(modifier) {
         Badge("안전 지킴이 · 부모님")
         PanelTitle(p.title)
-        BodyText(if (belt) "다음 칸으로 가기 전 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 가리킨 버튼을 확인하고 눌러 주세요")
+        BodyText(if (belt) "보물을 받기 전 마지막 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 가리킨 버튼을 확인하고 눌러 주세요")
         Middle {
             ui.resetNeeded?.let { BodyText(it, size = 22.sp, color = Clay.CoralLip, weight = FontWeight.Bold) }
             if (belt) {

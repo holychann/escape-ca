@@ -34,8 +34,8 @@ SLOTS = [
 
 def random_request(r: random.Random) -> EpisodeRequest:
     picks = [f(r) for f in r.sample(SLOTS, r.choice([2, 3, 4]))]
-    if len(picks) >= 3:
-        picks.insert(2, ["BELT"])
+    # like the app: every course ends with the belt mission once
+    picks.append(["BELT"])
     return EpisodeRequest(
         installId="00000000-0000-0000-0000-000000000000",
         ages=[r.choice(["LITTLE", "CAPTAIN", "DETECTIVE"])],

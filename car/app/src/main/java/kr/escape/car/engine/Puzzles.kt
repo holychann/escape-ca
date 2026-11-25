@@ -91,8 +91,9 @@ object Planner {
             Puzzle.Together(setup.childSeat, Rhythm.entries.random(rnd)),
         ).filter { s.devices.containsAll(it.devices) }.shuffled(rnd)
         val picks = candidates.take(puzzleCount(setup.minutes)).toMutableList()
-        // the belt mission sits after the second puzzle, as a short break between car puzzles
-        if (picks.size >= 3) picks.add(2, Puzzle.BeltMission)
+        // every course ends with the belt mission once, as the last mission before the treasure; it is not counted
+        // in puzzleCount, and with no car puzzle to play there is no game at all
+        if (picks.isNotEmpty()) picks.add(Puzzle.BeltMission)
         return picks
     }
 
