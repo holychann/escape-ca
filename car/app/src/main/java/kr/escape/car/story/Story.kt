@@ -1,9 +1,40 @@
 package kr.escape.car.story
 
+import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Puzzle
-import kr.escape.car.engine.StoryFriend
+import kr.escape.car.engine.QuizKind
 import org.json.JSONArray
 import org.json.JSONObject
+
+/**
+ * A quiz question as Lumi asks it. The story server wrote it and worked its answer out again (server app/quiz.py),
+ * or the app made it itself ([Lines.question]). The parts besides [text] are what the child's screen shows; a
+ * situation (REASON) has none, the child hears it.
+ */
+data class Question(
+    val kind: QuizKind,
+    val text: String,
+    val expr: String = "",
+    val word: String = "",
+    val terms: List<Int> = emptyList(),
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("kind", kind.name).put("text", text).put("expr", expr).put("word", word).put("terms", JSONArray(terms))
+
+    companion object {
+        /** Null for a question this app cannot ask (an unknown kind, no text): the scene then asks the app's own. */
+        fun parse(o: JSONObject): Question? = runCatching {
+            val terms = o.optJSONArray("terms") ?: JSONArray()
+            Question(
+                kind = QuizKind.valueOf(o.getString("kind")),
+                text = o.getString("text").also { require(it.isNotBlank()) },
+                expr = o.optString("expr", ""),
+                word = o.optString("word", ""),
+                terms = List(terms.length()) { terms.getInt(it) },
+            )
+        }.getOrNull()
+    }
+}
 
 /**
  * Words the story server wrote and checked for one planned episode, and the pictures it drew for it when the family
@@ -25,11 +56,15 @@ data class Story(
     val images: Map<String, String> = emptyMap(),
     /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
     val scenePictures: Map<String, String> = emptyMap(),
-    /** Today's new friend, who joins the friend book at the treasure; its portrait is [picture] "friend". */
-    val friend: StoryFriend? = null,
 ) {
-    /** [picture] names this scene's picture in [images]. */
-    data class Words(val bubble: String, val speech: String, val hint: String, val picture: String? = null)
+    /** [picture] names this scene's picture in [images]; [speech] is only the story before the question. */
+    data class Words(
+        val bubble: String,
+        val speech: String,
+        val hint: String,
+        val picture: String? = null,
+        val question: Question? = null,
+    )
 
     val themePicture: String
         get() = when (theme) {
@@ -41,13 +76,22 @@ data class Story(
     /** A drawn picture as a stage picture name ("file:/…/cover.webp"), or null when there is none on the device. */
     fun picture(name: String): String? = images[name]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }?.let { FILE + it }
 
-    fun scene(p: Puzzle): Scene {
+    /**
+     * [own] is the app's question for this puzzle, used where the server's words or question are missing; [with] is
+     * the friend going through the episode, named in the app's own lines.
+     */
+    fun scene(p: Puzzle, own: Pair<Question, String>? = null, with: Friend = Friend.BANTE): Scene {
         val key = StoryKeys.key(p)
         val words = scenes[key]
         // the drawn picture shows today's world, never the answer, so it goes with the app's own lines too
         val drawn = (words?.picture ?: scenePictures[key])?.let(::picture)
-        val base = Lines.scene(p).let { if (drawn != null) it.copy(pictures = listOf(drawn)) else it }
+        val base = Lines.scene(p, own, with).let { if (drawn != null) it.copy(pictures = listOf(drawn)) else it }
         if (words == null) return base
+        if (p is Puzzle.Quiz) {
+            // the server's story goes with the server's question; without a matching one the app asks its own
+            val q = words.question?.takeIf { it.kind == p.kind } ?: return base
+            return Lines.quizScene(p, words.bubble, words.speech, words.hint, q).copy(pictures = base.pictures)
+        }
         return base.copy(bubble = words.bubble, speech = words.speech, hint = words.hint)
     }
 
@@ -57,10 +101,10 @@ data class Story(
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
         .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
-        .put("friend", friend?.let { JSONObject().put("name", it.name).put("look", it.look).put("trait", it.trait).put("hello", it.hello) } ?: JSONObject.NULL)
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
-                o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint).put("picture", w.picture ?: JSONObject.NULL))
+                o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint)
+                    .put("picture", w.picture ?: JSONObject.NULL).put("question", w.question?.toJson() ?: JSONObject.NULL))
             }
         })
 
@@ -86,16 +130,13 @@ data class Story(
                         Words(
                             it.getString("bubble"), it.getString("speech"), it.getString("hint"),
                             if (it.has("picture") && !it.isNull("picture")) it.getString("picture") else null,
+                            it.optJSONObject("question")?.let(Question::parse),
                         )
                     }
                 },
                 world = o.optString("world", ""),
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
                 scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
-                // a friend with a missing field is no friend; the story still plays
-                friend = o.optJSONObject("friend")?.let { f ->
-                    runCatching { StoryFriend(f.getString("name"), f.getString("look"), f.getString("trait"), f.getString("hello")) }.getOrNull()
-                },
             )
         }
     }

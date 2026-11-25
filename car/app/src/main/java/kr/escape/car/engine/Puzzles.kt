@@ -7,60 +7,128 @@ enum class Age(val label: String, val years: String) {
     LITTLE("꼬마 탐험대", "4~6세"), CAPTAIN("탐험대장", "7~9세"), DETECTIVE("수석 탐정", "10~12세")
 }
 
-/** The rhythm of the "하나 둘 셋, 동시에!" puzzle. */
-enum class Rhythm(val label: String) {
-    SAME_TIME("동시에 켜기"),
-    CHILD_ONCE_PARENT_TWICE("아이 한 번, 부모 두 번"),
-    FAN_WHILE_LIT("아이 불 켜진 동안 부모가 바람 올리기"),
+/**
+ * How Lumi asks: the story server writes the question in this form, and checks its answer (server app/quiz.py). The
+ * number kinds work out to an amount for a device; a situation (REASON) is a trouble the child solves by working out
+ * which car function helps.
+ */
+enum class QuizKind(val label: String) {
+    MATH("계산 문제"), ENGLISH("영어 문제"), PATTERN("규칙 찾기"), REASON("추론")
 }
 
 /**
- * A puzzle with its answer already chosen by the rule engine. The story only dresses it up; it can never move
- * the answer. [solvedBy] reads the car state and nothing else.
+ * Where the child puts the answer: one car device, and the values an answer can take there (server quiz.DIALS and
+ * quiz.KINDS_FOR). [label] starts a number puzzle's title, which has to fit one line on the parent's panel.
+ */
+enum class Dial(val label: String, val device: Device, val range: IntRange, val kinds: List<QuizKind>) {
+    FAN("바람 세기", Device.FAN_SPEED, 1..8, listOf(QuizKind.MATH, QuizKind.ENGLISH, QuizKind.PATTERN)),
+    // answers of 1~3 are too small for a number sequence that reads naturally
+    TEMP_UP("온도", Device.TEMPERATURE, 1..3, listOf(QuizKind.MATH, QuizKind.ENGLISH, QuizKind.REASON)),
+    TEMP_DOWN("온도", Device.TEMPERATURE, 1..3, listOf(QuizKind.MATH, QuizKind.ENGLISH, QuizKind.REASON)),
+    LIGHTS("독서등", Device.READING_LIGHT, 1..4, listOf(QuizKind.MATH, QuizKind.ENGLISH, QuizKind.PATTERN)),
+    SEAT_HEAT("열선", Device.SEAT_HEAT, 1..3, listOf(QuizKind.MATH, QuizKind.ENGLISH)),
+
+    // the situation devices: their answer is which way a function goes, never an amount
+
+    /** 1 is on, 0 is off. */
+    AC("에어컨", Device.AC, 0..1, listOf(QuizKind.REASON)),
+    /** 1 keeps the outside air out (내기 순환 on), 0 lets it in. */
+    RECIRC("내기 순환", Device.RECIRCULATION, 0..1, listOf(QuizKind.REASON)),
+    /** The front window defroster, switched on. */
+    DEFROST("성에 제거", Device.DEFROST, 1..1, listOf(QuizKind.REASON)),
+    /** The fan stronger, or weaker but still blowing, than when the puzzle began. */
+    FAN_UP("바람 세기", Device.FAN_SPEED, 1..1, listOf(QuizKind.REASON)),
+    FAN_DOWN("바람 세기", Device.FAN_SPEED, 1..1, listOf(QuizKind.REASON)),
+    /** The driver seat's heat on (any step) or off. */
+    SEAT_HEAT_ON("열선", Device.SEAT_HEAT, 1..1, listOf(QuizKind.REASON)),
+    SEAT_HEAT_OFF("열선", Device.SEAT_HEAT, 0..0, listOf(QuizKind.REASON)),
+    /** The reading light over the child's seat on, or every reading light off. */
+    LIGHT_CHILD("독서등", Device.READING_LIGHT, 1..1, listOf(QuizKind.REASON)),
+    LIGHTS_OFF("독서등", Device.READING_LIGHT, 0..0, listOf(QuizKind.REASON));
+
+    /** The answers a quiz of [kind] can carry here: a situation on the temperature only says which way, so it is 1. */
+    fun values(kind: QuizKind): IntRange =
+        if (kind == QuizKind.REASON && (this == TEMP_UP || this == TEMP_DOWN)) 1..1 else range
+
+    /** What the child does to solve a situation with this answer, as the parent reads it (server quiz.REASON_ACTIONS). */
+    fun action(value: Int): String = when (this) {
+        AC -> if (value == 1) "에어컨 켜기" else "에어컨 끄기"
+        RECIRC -> if (value == 1) "내기 순환 켜기" else "내기 순환 끄기"
+        DEFROST -> "앞 유리 성에 제거 켜기"
+        TEMP_UP -> "온도 올리기"
+        TEMP_DOWN -> "온도 내리기"
+        FAN_UP -> "바람 세게 하기"
+        FAN_DOWN -> "바람 약하게 하기"
+        SEAT_HEAT_ON -> "운전석 열선 켜기"
+        SEAT_HEAT_OFF -> "운전석 열선 끄기"
+        LIGHT_CHILD -> "아이 자리 독서등 켜기"
+        LIGHTS_OFF -> "독서등 모두 끄기"
+        FAN, LIGHTS, SEAT_HEAT -> label
+    }
+}
+
+/**
+ * A puzzle with its answer already chosen by the rule engine. The story server only writes a question whose answer
+ * is that value; it can never move the answer. A quiz is solved by the car state and nothing else.
  */
 sealed class Puzzle(val title: String, val devices: Set<Device>) {
-    open fun solvedBy(s: CarState): Boolean = false
+    data class Quiz(val kind: QuizKind, val dial: Dial, val value: Int) :
+        Puzzle(if (kind == QuizKind.REASON) "${kind.label}: ${dial.action(value)}" else "${dial.label} ${kind.label}", setOf(dial.device)) {
 
-    /** ① 바람길 열기: wind toward the face or the feet, at a strength inside [speed]. */
-    data class WindPath(val direction: FanDir, val speed: IntRange) :
-        Puzzle("바람길 열기", setOf(Device.FAN_DIRECTION, Device.FAN_SPEED)) {
-        override fun solvedBy(s: CarState) = s.fanDirection == direction && s.fanSpeed != null && s.fanSpeed in speed
-    }
-
-    /** ② 먼지 구름 피하기: dust from outside wants recirculation, steam from inside wants fresh air. */
-    data class DustCloud(val fromOutside: Boolean) : Puzzle("먼지 구름 피하기", setOf(Device.RECIRCULATION)) {
-        override fun solvedBy(s: CarState) = s.recirculation == fromOutside
-    }
-
-    /** ③ 두 방 온도 맞추기: the penguin's side colder than the fox's side by at least [GAP] degrees. */
-    data class TwoRooms(val penguinLeft: Boolean) : Puzzle("두 방 온도 맞추기", setOf(Device.DUAL_TEMPERATURE)) {
-        override fun solvedBy(s: CarState): Boolean {
-            val left = s.tempLeft ?: return false
-            val right = s.tempRight ?: return false
-            val (penguin, fox) = if (penguinLeft) left to right else right to left
-            return fox - penguin >= GAP
+        /**
+         * [start] is the car when the puzzle began: a temperature or a fan that has to go up or down counts from
+         * there. [childSeat] is where the child sits, for the light over their seat.
+         */
+        fun solvedBy(s: CarState, start: CarState, childSeat: Seat = Seat.REAR_RIGHT): Boolean = when (dial) {
+            Dial.FAN -> s.fanSpeed == value
+            Dial.LIGHTS -> s.readingLights.count { it.value } == value
+            Dial.SEAT_HEAT -> s.seatHeat == value
+            Dial.AC -> s.acOn == (value == 1)
+            Dial.TEMP_UP, Dial.TEMP_DOWN -> {
+                val from = start.tempLeft
+                val now = s.tempLeft
+                when {
+                    from == null || now == null -> false
+                    // a situation only asks for the right way, by any amount
+                    kind == QuizKind.REASON -> if (dial == Dial.TEMP_UP) now - from > TEMP_EPS else from - now > TEMP_EPS
+                    else -> {
+                        val target = tempTarget(from)
+                        // a target the car cannot reach counts the other way round, so the puzzle never gets stuck
+                        if (target in TEMP_MIN..TEMP_MAX) abs(now - target) < TEMP_EPS else abs(abs(now - from) - value) < TEMP_EPS
+                    }
+                }
+            }
+            Dial.RECIRC -> s.recirculation == (value == 1)
+            Dial.DEFROST -> s.defrostFront == true
+            Dial.FAN_UP -> {
+                val from = start.fanSpeed
+                val now = s.fanSpeed
+                from != null && now != null && now > from
+            }
+            // a fan switched off is not a weaker wind
+            Dial.FAN_DOWN -> {
+                val from = start.fanSpeed
+                val now = s.fanSpeed
+                from != null && now != null && now >= 1 && now < from
+            }
+            Dial.SEAT_HEAT_ON -> (s.seatHeat ?: 0) >= 1
+            Dial.SEAT_HEAT_OFF -> s.seatHeat == 0
+            // the other lights do not matter
+            Dial.LIGHT_CHILD -> s.readingLights[childSeat] == true
+            Dial.LIGHTS_OFF -> s.readingLights.isNotEmpty() && s.readingLights.values.none { it }
         }
-    }
 
-    /** ④ 김 서린 창 닦기: the front defroster clears the fog and shows the hidden clue. */
-    data object FoggyWindow : Puzzle("김 서린 창 닦기", setOf(Device.DEFROSTER)) {
-        override fun solvedBy(s: CarState) = s.defrostFront == true
+        /** The driver's temperature a number answer asks for, counted from [from]. */
+        fun tempTarget(from: Float): Float = from + if (dial == Dial.TEMP_UP) value else -value
     }
-
-    /** ⑤ 우리 자리 조사: the reading light of the seat Lumi hid the clue in. */
-    data class SeatSearch(val seat: Seat) : Puzzle("우리 자리 조사", setOf(Device.READING_LIGHT)) {
-        override fun solvedBy(s: CarState) = s.readingLights[seat] == true
-    }
-
-    /** ⑥ 하나 둘 셋, 동시에!: judged on light events over time by [TogetherJudge], not on one snapshot. */
-    data class Together(val childSeat: Seat, val rhythm: Rhythm) :
-        Puzzle("하나 둘 셋, 동시에!", setOf(Device.READING_LIGHT))
 
     /** 벨트 딸깍 미션: no car signal at all, the parent confirms with a button. */
     data object BeltMission : Puzzle("벨트 딸깍 미션", emptySet())
 
     companion object {
-        const val GAP = 2f
+        const val TEMP_MIN = 16f
+        const val TEMP_MAX = 30f
+        private const val TEMP_EPS = 0.25f
     }
 }
 
@@ -68,76 +136,246 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
 data class Setup(
     val ages: List<Age> = listOf(Age.CAPTAIN),
     val minutes: Int = 10,
-    val giftReady: Boolean = false,
     val childSeat: Seat = Seat.REAR_RIGHT,
+    /** The friend going through every puzzle of the episode, picked in the friend book. */
+    val friend: Friend = Friend.BANTE,
     /** The story the family asked for ("공룡 섬에서 보물찾기"); blank lets the story server choose. Puzzles ignore it. */
     val wish: String = "",
 )
 
-/** Picks this episode's puzzles and their answers at random, only from devices this car has. */
-object Planner {
-    fun puzzleCount(minutes: Int) = when {
-        minutes <= 5 -> 2
-        minutes <= 10 -> 3
-        else -> 4
-    }
+/** Whether there is a question for a quiz at an age (story QuestionBank); the planner never plans a quiz without one. */
+fun interface Questions {
+    fun has(q: Puzzle.Quiz, age: Age): Boolean
 
-    fun plan(setup: Setup, s: CarState, rnd: Random = Random.Default): List<Puzzle> {
-        val candidates = listOf(
-            windPath(s.fanSpeedRange, rnd),
-            Puzzle.DustCloud(fromOutside = rnd.nextBoolean()),
-            Puzzle.TwoRooms(penguinLeft = rnd.nextBoolean()),
-            Puzzle.FoggyWindow,
-            Puzzle.SeatSearch(Seat.entries.random(rnd)),
-            Puzzle.Together(setup.childSeat, Rhythm.entries.random(rnd)),
-        ).filter { s.devices.containsAll(it.devices) }.shuffled(rnd)
-        val picks = candidates.take(puzzleCount(setup.minutes)).toMutableList()
-        // the belt mission sits after the second puzzle, as a short break between car puzzles
-        if (picks.size >= 3) picks.add(2, Puzzle.BeltMission)
-        return picks
-    }
-
-    /**
-     * Called when a puzzle starts: an answer the car already shows (a light left on, recirculation already on)
-     * would be solved before the child says a word, so it is drawn again away from the current state.
-     */
-    fun refresh(p: Puzzle, s: CarState, rnd: Random = Random.Default): Puzzle {
-        if (!p.solvedBy(s)) return p
-        return when (p) {
-            is Puzzle.WindPath -> {
-                val other = if (p.direction == FanDir.FACE) FanDir.FLOOR else FanDir.FACE
-                p.copy(direction = other)
-            }
-            is Puzzle.DustCloud -> p.copy(fromOutside = !p.fromOutside)
-            is Puzzle.TwoRooms -> p.copy(penguinLeft = !p.penguinLeft)
-            is Puzzle.SeatSearch -> {
-                val dark = Seat.entries.filter { s.readingLights[it] != true }
-                if (dark.isEmpty()) p else p.copy(seat = dark.random(rnd))
-            }
-            else -> p
-        }
-    }
-
-    /** Gentle is the lowest two steps, strong the highest three, so the two answers never touch. */
-    fun windSpeed(range: IntRange, gentle: Boolean): IntRange =
-        if (gentle) range.first..(range.first + 1) else (range.last - 2)..range.last
-
-    private fun windPath(range: IntRange, rnd: Random): Puzzle.WindPath {
-        val direction = if (rnd.nextBoolean()) FanDir.FACE else FanDir.FLOOR
-        return Puzzle.WindPath(direction, windSpeed(range, gentle = rnd.nextBoolean()))
+    companion object {
+        /** Every quiz has one: the app's own built-in questions (story Lines.question), for when there is no bank. */
+        val ANY = Questions { _, _ -> true }
     }
 }
 
 /**
- * Solved only when the parent has changed the car into the answer and it has held for [holdMs]: a state that was
- * already the answer when the puzzle began, or a value passed through on the way to another one, does not count.
+ * Picks this episode's quizzes, their devices and answers at random, only from devices this car has, and never one
+ * whose answer the car already shows: the child always has to change something.
  */
-class HoldJudge(private val puzzle: Puzzle, private val holdMs: Long = 1000) {
+object Planner {
+    /** Puzzles in one episode, the belt mission included. */
+    fun puzzleCount(minutes: Int) = when {
+        minutes <= 5 -> 3
+        minutes <= 10 -> 4
+        else -> 5
+    }
+
+    /** The youngest child on board sets how hard the questions are and which situations are told. */
+    fun youngest(setup: Setup): Age = setup.ages.minByOrNull { it.ordinal } ?: Age.CAPTAIN
+
+    /**
+     * Situations the youngest (4~6) are never told: they do not know the recirculation button, and hear "에어컨" in a
+     * cooling story as the answer (server quiz.REASON_NOT_LITTLE).
+     */
+    private val NOT_LITTLE = setOf(Dial.RECIRC, Dial.TEMP_DOWN)
+
+    /** Whether a quiz of this kind is ever asked at [age]. */
+    fun allowed(q: Puzzle.Quiz, age: Age): Boolean =
+        !(q.kind == QuizKind.REASON && age == Age.LITTLE && q.dial in NOT_LITTLE)
+
+    fun plan(setup: Setup, s: CarState, rnd: Random = Random.Default, questions: Questions = Questions.ANY): List<Puzzle> {
+        // every quiz each device of this car could ask right now; a device with none sits this episode out
+        val byDevice = Device.entries.filter { it in s.devices }
+            .associateWith { options(it, s, setup, questions) }
+            .filterValues { it.isNotEmpty() }
+        // one puzzle per device at most
+        val devices = byDevice.keys.shuffled(rnd).take(puzzleCount(setup.minutes) - 1)
+        fun situations(d: Device) = byDevice.getValue(d).filter { it.kind == QuizKind.REASON }
+        fun numbers(d: Device) = byDevice.getValue(d).filter { it.kind != QuizKind.REASON }
+
+        // about half the quizzes are situations, as far as the devices allow: a device that can only tell a
+        // situation tells one, the others take turns at random
+        val only = devices.filter { numbers(it).isEmpty() }
+        val either = devices.filter { situations(it).isNotEmpty() && numbers(it).isNotEmpty() }.shuffled(rnd)
+        val want = ((devices.size + rnd.nextInt(2)) / 2).coerceAtLeast(only.size)
+        val told = (only + either.take(want - only.size)).toSet()
+
+        // a different number kind for each puzzle where the devices allow it; the most limited device chooses first
+        val used = mutableSetOf<QuizKind>()
+        val counted = devices.filter { it !in told }.sortedBy { d -> numbers(d).map { it.kind }.toSet().size }.associateWith { d ->
+            val kinds = numbers(d).map { it.kind }.distinct().shuffled(rnd)
+            val kind = (kinds.firstOrNull { it !in used } ?: kinds.first()).also { used += it }
+            numbers(d).filter { it.kind == kind }.random(rnd)
+        }
+        val quizzes = devices.map { d -> if (d in told) situations(d).random(rnd) else counted.getValue(d) }
+        val picks = order(quizzes, s, setup).toMutableList<Puzzle>()
+        // the belt mission sits after the second puzzle, as a short break between car puzzles
+        if (picks.size >= 2) picks.add(2, Puzzle.BeltMission)
+        return picks
+    }
+
+    /** Every quiz on device [d] the car allows now with a question for the youngest. */
+    private fun options(d: Device, s: CarState, setup: Setup, questions: Questions): List<Puzzle.Quiz> {
+        val age = youngest(setup)
+        return Dial.entries.filter { it.device == d }
+            .flatMap { dial -> dial.kinds.flatMap { kind -> dial.values(kind).map { Puzzle.Quiz(kind, dial, it) } } }
+            .filter { fits(it, s, setup) && questions.has(it, age) }
+    }
+
+    /**
+     * Whether [q] may be asked with the car as [s] is: the car has the device, does not already show the answer, and
+     * for a situation the story fits the car (a "too hot" story only while the air conditioner is off, and so on).
+     * Checked when the episode is planned and again when the puzzle starts.
+     */
+    fun fits(q: Puzzle.Quiz, s: CarState, setup: Setup): Boolean {
+        if (q.dial.device !in s.devices || q.kind !in q.dial.kinds || q.value !in q.dial.values(q.kind)) return false
+        if (!allowed(q, youngest(setup))) return false
+        if (q.kind != QuizKind.REASON) return when (q.dial) {
+            // which way depends on where the cabin is now
+            Dial.TEMP_UP, Dial.TEMP_DOWN -> q.dial == tempDial(s)
+            else -> q.value in answers(q.dial, s)
+        }
+        val fan = s.fanSpeed
+        val blowing = fan != null && fan >= 1
+        val temp = s.tempLeft
+        return when (q.dial) {
+            Dial.AC -> blowing && temp != null &&
+                if (q.value == 1) s.acOn == false && temp <= 26f else s.acOn == true && temp < 22f
+            Dial.TEMP_UP -> blowing && s.acOn == false && temp != null && temp < 22f && temp < Puzzle.TEMP_MAX
+            Dial.TEMP_DOWN -> blowing && s.acOn == true && temp != null && temp >= 22f && temp > Puzzle.TEMP_MIN
+            Dial.RECIRC -> blowing && s.recirculation == (q.value == 0)
+            Dial.DEFROST -> s.defrostFront == false
+            Dial.FAN_UP -> fan != null && fan in 1..3 && fan < s.fanSpeedRange.last
+            Dial.FAN_DOWN -> fan != null && fan >= 6
+            Dial.SEAT_HEAT_ON -> s.seatHeat == 0
+            Dial.SEAT_HEAT_OFF -> (s.seatHeat ?: 0) >= 1
+            Dial.LIGHT_CHILD -> s.readingLights[setup.childSeat] == false
+            Dial.LIGHTS_OFF -> s.readingLights.values.any { it }
+            Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> false
+        }
+    }
+
+    /** Down when the cabin is warm, up when it is cool, so the answer stays a comfortable temperature. */
+    fun tempDial(s: CarState): Dial = if ((s.tempLeft ?: 22f) >= 22f) Dial.TEMP_DOWN else Dial.TEMP_UP
+
+    /** The answers a number dial can take on this car: within what it can set, and not what it already shows. */
+    fun answers(dial: Dial, s: CarState): List<Int> {
+        val range = when (dial) {
+            Dial.FAN -> maxOf(dial.range.first, s.fanSpeedRange.first)..minOf(dial.range.last, s.fanSpeedRange.last)
+            Dial.SEAT_HEAT -> dial.range.first..minOf(dial.range.last, s.seatHeatMax)
+            // only as many lights as the car told us about
+            Dial.LIGHTS -> dial.range.first..minOf(dial.range.last, maxOf(1, s.readingLights.size))
+            else -> dial.range
+        }.takeUnless { it.isEmpty() } ?: dial.range
+        val now = when (dial) {
+            Dial.FAN -> s.fanSpeed
+            Dial.LIGHTS -> s.readingLights.count { it.value }
+            Dial.SEAT_HEAT -> s.seatHeat
+            else -> null
+        }
+        return range.filter { it != now }
+    }
+
+    /**
+     * The car once [q] is solved, as far as another puzzle's condition can tell: a temperature or a fan moved the
+     * least it can, which lights a light count turns on left as they are.
+     */
+    fun after(q: Puzzle.Quiz, s: CarState, childSeat: Seat): CarState = when (q.dial) {
+        Dial.FAN -> s.copy(fanSpeed = q.value)
+        Dial.FAN_UP -> s.copy(fanSpeed = s.fanSpeed?.plus(1))
+        Dial.FAN_DOWN -> s.copy(fanSpeed = s.fanSpeed?.minus(1))
+        Dial.TEMP_UP -> s.copy(tempLeft = s.tempLeft?.plus(q.value))
+        Dial.TEMP_DOWN -> s.copy(tempLeft = s.tempLeft?.minus(q.value))
+        Dial.AC -> s.copy(acOn = q.value == 1)
+        Dial.RECIRC -> s.copy(recirculation = q.value == 1)
+        Dial.DEFROST -> s.copy(defrostFront = true)
+        Dial.SEAT_HEAT -> s.copy(seatHeat = q.value)
+        Dial.SEAT_HEAT_ON -> s.copy(seatHeat = maxOf(1, s.seatHeat ?: 0))
+        Dial.SEAT_HEAT_OFF -> s.copy(seatHeat = 0)
+        Dial.LIGHTS -> s
+        Dial.LIGHT_CHILD -> s.copy(readingLights = s.readingLights + (childSeat to true))
+        Dial.LIGHTS_OFF -> s.copy(readingLights = s.readingLights.mapValues { false })
+    }
+
+    /**
+     * The quizzes in an order where each one still fits once the ones before it are solved (a "too hot" story before
+     * a "warm the cabin" one would no longer fit); [quizzes] as they are when they already do, or when no order does.
+     */
+    fun order(quizzes: List<Puzzle.Quiz>, s: CarState, setup: Setup): List<Puzzle.Quiz> {
+        fun works(order: List<Puzzle.Quiz>): Boolean {
+            var now = s
+            for (q in order) {
+                if (!fits(q, now, setup)) return false
+                now = after(q, now, setup.childSeat)
+            }
+            return true
+        }
+        if (works(quizzes)) return quizzes
+        return permutations(quizzes).firstOrNull(::works) ?: quizzes
+    }
+
+    private fun <T> permutations(list: List<T>): List<List<T>> =
+        if (list.size <= 1) listOf(list)
+        else list.indices.flatMap { i -> permutations(list.take(i) + list.drop(i + 1)).map { listOf(list[i]) + it } }
+
+    /**
+     * [puzzles] with the one at [index] fitting the car [s] as it starts: a quiz the car no longer allows is swapped
+     * for its [replacement], or dropped when nothing fits. The other puzzles stay as they are.
+     */
+    fun fitted(
+        puzzles: List<Puzzle>, index: Int, s: CarState, setup: Setup, rnd: Random, questions: Questions = Questions.ANY,
+    ): List<Puzzle> {
+        val q = puzzles.getOrNull(index) as? Puzzle.Quiz ?: return puzzles
+        if (fits(q, s, setup)) return puzzles
+        val later = puzzles.drop(index + 1).flatMap { it.devices }.toSet()
+        val earlier = puzzles.take(index).flatMap { it.devices }.toSet()
+        val swap = replacement(q, s, setup, later, earlier, rnd, questions)
+            ?: return puzzles.filterIndexed { i, _ -> i != index }
+        return puzzles.mapIndexed { i, p -> if (i == index) swap else p }
+    }
+
+    /**
+     * Another quiz for [q] when the car no longer allows it as its puzzle starts (the parent changed something during
+     * an earlier one): the same function the other way first ("독서등 모두 끄기" for "아이 자리 독서등 켜기"), then
+     * anything else on the same device, then a device no other puzzle of the episode uses. [later] are the devices of
+     * the puzzles still to come, never taken; [earlier] those of the puzzles already played, taken only when nothing
+     * else fits. Null when the car allows nothing at all.
+     */
+    fun replacement(
+        q: Puzzle.Quiz, s: CarState, setup: Setup, later: Set<Device>, earlier: Set<Device>, rnd: Random,
+        questions: Questions = Questions.ANY,
+    ): Puzzle.Quiz? {
+        opposite(q)?.takeIf { fits(it, s, setup) && questions.has(it, youngest(setup)) }?.let { return it }
+        // the same kind of question where the device has one
+        fun pick(d: Device) = options(d, s, setup, questions).filter { it != q }
+            .let { all -> all.filter { it.kind == q.kind }.ifEmpty { all } }.randomOrNull(rnd)
+        pick(q.dial.device)?.let { return it }
+        val others = Device.entries.filter { it in s.devices && it != q.dial.device && it !in later }.shuffled(rnd)
+        return others.filter { it !in earlier }.firstNotNullOfOrNull(::pick)
+            ?: others.filter { it in earlier }.firstNotNullOfOrNull(::pick)
+    }
+
+    /** The same function the other way (on and off, up and down), or null for one that only goes one way. */
+    fun opposite(q: Puzzle.Quiz): Puzzle.Quiz? = when (q.dial) {
+        Dial.AC, Dial.RECIRC -> q.copy(value = 1 - q.value)
+        Dial.TEMP_UP -> q.copy(dial = Dial.TEMP_DOWN)
+        Dial.TEMP_DOWN -> q.copy(dial = Dial.TEMP_UP)
+        Dial.FAN_UP -> Puzzle.Quiz(q.kind, Dial.FAN_DOWN, 1)
+        Dial.FAN_DOWN -> Puzzle.Quiz(q.kind, Dial.FAN_UP, 1)
+        Dial.SEAT_HEAT_ON -> Puzzle.Quiz(q.kind, Dial.SEAT_HEAT_OFF, 0)
+        Dial.SEAT_HEAT_OFF -> Puzzle.Quiz(q.kind, Dial.SEAT_HEAT_ON, 1)
+        Dial.LIGHT_CHILD -> Puzzle.Quiz(q.kind, Dial.LIGHTS_OFF, 0)
+        Dial.LIGHTS_OFF -> Puzzle.Quiz(q.kind, Dial.LIGHT_CHILD, 1)
+        Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT, Dial.DEFROST -> null
+    }
+}
+
+/**
+ * Solved only when the parent has changed the car into the answer and it has held for [holdMs]: a value passed
+ * through on the way to another one does not count. A puzzle never starts with its answer showing (Planner.fits);
+ * should the car still show it at the first look, it counts only once it has been changed away and back.
+ */
+class HoldJudge(private val solved: (CarState) -> Boolean, private val holdMs: Long = HOLD_MS) {
     private var since: Long? = null
     private var armed = false
 
     fun update(s: CarState, nowMs: Long): Boolean {
-        if (!puzzle.solvedBy(s)) {
+        if (!solved(s)) {
             armed = true
             since = null
             return false
@@ -147,78 +385,11 @@ class HoldJudge(private val puzzle: Puzzle, private val holdMs: Long = 1000) {
         return nowMs - start >= holdMs
     }
 
-    /**
-     * The answer was already showing when the puzzle began (a defroster left on, every reading light lit), so it
-     * cannot count until it is undone once. The parent is told, or the puzzle looks stuck.
-     */
-    fun resetNeeded(s: CarState): String? =
-        if (!armed && puzzle.solvedBy(s)) "이미 정답 상태예요. 한 번 끈 다음, 아이가 가리키면 다시 켜 주세요" else null
-}
-
-/**
- * ⑥ 하나 둘 셋, 동시에!. Watches when the driver's and the child's reading lights come on.
- */
-class TogetherJudge(private val puzzle: Puzzle.Together, private val windowMs: Long = 1500) {
-    private var lastLights: Map<Seat, Boolean>? = null
-    private var lastFan: Int? = null
-    private val ons = ArrayDeque<Pair<Seat, Long>>()
-
-    /**
-     * The two seats whose light was already on when the puzzle began (often left on by 우리 자리 조사). Only a light
-     * switched on counts, so each must go off once; until then the parent is asked to turn it off.
-     */
-    private val stale = mutableSetOf<Seat>()
-
-    fun update(s: CarState, nowMs: Long): Boolean {
-        // the first snapshot only sets the baseline: a light already on is not a press
-        if (lastLights == null) {
-            lastLights = s.readingLights
-            lastFan = s.fanSpeed
-            stale += listOf(Seat.DRIVER, puzzle.childSeat).filter { s.readingLights[it] == true }
-            return false
-        }
-        stale.removeAll { s.readingLights[it] != true }
-        val solved = when {
-            puzzle.rhythm == Rhythm.SAME_TIME -> sameTime(s, nowMs)
-            puzzle.rhythm == Rhythm.CHILD_ONCE_PARENT_TWICE -> sequence(s, nowMs)
-            else -> fanWhileLit(s)
-        }
-        lastLights = s.readingLights
-        lastFan = s.fanSpeed
-        return solved
+    companion object {
+        /**
+         * Long enough that a value passed on the way somewhere else does not count (a light switched on one seat at a
+         * time stops at every count for a moment), short enough that the child is not left waiting.
+         */
+        const val HOLD_MS = 2500L
     }
-
-    private fun turnedOn(s: CarState, seat: Seat) = s.readingLights[seat] == true && lastLights?.get(seat) != true
-
-    private fun record(s: CarState, nowMs: Long) {
-        for (seat in listOf(Seat.DRIVER, puzzle.childSeat)) if (turnedOn(s, seat)) ons.addLast(seat to nowMs)
-        while (ons.size > 6) ons.removeFirst()
-    }
-
-    private fun sameTime(s: CarState, nowMs: Long): Boolean {
-        record(s, nowMs)
-        val driver = ons.lastOrNull { it.first == Seat.DRIVER }?.second ?: return false
-        val child = ons.lastOrNull { it.first == puzzle.childSeat }?.second ?: return false
-        return abs(driver - child) <= windowMs
-    }
-
-    /** Child on, then the driver on twice, each step within twice the window of the one before. */
-    private fun sequence(s: CarState, nowMs: Long): Boolean {
-        record(s, nowMs)
-        val last3 = ons.takeLast(3)
-        if (last3.size < 3) return false
-        val pattern = last3.map { it.first } == listOf(puzzle.childSeat, Seat.DRIVER, Seat.DRIVER)
-        val paced = last3.zipWithNext().all { (a, b) -> b.second - a.second <= windowMs * 2 }
-        return pattern && paced
-    }
-
-    private fun fanWhileLit(s: CarState): Boolean {
-        val before = lastFan ?: return false
-        val now = s.fanSpeed ?: return false
-        // a light left on from before is not the child's turn: without this the parent solves it alone
-        return puzzle.childSeat !in stale && s.readingLights[puzzle.childSeat] == true && now > before
-    }
-
-    fun resetNeeded(): String? =
-        if (stale.isEmpty()) null else "먼저 ${stale.joinToString(", ") { it.label }} 독서등을 꺼 주세요"
 }

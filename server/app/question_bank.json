@@ -1,0 +1,3077 @@
+{
+ "version": 2,
+ "questions": [
+  {
+   "id": "fan-l-002",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 3 빼기 2단으로 맞춰 줘!",
+   "hint": "손가락 세 개를 펴고 두 개를 접어 봐. 남은 손가락을 세면 돼.",
+   "answer": 1,
+   "expr": "3-2"
+  },
+  {
+   "id": "fan-l-038",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 5 빼기 4단으로 맞춰 줘!",
+   "hint": "손가락 다섯 개를 펴고 네 개를 접은 뒤 남은 손가락을 세어 봐!",
+   "answer": 1,
+   "expr": "5-4"
+  },
+  {
+   "id": "fan-l-004",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 3 빼기 1단으로 맞춰 줘!",
+   "hint": "손가락 세 개를 펴고 한 개를 접어 봐.",
+   "answer": 2,
+   "expr": "3-1"
+  },
+  {
+   "id": "fan-l-062",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 5 빼기 3단으로 맞춰 줘!",
+   "hint": "손가락 다섯 개를 펴고 세 개를 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 2,
+   "expr": "5-3"
+  },
+  {
+   "id": "fan-l-006",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 2 더하기 1단으로 맞춰 줘!",
+   "hint": "손가락 두 개에 한 개를 더 펴고 모두 세어 봐.",
+   "answer": 3,
+   "expr": "2+1"
+  },
+  {
+   "id": "fan-l-068",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 4 빼기 1단으로 맞춰 줘!",
+   "hint": "손가락을 네 개 펴고 하나를 접은 다음 남은 손가락을 세어 봐.",
+   "answer": 3,
+   "expr": "4-1"
+  },
+  {
+   "id": "fan-l-008",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 1 더하기 3단으로 맞춰 줘!",
+   "hint": "손가락 한 개에 세 개를 더 펴고 모두 세어 봐.",
+   "answer": 4,
+   "expr": "1+3"
+  },
+  {
+   "id": "fan-l-041",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 5 빼기 1단으로 맞춰 줘!",
+   "hint": "손가락 다섯 개를 펴고 한 개를 접은 뒤 남은 손가락을 세어 봐!",
+   "answer": 4,
+   "expr": "5-1"
+  },
+  {
+   "id": "fan-l-010",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 2 더하기 3단으로 맞춰 줘!",
+   "hint": "손가락 두 개와 세 개를 펴서 모두 세어 봐.",
+   "answer": 5,
+   "expr": "2+3"
+  },
+  {
+   "id": "fan-l-064",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 4 더하기 1단으로 맞춰 줘!",
+   "hint": "손가락 네 개를 펴고 한 개를 더 펴서 모두 세어 봐.",
+   "answer": 5,
+   "expr": "4+1"
+  },
+  {
+   "id": "fan-l-012",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 1 더하기 5단으로 맞춰 줘!",
+   "hint": "한 손을 다 펴고 다른 손 손가락 한 개를 더 펴서 세어 봐.",
+   "answer": 6,
+   "expr": "1+5"
+  },
+  {
+   "id": "fan-l-043",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 2 더하기 4단으로 맞춰 줘!",
+   "hint": "한 손에 두 개, 다른 손에 네 개 손가락을 펴고 모두 세어 봐!",
+   "answer": 6,
+   "expr": "2+4"
+  },
+  {
+   "id": "fan-l-014",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 2 더하기 5단으로 맞춰 줘!",
+   "hint": "한 손을 다 펴고 다른 손 손가락 두 개를 더 펴서 세어 봐.",
+   "answer": 7,
+   "expr": "2+5"
+  },
+  {
+   "id": "fan-l-058",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 3 더하기 4단으로 맞춰 줘!",
+   "hint": "한 손으로 셋을 펴고 다른 손으로 넷을 편 다음 모두 세어 봐.",
+   "answer": 7,
+   "expr": "3+4"
+  },
+  {
+   "id": "fan-l-016",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 3 더하기 5단으로 맞춰 줘!",
+   "hint": "한 손을 다 펴고 다른 손 손가락 세 개를 더 펴서 세어 봐.",
+   "answer": 8,
+   "expr": "3+5"
+  },
+  {
+   "id": "fan-l-045",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 4 더하기 4단으로 맞춰 줘!",
+   "hint": "두 손에 손가락을 네 개씩 펴고 모두 세어 봐!",
+   "answer": 8,
+   "expr": "4+4"
+  },
+  {
+   "id": "fan-c-106",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 4 빼기 3단으로 맞춰 줘!",
+   "hint": "손가락 네 개를 펴고 세 개를 접어 봐. 남은 손가락이 바람 세기야.",
+   "answer": 1,
+   "expr": "4-3"
+  },
+  {
+   "id": "fan-c-116",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 6 빼기 5단으로 맞춰 줘!",
+   "hint": "손가락을 여섯 개 펴고 다섯 개를 접어 봐.",
+   "answer": 1,
+   "expr": "6-5"
+  },
+  {
+   "id": "fan-c-004",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 7 빼기 5단으로 맞춰 줘!",
+   "hint": "일곱에서 다섯을 거꾸로 세어 내려가 봐!",
+   "answer": 2,
+   "expr": "7-5"
+  },
+  {
+   "id": "fan-c-070",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 9 빼기 7단으로 맞춰 줘!",
+   "hint": "아홉에서 하나씩 거꾸로 일곱 번 세어 내려가 봐.",
+   "answer": 2,
+   "expr": "9-7"
+  },
+  {
+   "id": "fan-c-006",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 7 빼기 4단으로 맞춰 줘!",
+   "hint": "일곱 개에서 네 개를 빼고 남은 것을 세어 봐!",
+   "answer": 3,
+   "expr": "7-4"
+  },
+  {
+   "id": "fan-c-039",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 1 더하기 2단으로 맞춰 줘!",
+   "hint": "손가락을 하나 펴고 더하는 만큼 더 펴서 세어 봐요.",
+   "answer": 3,
+   "expr": "1+2"
+  },
+  {
+   "id": "fan-c-008",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 6 빼기 2단으로 맞춰 줘!",
+   "hint": "여섯에서 두 번 거꾸로 세어 봐!",
+   "answer": 4,
+   "expr": "6-2"
+  },
+  {
+   "id": "fan-c-131",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 3 더하기 1단으로 맞춰 줘!",
+   "hint": "손가락을 세 개 펴고 하나를 더 펴서 세어 봐.",
+   "answer": 4,
+   "expr": "3+1"
+  },
+  {
+   "id": "fan-c-010",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 9 빼기 4단으로 맞춰 줘!",
+   "hint": "아홉에서 네 번 거꾸로 세어 봐!",
+   "answer": 5,
+   "expr": "9-4"
+  },
+  {
+   "id": "fan-c-174",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 8 빼기 3단으로 맞춰 줘!",
+   "hint": "손가락 여덟 개를 펴고 세 개를 접은 다음 남은 손가락을 세어 봐.",
+   "answer": 5,
+   "expr": "8-3"
+  },
+  {
+   "id": "fan-c-012",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 10 빼기 4단으로 맞춰 줘!",
+   "hint": "손가락 열 개를 펴고 네 개를 접어 봐!",
+   "answer": 6,
+   "expr": "10-4"
+  },
+  {
+   "id": "fan-c-093",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 4 더하기 2단으로 맞춰 줘!",
+   "hint": "네 개에서 시작해서 두 번 더 세어 봐.",
+   "answer": 6,
+   "expr": "4+2"
+  },
+  {
+   "id": "fan-c-109",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 9 빼기 2단으로 맞춰 줘!",
+   "hint": "아홉에서 거꾸로 두 번 세어 내려가 봐.",
+   "answer": 7,
+   "expr": "9-2"
+  },
+  {
+   "id": "fan-c-130",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 5 더하기 2단으로 맞춰 줘!",
+   "hint": "한 손 손가락에 다른 손 손가락 두 개를 더해서 모두 세어 봐.",
+   "answer": 7,
+   "expr": "5+2"
+  },
+  {
+   "id": "fan-c-015",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 5 더하기 3단으로 맞춰 줘!",
+   "hint": "다섯에서 세 번 더 세어 봐!",
+   "answer": 8,
+   "expr": "5+3"
+  },
+  {
+   "id": "fan-c-045",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 10 빼기 2단으로 맞춰 줘!",
+   "hint": "열 손가락을 펴고 빼는 만큼 접은 뒤 남은 손가락을 세어 봐요.",
+   "answer": 8,
+   "expr": "10-2"
+  },
+  {
+   "id": "fan-d-002",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 2 곱하기 3 빼기 5단으로 맞춰 줘!",
+   "hint": "먼저 2와 3을 곱하고, 그 수에서 5를 빼 봐.",
+   "answer": 1,
+   "expr": "2*3-5"
+  },
+  {
+   "id": "fan-d-050",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 2 곱하기 4 빼기 7단으로 맞춰 줘!",
+   "hint": "먼저 곱셈을 하고 나서 그 수에서 빼 보세요.",
+   "answer": 1,
+   "expr": "2*4-7"
+  },
+  {
+   "id": "fan-d-004",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 3 곱하기 4 빼기 10단으로 맞춰 줘!",
+   "hint": "3을 네 번 더한 수를 구하고, 거기서 10을 빼 봐.",
+   "answer": 2,
+   "expr": "3*4-10"
+  },
+  {
+   "id": "fan-d-061",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 12 빼기 4 빼기 6단으로 맞춰 줘!",
+   "hint": "앞에서부터 차례대로 하나씩 빼 보면 돼.",
+   "answer": 2,
+   "expr": "12-4-6"
+  },
+  {
+   "id": "fan-d-038",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 10 빼기 7단으로 맞춰 줘!",
+   "hint": "큰 수에서 작은 수만큼 손가락을 접으며 거꾸로 세어 봐.",
+   "answer": 3,
+   "expr": "10-7"
+  },
+  {
+   "id": "fan-d-051",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 5 곱하기 2 빼기 7단으로 맞춰 줘!",
+   "hint": "곱셈을 먼저 하고 그 결과에서 빼면 돼요.",
+   "answer": 3,
+   "expr": "5*2-7"
+  },
+  {
+   "id": "fan-d-007",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 11 빼기 7단으로 맞춰 줘!",
+   "hint": "11에서 7을 덜어 내면 얼마가 남는지 손가락으로 세어 봐.",
+   "answer": 4,
+   "expr": "11-7"
+  },
+  {
+   "id": "fan-d-052",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 6 더하기 6 빼기 8단으로 맞춰 줘!",
+   "hint": "두 수를 먼저 더한 다음 그 합에서 빼 보세요.",
+   "answer": 4,
+   "expr": "6+6-8"
+  },
+  {
+   "id": "fan-d-009",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 12 빼기 7단으로 맞춰 줘!",
+   "hint": "7에 얼마를 더하면 12가 되는지 생각해 봐.",
+   "answer": 5,
+   "expr": "12-7"
+  },
+  {
+   "id": "fan-d-041",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 3 곱하기 3 빼기 4단으로 맞춰 줘!",
+   "hint": "같은 수를 곱한 다음, 그 수에서 빼 봐.",
+   "answer": 5,
+   "expr": "3*3-4"
+  },
+  {
+   "id": "fan-d-011",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 3 곱하기 2단으로 맞춰 줘!",
+   "hint": "3을 두 번 더하면 얼마인지 세어 봐.",
+   "answer": 6,
+   "expr": "3*2"
+  },
+  {
+   "id": "fan-d-012",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 8 빼기 5에 2를 곱한 단으로 맞춰 줘!",
+   "hint": "먼저 8에서 5를 빼고, 나온 수를 두 번 더해 봐.",
+   "answer": 6,
+   "expr": "(8-5)*2"
+  },
+  {
+   "id": "fan-d-053",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 2 곱하기 5 빼기 3단으로 맞춰 줘!",
+   "hint": "곱한 결과를 먼저 구하고 거기서 빼 보세요.",
+   "answer": 7,
+   "expr": "2*5-3"
+  },
+  {
+   "id": "fan-d-062",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 4 곱하기 3 빼기 5단으로 맞춰 줘!",
+   "hint": "먼저 곱셈을 하고 그 수에서 빼 보자.",
+   "answer": 7,
+   "expr": "4*3-5"
+  },
+  {
+   "id": "fan-d-015",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 4 곱하기 2단으로 맞춰 줘!",
+   "hint": "4를 두 번 더하면 얼마인지 세어 봐.",
+   "answer": 8,
+   "expr": "4*2"
+  },
+  {
+   "id": "fan-d-016",
+   "kind": "MATH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 12 빼기 6 더하기 2단으로 맞춰 줘!",
+   "hint": "앞에서부터 차례로, 12에서 6을 뺀 다음 2를 더해 봐.",
+   "answer": 8,
+   "expr": "12-6+2"
+  },
+  {
+   "id": "fan-l-018",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 ONE단으로 맞춰 줘!",
+   "hint": "영어 숫자 세기 노래를 부르며 손가락으로 세어 봐.",
+   "answer": 1,
+   "word": "ONE"
+  },
+  {
+   "id": "fan-l-046",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 TWO단으로 맞춰 줘!",
+   "hint": "영어로 숫자를 하나부터 차례로 말하며 손가락을 펴 봐!",
+   "answer": 2,
+   "word": "TWO"
+  },
+  {
+   "id": "fan-l-020",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 THREE단으로 맞춰 줘!",
+   "hint": "영어 숫자 노래를 부르며 그 말이 나올 때까지 손가락을 펴 봐.",
+   "answer": 3,
+   "word": "THREE"
+  },
+  {
+   "id": "fan-l-059",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 FOUR단으로 맞춰 줘!",
+   "hint": "원, 투, 쓰리 하고 영어로 손가락을 하나씩 세어 보면 알 수 있어.",
+   "answer": 4,
+   "word": "FOUR"
+  },
+  {
+   "id": "fan-l-022",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 FIVE단으로 맞춰 줘!",
+   "hint": "엄마 아빠와 영어로 숫자를 세며 손가락을 하나씩 펴 봐.",
+   "answer": 5,
+   "word": "FIVE"
+  },
+  {
+   "id": "fan-l-072",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "송풍 바람 세기를 SIX단으로 맞춰 줘!",
+   "hint": "영어로 수를 세어 보면서 이 단어가 몇인지 손가락으로 찾아봐.",
+   "answer": 6,
+   "word": "SIX"
+  },
+  {
+   "id": "fan-l-024",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 SEVEN단으로 맞춰 줘!",
+   "hint": "영어로 숫자를 처음부터 세고 그 말에서 멈춰 손가락을 세어 봐.",
+   "answer": 7,
+   "word": "SEVEN"
+  },
+  {
+   "id": "fan-l-049",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 EIGHT단으로 맞춰 줘!",
+   "hint": "영어로 숫자를 하나부터 차례로 말하며 손가락을 펴 봐!",
+   "answer": 8,
+   "word": "EIGHT"
+  },
+  {
+   "id": "fan-d-088",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "ON의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "단어에 들어 있는 알파벳을 하나씩 손가락으로 세어 봐.",
+   "answer": 2,
+   "word": "ON"
+  },
+  {
+   "id": "fan-d-019",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "AIR의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "공기라는 뜻의 이 영어 단어 글자를 하나씩 손가락으로 세어 봐.",
+   "answer": 3,
+   "word": "AIR"
+  },
+  {
+   "id": "fan-d-020",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "WIND의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "바람이라는 뜻의 이 영어 단어 글자를 하나씩 세어 봐.",
+   "answer": 4,
+   "word": "WIND"
+  },
+  {
+   "id": "fan-d-072",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "SPEED의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "단어의 알파벳을 하나씩 손가락을 접으며 세어 봐.",
+   "answer": 5,
+   "word": "SPEED"
+  },
+  {
+   "id": "fan-d-022",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "BREEZE의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "산들바람이라는 뜻의 이 단어 글자를 하나씩 짚으며 세어 봐.",
+   "answer": 6,
+   "word": "BREEZE"
+  },
+  {
+   "id": "fan-d-084",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "COOLING의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "알파벳을 하나씩 부르면서 손가락을 접어 세어 봐.",
+   "answer": 7,
+   "word": "COOLING"
+  },
+  {
+   "id": "fan-d-067",
+   "kind": "ENGLISH",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "WINDMILL의 글자 수만큼 바람 세기를 맞춰 줘!",
+   "hint": "알파벳을 하나씩 손가락으로 짚으며 세어 봐.",
+   "answer": 8,
+   "word": "WINDMILL"
+  },
+  {
+   "id": "fan-l-050",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 4단, 3단, 2단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 작아지고 있어, 거꾸로 세어 봐!",
+   "answer": 1,
+   "terms": [
+    4,
+    3,
+    2
+   ]
+  },
+  {
+   "id": "fan-l-061",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 5단, 4단, 3단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 작아지고 있으니 거꾸로 세어 봐.",
+   "answer": 2,
+   "terms": [
+    5,
+    4,
+    3
+   ]
+  },
+  {
+   "id": "fan-l-028",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 0단, 1단, 2단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 커지고 있어, 이어서 세어 봐.",
+   "answer": 3,
+   "terms": [
+    0,
+    1,
+    2
+   ]
+  },
+  {
+   "id": "fan-l-070",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 7단, 6단, 5단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 작아지고 있어, 거꾸로 세듯이 이어서 말해 봐.",
+   "answer": 4,
+   "terms": [
+    7,
+    6,
+    5
+   ]
+  },
+  {
+   "id": "fan-l-030",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 8단, 7단, 6단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 작아지고 있어, 손가락을 하나씩 접으며 세어 봐.",
+   "answer": 5,
+   "terms": [
+    8,
+    7,
+    6
+   ]
+  },
+  {
+   "id": "fan-l-053",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 3단, 4단, 5단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 커지고 있어, 이어서 세어 봐!",
+   "answer": 6,
+   "terms": [
+    3,
+    4,
+    5
+   ]
+  },
+  {
+   "id": "fan-l-032",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "바람 세기를 10단, 9단, 8단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 줄어들고 있어, 큰 수부터 거꾸로 세어 봐.",
+   "answer": 7,
+   "terms": [
+    10,
+    9,
+    8
+   ]
+  },
+  {
+   "id": "fan-l-067",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "LITTLE",
+   "text": "송풍 바람을 5단, 6단, 7단 다음 단으로 맞춰 줘!",
+   "hint": "수가 하나씩 커지고 있으니 계속 이어서 세어 봐.",
+   "answer": 8,
+   "terms": [
+    5,
+    6,
+    7
+   ]
+  },
+  {
+   "id": "fan-c-164",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 7단, 5단, 3단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 작아지는지 살펴보고 똑같이 한 번 더 빼 봐.",
+   "answer": 1,
+   "terms": [
+    7,
+    5,
+    3
+   ]
+  },
+  {
+   "id": "fan-c-051",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 8단, 6단, 4단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 작아지는지 살펴봐요.",
+   "answer": 2,
+   "terms": [
+    8,
+    6,
+    4
+   ]
+  },
+  {
+   "id": "fan-c-065",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 6단, 5단, 4단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 작아지는지 보고 한 번 더 작아지게 해 봐.",
+   "answer": 3,
+   "terms": [
+    6,
+    5,
+    4
+   ]
+  },
+  {
+   "id": "fan-c-028",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 1단, 2단, 3단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 커지는지 살펴봐!",
+   "answer": 4,
+   "terms": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "fan-c-115",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "송풍 바람을 2단, 3단, 4단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 커지는지 살펴보고 그만큼 한 번 더 키워 봐.",
+   "answer": 5,
+   "terms": [
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "id": "fan-c-054",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 0단, 2단, 4단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 커지는지 손가락으로 세어 봐요.",
+   "answer": 6,
+   "terms": [
+    0,
+    2,
+    4
+   ]
+  },
+  {
+   "id": "fan-c-104",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "바람 세기를 1단, 3단, 5단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 커지는지 살펴보고 똑같이 한 번 더 더해 봐.",
+   "answer": 7,
+   "terms": [
+    1,
+    3,
+    5
+   ]
+  },
+  {
+   "id": "fan-c-158",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "CAPTAIN",
+   "text": "송풍 바람을 2단, 4단, 6단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 커지는지 살펴보고 똑같이 한 번 더 늘려 봐.",
+   "answer": 8,
+   "terms": [
+    2,
+    4,
+    6
+   ]
+  },
+  {
+   "id": "fan-d-060",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 10, 7, 4 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 줄어드는지 살펴보고 같은 만큼 한 번 더 빼 봐.",
+   "answer": 1,
+   "terms": [
+    10,
+    7,
+    4
+   ]
+  },
+  {
+   "id": "fan-d-057",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 11, 8, 5 다음 수의 단으로 맞춰 줘!",
+   "hint": "앞의 수와 뒤의 수가 얼마나 차이 나는지 세어 보세요.",
+   "answer": 2,
+   "terms": [
+    11,
+    8,
+    5
+   ]
+  },
+  {
+   "id": "fan-d-027",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 12, 9, 6 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 몇씩 작아지는지 찾아서 그만큼 한 번 더 줄여 봐.",
+   "answer": 3,
+   "terms": [
+    12,
+    9,
+    6
+   ]
+  },
+  {
+   "id": "fan-d-058",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 10, 8, 6 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 일정하게 줄어들고 있어요, 얼마씩 줄어드는지 찾아보세요.",
+   "answer": 4,
+   "terms": [
+    10,
+    8,
+    6
+   ]
+  },
+  {
+   "id": "fan-d-029",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 11단, 9단, 7단 다음 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 줄어드는지 찾아서 같은 만큼 한 번 더 빼 봐.",
+   "answer": 5,
+   "terms": [
+    11,
+    9,
+    7
+   ]
+  },
+  {
+   "id": "fan-d-081",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 15, 12, 9 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 줄어드는지 살펴보고 똑같이 한 번 더 줄여 봐.",
+   "answer": 6,
+   "terms": [
+    15,
+    12,
+    9
+   ]
+  },
+  {
+   "id": "fan-d-069",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 16, 13, 10 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 작아지는지 살펴보고 똑같이 빼 봐.",
+   "answer": 7,
+   "terms": [
+    16,
+    13,
+    10
+   ]
+  },
+  {
+   "id": "fan-d-077",
+   "kind": "PATTERN",
+   "dial": "FAN",
+   "age": "DETECTIVE",
+   "text": "바람 세기를 14, 12, 10 다음 수의 단으로 맞춰 줘!",
+   "hint": "수가 얼마씩 작아지는지 살펴보고 같은 만큼 한 번 더 빼 봐.",
+   "answer": 8,
+   "terms": [
+    14,
+    12,
+    10
+   ]
+  },
+  {
+   "id": "temp_up-l-001",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "3 빼기 2만큼 온도를 올려 줘!",
+   "hint": "손가락 세 개를 펴고 두 개를 접은 뒤 남은 손가락을 봐.",
+   "answer": 1,
+   "expr": "3-2"
+  },
+  {
+   "id": "temp_up-l-002",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "추우니까 5 빼기 4만큼 온도를 올려 줘!",
+   "hint": "손가락 다섯 개를 펴고 네 개를 접어 봐.",
+   "answer": 1,
+   "expr": "5-4"
+  },
+  {
+   "id": "temp_up-l-003",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "3 빼기 1만큼 온도를 올려 줘!",
+   "hint": "손가락 세 개를 펴고 한 개를 접어 봐.",
+   "answer": 2,
+   "expr": "3-1"
+  },
+  {
+   "id": "temp_up-l-004",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "따뜻하게 5 빼기 3만큼 온도를 올려 줘!",
+   "hint": "손가락 다섯 개를 펴고 세 개를 접은 뒤 남은 걸 봐.",
+   "answer": 2,
+   "expr": "5-3"
+  },
+  {
+   "id": "temp_up-l-005",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "2 더하기 1만큼 온도를 올려 줘!",
+   "hint": "손가락 두 개를 펴고 한 개를 더 펴 봐.",
+   "answer": 3,
+   "expr": "2+1"
+  },
+  {
+   "id": "temp_up-l-006",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "추운 날이니 4 빼기 1만큼 온도를 올려 줘!",
+   "hint": "손가락 네 개를 펴고 한 개를 접어 봐.",
+   "answer": 3,
+   "expr": "4-1"
+  },
+  {
+   "id": "temp_up-c-002",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "8 빼기 7도만큼 온도를 올려 줘!",
+   "hint": "여덟 개에서 일곱 개를 빼면 몇 개가 남는지 세어 봐.",
+   "answer": 1,
+   "expr": "8-7"
+  },
+  {
+   "id": "temp_up-c-014",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "추우니까 6 빼기 5도만큼 온도를 올려 줘!",
+   "hint": "손가락 여섯 개를 펴고 다섯 개를 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 1,
+   "expr": "6-5"
+  },
+  {
+   "id": "temp_up-c-003",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "1 더하기 1도만큼 온도를 올려 줘!",
+   "hint": "양손에 손가락을 하나씩 펴고 모두 세어 봐.",
+   "answer": 2,
+   "expr": "1+1"
+  },
+  {
+   "id": "temp_up-c-004",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "따뜻하게 9 빼기 7도만큼 온도를 올려 줘!",
+   "hint": "아홉에서 거꾸로 일곱 번 세어 내려가 봐.",
+   "answer": 2,
+   "expr": "9-7"
+  },
+  {
+   "id": "temp_up-c-005",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "1 더하기 2도만큼 온도를 올려 줘!",
+   "hint": "손가락 하나를 펴고 두 개를 더 펴서 모두 세어 봐.",
+   "answer": 3,
+   "expr": "1+2"
+  },
+  {
+   "id": "temp_up-c-006",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "추워요, 10 빼기 7도만큼 온도를 올려 줘!",
+   "hint": "열 손가락을 펴고 일곱 개를 접어서 남은 걸 세어 봐.",
+   "answer": 3,
+   "expr": "10-7"
+  },
+  {
+   "id": "temp_up-d-001",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "12 빼기 5 빼기 6도만큼 온도를 올려 줘!",
+   "hint": "앞에서부터 차례대로 하나씩 빼 보면 돼.",
+   "answer": 1,
+   "expr": "12-5-6"
+  },
+  {
+   "id": "temp_up-d-002",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "2 곱하기 4 빼기 7도만큼 온도를 올려 줘!",
+   "hint": "곱셈을 먼저 하고 그 수에서 빼 봐.",
+   "answer": 1,
+   "expr": "2*4-7"
+  },
+  {
+   "id": "temp_up-d-003",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "3 곱하기 4 빼기 10도만큼 온도를 올려 줘!",
+   "hint": "곱셈을 먼저 계산한 다음에 빼기를 해 봐.",
+   "answer": 2,
+   "expr": "3*4-10"
+  },
+  {
+   "id": "temp_up-d-004",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "9 빼기 4 빼기 3도만큼 온도를 올려 줘!",
+   "hint": "손가락을 접으면서 앞에서부터 차례로 빼 봐.",
+   "answer": 2,
+   "expr": "9-4-3"
+  },
+  {
+   "id": "temp_up-d-005",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "4 곱하기 2 빼기 5도만큼 온도를 올려 줘!",
+   "hint": "곱하기를 먼저 하고 남은 수를 빼 봐.",
+   "answer": 3,
+   "expr": "4*2-5"
+  },
+  {
+   "id": "temp_up-d-006",
+   "kind": "MATH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "11 빼기 6 빼기 2도만큼 온도를 올려 줘!",
+   "hint": "두 번 빼야 하니까 한 번씩 천천히 계산해 봐.",
+   "answer": 3,
+   "expr": "11-6-2"
+  },
+  {
+   "id": "temp_up-l-007",
+   "kind": "ENGLISH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "ONE만큼 온도를 올려 줘!",
+   "hint": "영어로 숫자를 말하는 단어야, 우리말 숫자로 바꿔 봐.",
+   "answer": 1,
+   "word": "ONE"
+  },
+  {
+   "id": "temp_up-l-008",
+   "kind": "ENGLISH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "따뜻하게 TWO만큼 온도를 올려 줘!",
+   "hint": "영어 숫자 노래를 떠올리며 우리말 숫자로 바꿔 봐.",
+   "answer": 2,
+   "word": "TWO"
+  },
+  {
+   "id": "temp_up-l-009",
+   "kind": "ENGLISH",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "추우니까 THREE만큼 온도를 올려 줘!",
+   "hint": "영어 숫자를 손가락으로 세며 우리말로 바꿔 봐.",
+   "answer": 3,
+   "word": "THREE"
+  },
+  {
+   "id": "temp_up-d-018",
+   "kind": "ENGLISH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "UP의 글자 수만큼 온도를 올려 줘!",
+   "hint": "단어의 알파벳을 하나씩 손가락으로 짚으면서 세어 봐.",
+   "answer": 2,
+   "word": "UP"
+  },
+  {
+   "id": "temp_up-d-009",
+   "kind": "ENGLISH",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "HOT의 글자 수만큼 온도를 올려 줘!",
+   "hint": "단어의 알파벳을 하나씩 손가락으로 세어 봐.",
+   "answer": 3,
+   "word": "HOT"
+  },
+  {
+   "id": "temp-up-l-r01",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "사막여우가 감기에 걸려서 꼬리로 몸을 꼭 감쌌어. 의자 말고 차 안을 따뜻하게, 차 버튼으로 사막여우를 도와줘!",
+   "hint": "숫자가 커지면 차 안이 따뜻해져, 안전 지킴이에게 숫자를 올려 달라고 해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-l-r02",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "수달 요리사가 물놀이를 하고 와서 덜덜 떨어. 의자 말고 차 안을 따뜻하게, 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "덥고 추운 정도를 정하는 숫자가 보이는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-l-r03",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "LITTLE",
+   "text": "투덜이 기계가 감기에 걸려서 콜록콜록 투덜거려. 의자 말고 차 안을 따뜻하게, 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "숫자가 커지면 차 안이 포근해져, 그 숫자를 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-c-r01",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "토끼 기관사가 감기에 걸려서 긴 귀까지 오들오들 떨어. 의자 말고 차 안 공기를 따뜻하게 해서 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "앉는 곳 말고 차 안 전체가 바뀌는 숫자를 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-c-r02",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "수달 요리사가 물에 젖은 앞치마를 입고 있어서 손이 시리대. 바람 세기는 그대로 두고 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "바람은 그대로여도 덥고 추운 정도를 정하는 숫자는 바꿀 수 있어.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-c-r03",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "CAPTAIN",
+   "text": "새싹 로봇이 물뿌리개 물을 뒤집어써서 잎을 자꾸 오므려. 의자 말고 차 안 공기를 포근하게 해서 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "숫자가 커지면 차 안이 따뜻해져, 안전 지킴이에게 숫자를 올려 달라고 해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-d-r01",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장과 함께 수영하고 온 친구들이 모두 젖어서 으슬으슬 떨어. 의자 말고 차 안 공기 전체가 포근해져야 하고, 바람 세기는 그대로 두어야 펭귄 선장이 잠을 잘 수 있대. 차 버튼으로 친구들을 도와줘!",
+   "hint": "앉는 곳도 바람도 아니라면 차 안 전체를 바꾸는 숫자를 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-d-r02",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "토끼 기관사가 물풍선 놀이를 하다가 흠뻑 젖어서 이가 딱딱 부딪혀. 의자 말고 차 안 공기를 포근하게 해야 하고, 바람 세기는 그대로 두어야 긴 귀가 날리지 않는대. 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "덥고 추운 정도를 정하는 숫자가 있어, 안전 지킴이에게 그 숫자를 올려 달라고 해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-up-d-r03",
+   "kind": "REASON",
+   "dial": "TEMP_UP",
+   "age": "DETECTIVE",
+   "text": "새싹 로봇이 감기에 걸려서 재채기할 때마다 잎이 바들바들 떨려. 담요는 이미 덮었으니 의자 말고 차 안 공기가 포근해져야 하고, 바람이 세지면 잎이 떨어진대. 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "숫자가 커지면 차 안이 따뜻해져, 안전 지킴이에게 숫자를 올려 달라고 해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp_down-l-001",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "온도를 3 빼기 2도만큼 내려 줘!",
+   "hint": "손가락 세 개를 펴고 두 개를 접어 봐.",
+   "answer": 1,
+   "expr": "3-2"
+  },
+  {
+   "id": "temp_down-l-002",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "시원하게 5 빼기 4도만큼 온도를 내려 줘!",
+   "hint": "손가락 다섯 개를 펴고 네 개를 접어 봐.",
+   "answer": 1,
+   "expr": "5-4"
+  },
+  {
+   "id": "temp_down-l-003",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "온도를 1 더하기 1도만큼 내려 줘!",
+   "hint": "손가락 하나를 펴고 하나를 더 펴 봐.",
+   "answer": 2,
+   "expr": "1+1"
+  },
+  {
+   "id": "temp_down-l-004",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "더우니까 5 빼기 3도만큼 온도를 내려 줘!",
+   "hint": "손가락 다섯 개를 펴고 세 개를 접어 봐.",
+   "answer": 2,
+   "expr": "5-3"
+  },
+  {
+   "id": "temp_down-l-005",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "온도를 1 더하기 2도만큼 내려 줘!",
+   "hint": "손가락 하나를 펴고 두 개를 더 펴 봐.",
+   "answer": 3,
+   "expr": "1+2"
+  },
+  {
+   "id": "temp_down-l-006",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "시원해지게 4 빼기 1도만큼 온도를 내려 줘!",
+   "hint": "손가락 네 개를 펴고 하나를 접어 봐.",
+   "answer": 3,
+   "expr": "4-1"
+  },
+  {
+   "id": "temp_down-c-003",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "시원해지게 온도를 9 빼기 8만큼 내려 줘!",
+   "hint": "8에서 몇을 더하면 9가 되는지 생각해 봐.",
+   "answer": 1,
+   "expr": "9-8"
+  },
+  {
+   "id": "temp_down-c-020",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "더워서 온도를 6 빼기 5만큼 내려 줘!",
+   "hint": "손가락 여섯 개를 펴고 다섯 개를 접으면 몇 개가 남는지 세어 봐.",
+   "answer": 1,
+   "expr": "6-5"
+  },
+  {
+   "id": "temp_down-c-005",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "더우니까 온도를 8 빼기 6만큼 내려 줘!",
+   "hint": "6에서 하나씩 세면서 8까지 가려면 몇 번 세야 하는지 알아봐.",
+   "answer": 2,
+   "expr": "8-6"
+  },
+  {
+   "id": "temp_down-c-006",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "온도를 2 더하기 1만큼 내려 줘!",
+   "hint": "손가락 두 개를 펴고 하나를 더 펴서 모두 세어 봐.",
+   "answer": 3,
+   "expr": "2+1"
+  },
+  {
+   "id": "temp_down-c-007",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "시원하게 온도를 7 빼기 4만큼 내려 줘!",
+   "hint": "4에서 하나씩 세면서 7까지 가려면 몇 번 세야 하는지 알아봐.",
+   "answer": 3,
+   "expr": "7-4"
+  },
+  {
+   "id": "temp_down-d-002",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "2 곱하기 3 빼기 5만큼 온도를 내려 줘!",
+   "hint": "먼저 곱셈을 하고, 그 수에서 5를 빼 봐.",
+   "answer": 1,
+   "expr": "2*3-5"
+  },
+  {
+   "id": "temp_down-d-020",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "3 더하기 4 빼기 6만큼 온도를 내려 줘!",
+   "hint": "앞의 두 수를 먼저 더한 다음, 그 결과에서 남은 수를 빼 봐.",
+   "answer": 1,
+   "expr": "3+4-6"
+  },
+  {
+   "id": "temp_down-d-003",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "10 빼기 4 빼기 4만큼 온도를 내려 줘!",
+   "hint": "10에서 4를 한 번 빼고, 남은 수에서 4를 또 빼 봐.",
+   "answer": 2,
+   "expr": "10-4-4"
+  },
+  {
+   "id": "temp_down-d-004",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "3 곱하기 4 빼기 10만큼 온도를 내려 줘!",
+   "hint": "3을 네 번 더한 수를 구한 다음 10을 빼 봐.",
+   "answer": 2,
+   "expr": "3*4-10"
+  },
+  {
+   "id": "temp_down-d-005",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "12 빼기 4 빼기 5만큼 온도를 내려 줘!",
+   "hint": "12에서 4를 빼고, 남은 수에서 다시 5를 빼 봐.",
+   "answer": 3,
+   "expr": "12-4-5"
+  },
+  {
+   "id": "temp_down-d-006",
+   "kind": "MATH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "4 곱하기 2 빼기 5만큼 온도를 내려 줘!",
+   "hint": "4를 두 번 더한 수를 먼저 구하고 거기서 5를 빼 봐.",
+   "answer": 3,
+   "expr": "4*2-5"
+  },
+  {
+   "id": "temp_down-l-007",
+   "kind": "ENGLISH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "ONE만큼 온도를 내려 줘!",
+   "hint": "ONE이 우리말로 어떤 수인지 떠올려 봐.",
+   "answer": 1,
+   "word": "ONE"
+  },
+  {
+   "id": "temp_down-l-008",
+   "kind": "ENGLISH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "시원하게 TWO만큼 온도를 내려 줘!",
+   "hint": "TWO가 우리말로 어떤 수인지 생각해 봐.",
+   "answer": 2,
+   "word": "TWO"
+  },
+  {
+   "id": "temp_down-l-009",
+   "kind": "ENGLISH",
+   "dial": "TEMP_DOWN",
+   "age": "LITTLE",
+   "text": "더우니까 THREE만큼 온도를 내려 줘!",
+   "hint": "THREE가 우리말로 어떤 수인지 떠올려 봐.",
+   "answer": 3,
+   "word": "THREE"
+  },
+  {
+   "id": "temp_down-d-009",
+   "kind": "ENGLISH",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "ICE의 글자 수만큼 온도를 내려 줘!",
+   "hint": "단어의 알파벳을 하나씩 짚으면서 몇 글자인지 세어 봐.",
+   "answer": 3,
+   "word": "ICE"
+  },
+  {
+   "id": "temp-down-c-r01",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "줄넘기를 하고 온 새싹 로봇이 쿨쿨 자는데 이마에 땀이 송골송골 맺혔어. 바람 소리가 커지면 잠이 깨니까 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "바람 소리는 그대로 두고, 덥고 추운 정도를 정하는 숫자를 찾아서 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-down-c-r02",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "공놀이를 하고 온 토끼 기관사가 조금 덥대, 그런데 바람이 세지면 읽던 그림책 책장이 팔랑팔랑 넘어가 버려. 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "바람은 그대로 두고, 덥고 추운 정도를 정하는 숫자를 찾아서 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-down-c-r03",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "CAPTAIN",
+   "text": "술래잡기를 하고 온 펭귄 선장이 날개로 부채질을 하며 조금 덥대, 그런데 바람이 세지면 접어 둔 색종이 배가 날아가 버려. 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "덥고 추운 정도를 정하는 숫자를 찾아서 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-down-d-r01",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "신나게 춤을 추고 온 투덜이 기계가 에어컨이 켜져 있는데도 조금 덥다고 투덜투덜해. 그런데 바람 소리가 커지면 사막여우가 듣는 자장가가 묻혀 버린대. 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "자장가가 잘 들리게 바람은 두고, 덥고 추운 정도를 정하는 숫자를 찾아서 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-down-d-r02",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "자전거를 타고 온 수달 요리사가 에어컨이 켜져 있는데도 이마의 땀을 닦으며 조금 덥대. 그런데 바람이 세지면 케이크 위에 뿌린 밀가루가 날아가 버려. 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "바람은 그대로 두고 덥고 추운 정도를 정하는 숫자를 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "temp-down-d-r03",
+   "kind": "REASON",
+   "dial": "TEMP_DOWN",
+   "age": "DETECTIVE",
+   "text": "달리기 시합을 하고 온 사막여우가 큰 귀로 부채질을 하며 조금 덥대. 에어컨은 이미 켜져 있고, 바람이 세지면 사막여우가 늘어놓은 퍼즐 조각이 흩어져 버려. 차 버튼으로 사막여우를 도와줘!",
+   "hint": "켜고 끄는 버튼 말고, 덥고 추운 정도를 정하는 숫자를 찾아 시원한 쪽으로 바꿔 봐.",
+   "answer": 1
+  },
+  {
+   "id": "lights-l-022",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 5 빼기 4개가 되게 해 줘!",
+   "hint": "손가락 다섯 개를 펴고 네 개를 접어 봐.",
+   "answer": 1,
+   "expr": "5-4"
+  },
+  {
+   "id": "lights-l-041",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 3 빼기 2개가 되게 해 줘!",
+   "hint": "손가락 세 개를 펴고 두 개를 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 1,
+   "expr": "3-2"
+  },
+  {
+   "id": "lights-l-023",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 1 더하기 1개가 되게 해 줘!",
+   "hint": "양손에 손가락을 하나씩 펴고 모두 세어 봐.",
+   "answer": 2,
+   "expr": "1+1"
+  },
+  {
+   "id": "lights-l-024",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 5 빼기 3개가 되게 해 줘!",
+   "hint": "손가락 다섯 개를 펴고 세 개를 접어 봐.",
+   "answer": 2,
+   "expr": "5-3"
+  },
+  {
+   "id": "lights-l-025",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 1 더하기 2개가 되게 해 줘!",
+   "hint": "손가락 하나와 손가락 둘을 펴서 모두 세어 봐.",
+   "answer": 3,
+   "expr": "1+2"
+  },
+  {
+   "id": "lights-l-026",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 4 빼기 1개가 되게 해 줘!",
+   "hint": "손가락 네 개를 펴고 하나를 접어 봐.",
+   "answer": 3,
+   "expr": "4-1"
+  },
+  {
+   "id": "lights-l-027",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 2 더하기 2개가 되게 해 줘!",
+   "hint": "양손에 손가락을 둘씩 펴고 모두 세어 봐.",
+   "answer": 4,
+   "expr": "2+2"
+  },
+  {
+   "id": "lights-l-028",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 5 빼기 1개가 되게 해 줘!",
+   "hint": "손가락 다섯 개를 펴고 하나를 접어 봐.",
+   "answer": 4,
+   "expr": "5-1"
+  },
+  {
+   "id": "lights-c-001",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 4 빼기 3개가 되게 해 줘!",
+   "hint": "손가락 네 개를 펴고 세 개를 접어 봐.",
+   "answer": 1,
+   "expr": "4-3"
+  },
+  {
+   "id": "lights-c-002",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 10 빼기 9개가 되게 해 줘!",
+   "hint": "열 개에서 아홉 개를 빼면 몇 개가 남는지 세어 봐.",
+   "answer": 1,
+   "expr": "10-9"
+  },
+  {
+   "id": "lights-c-004",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 7 빼기 5개가 되게 해 줘!",
+   "hint": "일곱에서 하나씩 다섯 번 거꾸로 세어 봐.",
+   "answer": 2,
+   "expr": "7-5"
+  },
+  {
+   "id": "lights-c-031",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 8 빼기 6개가 되게 해 줘!",
+   "hint": "손가락 여덟 개를 펴고 여섯 개를 접어 보면 남은 손가락이 답이야.",
+   "answer": 2,
+   "expr": "8-6"
+  },
+  {
+   "id": "lights-c-005",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 2 더하기 1개가 되게 해 줘!",
+   "hint": "손가락 두 개에 하나를 더 펴고 세어 봐.",
+   "answer": 3,
+   "expr": "2+1"
+  },
+  {
+   "id": "lights-c-006",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 9 빼기 6개가 되게 해 줘!",
+   "hint": "아홉에서 하나씩 여섯 번 거꾸로 세어 봐.",
+   "answer": 3,
+   "expr": "9-6"
+  },
+  {
+   "id": "lights-c-007",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 3 더하기 1개가 되게 해 줘!",
+   "hint": "손가락 세 개에 하나를 더 펴고 세어 봐.",
+   "answer": 4,
+   "expr": "3+1"
+  },
+  {
+   "id": "lights-c-008",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 6 빼기 2개가 되게 해 줘!",
+   "hint": "여섯에서 하나씩 두 번 거꾸로 세어 봐.",
+   "answer": 4,
+   "expr": "6-2"
+  },
+  {
+   "id": "lights-d-002",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 2 곱하기 3 빼기 5개가 되게 해 줘!",
+   "hint": "곱셈을 먼저 하고 그다음에 빼 봐.",
+   "answer": 1,
+   "expr": "2*3-5"
+  },
+  {
+   "id": "lights-d-021",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 3 곱하기 3 빼기 8개가 되게 해 줘!",
+   "hint": "곱셈을 먼저 하고 그 결과에서 빼 봐.",
+   "answer": 1,
+   "expr": "3*3-8"
+  },
+  {
+   "id": "lights-d-004",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 4 곱하기 3 빼기 10개가 되게 해 줘!",
+   "hint": "먼저 곱한 수를 구하고 거기서 빼 봐.",
+   "answer": 2,
+   "expr": "4*3-10"
+  },
+  {
+   "id": "lights-d-022",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 5 더하기 3 빼기 6개가 되게 해 줘!",
+   "hint": "앞에서부터 차례대로 더하고 빼 봐.",
+   "answer": 2,
+   "expr": "5+3-6"
+  },
+  {
+   "id": "lights-d-005",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 12 빼기 9개가 되게 해 줘!",
+   "hint": "손가락으로 거꾸로 세면서 빼 봐.",
+   "answer": 3,
+   "expr": "12-9"
+  },
+  {
+   "id": "lights-d-023",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 5 곱하기 2 빼기 7개가 되게 해 줘!",
+   "hint": "먼저 곱한 다음 그 수에서 빼면 돼.",
+   "answer": 3,
+   "expr": "5*2-7"
+  },
+  {
+   "id": "lights-d-007",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 11 빼기 7개가 되게 해 줘!",
+   "hint": "작은 수에서 큰 수까지 몇 칸인지 세어 봐.",
+   "answer": 4,
+   "expr": "11-7"
+  },
+  {
+   "id": "lights-d-024",
+   "kind": "MATH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 12 빼기 5 빼기 3개가 되게 해 줘!",
+   "hint": "큰 수에서 두 수를 하나씩 차례로 빼 봐.",
+   "answer": 4,
+   "expr": "12-5-3"
+  },
+  {
+   "id": "lights-l-029",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 ONE개가 되게 해 줘!",
+   "hint": "영어로 수를 세는 노래를 떠올려 봐.",
+   "answer": 1,
+   "word": "ONE"
+  },
+  {
+   "id": "lights-l-042",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 TWO개가 되게 해 줘!",
+   "hint": "영어로 하나, 둘, 셋을 세는 말을 떠올려 보고 그만큼 불을 켜 봐.",
+   "answer": 2,
+   "word": "TWO"
+  },
+  {
+   "id": "lights-l-031",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 THREE개가 되게 해 줘!",
+   "hint": "손가락을 펴면서 영어로 수를 세어 봐.",
+   "answer": 3,
+   "word": "THREE"
+  },
+  {
+   "id": "lights-l-032",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 FOUR개가 되게 해 줘!",
+   "hint": "엄마 아빠와 영어로 수를 차례로 세어 봐.",
+   "answer": 4,
+   "word": "FOUR"
+  },
+  {
+   "id": "lights-d-025",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 ON의 글자 수만큼 되게 해 줘!",
+   "hint": "불을 켤 때 쓰는 영어 단어의 글자를 하나씩 손가락으로 세어 봐.",
+   "answer": 2,
+   "word": "ON"
+  },
+  {
+   "id": "lights-d-011",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 SUN의 글자 수만큼 되게 해 줘!",
+   "hint": "단어의 알파벳을 하나씩 짚으며 세어 봐.",
+   "answer": 3,
+   "word": "SUN"
+  },
+  {
+   "id": "lights-d-012",
+   "kind": "ENGLISH",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 LAMP의 글자 수만큼 되게 해 줘!",
+   "hint": "알파벳을 하나씩 손가락으로 접으며 세어 봐.",
+   "answer": 4,
+   "word": "LAMP"
+  },
+  {
+   "id": "lights-l-033",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 4개, 3개, 2개 하고 그다음 개수가 되게 해 줘!",
+   "hint": "수가 하나씩 작아지고 있어.",
+   "answer": 1,
+   "terms": [
+    4,
+    3,
+    2
+   ]
+  },
+  {
+   "id": "lights-l-034",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 5개, 4개, 3개 하고 그다음 개수가 되게 해 줘!",
+   "hint": "손가락을 하나씩 접으며 수를 따라가 봐.",
+   "answer": 2,
+   "terms": [
+    5,
+    4,
+    3
+   ]
+  },
+  {
+   "id": "lights-l-035",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 0개, 1개, 2개 하고 그다음 개수가 되게 해 줘!",
+   "hint": "수가 하나씩 커지고 있어.",
+   "answer": 3,
+   "terms": [
+    0,
+    1,
+    2
+   ]
+  },
+  {
+   "id": "lights-l-036",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "LITTLE",
+   "text": "켜진 독서등이 모두 1개, 2개, 3개 하고 그다음 개수가 되게 해 줘!",
+   "hint": "손가락을 하나씩 펴며 수를 따라가 봐.",
+   "answer": 4,
+   "terms": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "id": "lights-c-036",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 7, 5, 3 다음 수의 개수가 되게 해 줘!",
+   "hint": "수가 얼마씩 작아지는지 살펴보고 그만큼 한 번 더 빼 봐.",
+   "answer": 1,
+   "terms": [
+    7,
+    5,
+    3
+   ]
+  },
+  {
+   "id": "lights-c-014",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 8, 6, 4 다음 수의 개수가 되게 해 줘!",
+   "hint": "수가 얼마씩 줄어드는지 찾고 그만큼 한 번 더 빼 봐.",
+   "answer": 2,
+   "terms": [
+    8,
+    6,
+    4
+   ]
+  },
+  {
+   "id": "lights-c-015",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 9, 7, 5 다음 수의 개수가 되게 해 줘!",
+   "hint": "수가 몇씩 작아지는지 세어 보고 똑같이 한 번 더 줄여 봐.",
+   "answer": 3,
+   "terms": [
+    9,
+    7,
+    5
+   ]
+  },
+  {
+   "id": "lights-c-041",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "CAPTAIN",
+   "text": "켜진 독서등이 모두 7, 6, 5 다음 수만큼 되게 해 줘!",
+   "hint": "앞의 수들이 얼마씩 줄어드는지 보고 같은 만큼 한 번 더 줄여 봐.",
+   "answer": 4,
+   "terms": [
+    7,
+    6,
+    5
+   ]
+  },
+  {
+   "id": "lights-d-034",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 11, 8, 5 다음 수만큼 되게 해 줘!",
+   "hint": "수가 매번 얼마씩 줄어드는지 살펴보고 같은 만큼 한 번 더 빼 봐.",
+   "answer": 2,
+   "terms": [
+    11,
+    8,
+    5
+   ]
+  },
+  {
+   "id": "lights-d-015",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 12, 9, 6 다음 수만큼 되게 해 줘!",
+   "hint": "한 번에 얼마씩 작아지는지 찾아봐.",
+   "answer": 3,
+   "terms": [
+    12,
+    9,
+    6
+   ]
+  },
+  {
+   "id": "lights-d-027",
+   "kind": "PATTERN",
+   "dial": "LIGHTS",
+   "age": "DETECTIVE",
+   "text": "켜진 독서등이 모두 13, 10, 7 다음 수만큼 되게 해 줘!",
+   "hint": "앞뒤 수의 차이를 찾고 같은 만큼 또 줄여 봐.",
+   "answer": 4,
+   "terms": [
+    13,
+    10,
+    7
+   ]
+  },
+  {
+   "id": "seat_heat-l-002",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "시트 열선을 4 빼기 3단으로 맞춰 줘!",
+   "hint": "손가락을 펴고 빼는 수만큼 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 1,
+   "expr": "4-3"
+  },
+  {
+   "id": "seat_heat-l-014",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "운전석 시트 열선을 5 빼기 4단으로 맞춰 줘!",
+   "hint": "손가락 다섯 개를 펴고 네 개를 접어 봐, 남은 만큼 맞추면 돼!",
+   "answer": 1,
+   "expr": "5-4"
+  },
+  {
+   "id": "seat_heat-l-003",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "엉덩이 열선을 1 더하기 1단으로 맞춰 줘!",
+   "hint": "양손에서 손가락을 하나씩 펴고 모두 몇 개인지 세어 봐.",
+   "answer": 2,
+   "expr": "1+1"
+  },
+  {
+   "id": "seat_heat-l-004",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "운전석 의자 열선을 5 빼기 3단으로 맞춰 줘!",
+   "hint": "한 손을 다 펴고 빼는 수만큼 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 2,
+   "expr": "5-3"
+  },
+  {
+   "id": "seat_heat-l-005",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "시트 열선을 2 더하기 1단으로 맞춰 줘!",
+   "hint": "두 수만큼 손가락을 펴서 모두 합쳐 세어 봐.",
+   "answer": 3,
+   "expr": "2+1"
+  },
+  {
+   "id": "seat_heat-l-006",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "엉덩이가 따뜻하게 의자 열선을 4 빼기 1단으로 맞춰 줘!",
+   "hint": "손가락을 펴고 빼는 수만큼 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 3,
+   "expr": "4-1"
+  },
+  {
+   "id": "seat_heat-c-002",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "시트 열선을 7 빼기 6단으로 맞춰 줘!",
+   "hint": "일곱에서 여섯을 빼면 얼마가 남는지 손가락으로 세어 봐.",
+   "answer": 1,
+   "expr": "7-6"
+  },
+  {
+   "id": "seat_heat-c-014",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "의자 열선을 8 빼기 7단으로 맞춰 줘!",
+   "hint": "손가락 여덟 개를 펴고 일곱 개를 접으면 몇 개가 남는지 세어 봐.",
+   "answer": 1,
+   "expr": "8-7"
+  },
+  {
+   "id": "seat_heat-c-003",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "의자 열선을 10 빼기 8단으로 맞춰 줘!",
+   "hint": "열 손가락을 다 펴고 여덟 개를 접어 봐.",
+   "answer": 2,
+   "expr": "10-8"
+  },
+  {
+   "id": "seat_heat-c-029",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "의자 열선을 9 빼기 7단으로 맞춰 줘!",
+   "hint": "손가락 아홉 개를 펴고 일곱 개를 접은 뒤 남은 손가락을 세어 봐.",
+   "answer": 2,
+   "expr": "9-7"
+  },
+  {
+   "id": "seat_heat-c-005",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "시트 열선을 9 빼기 6단으로 맞춰 줘!",
+   "hint": "아홉 손가락을 펴고 여섯 개를 접으면 몇 개가 남는지 봐.",
+   "answer": 3,
+   "expr": "9-6"
+  },
+  {
+   "id": "seat_heat-c-024",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "CAPTAIN",
+   "text": "엉덩이가 따뜻하게 시트 열선을 5 빼기 2단으로 맞춰 줘!",
+   "hint": "손가락 다섯 개를 펴고 두 개를 접은 다음 남은 손가락을 세어 봐.",
+   "answer": 3,
+   "expr": "5-2"
+  },
+  {
+   "id": "seat_heat-d-001",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "의자 열선을 2 곱하기 4 빼기 7단으로 맞춰 줘!",
+   "hint": "먼저 곱셈을 하고 그 수에서 빼 봐.",
+   "answer": 1,
+   "expr": "2*4-7"
+  },
+  {
+   "id": "seat_heat-d-002",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "시트 열선을 6 더하기 4 빼기 9단으로 맞춰 줘!",
+   "hint": "앞에서부터 차례로 더하고 빼 봐.",
+   "answer": 1,
+   "expr": "6+4-9"
+  },
+  {
+   "id": "seat_heat-d-003",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "엉덩이 열선을 3 곱하기 4 빼기 10단으로 맞춰 줘!",
+   "hint": "곱셈을 먼저 하고 그다음에 빼 봐.",
+   "answer": 2,
+   "expr": "3*4-10"
+  },
+  {
+   "id": "seat_heat-d-004",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "운전석 의자 열선을 11 빼기 5 빼기 4단으로 맞춰 줘!",
+   "hint": "손가락으로 세면서 두 번 차례로 빼 봐.",
+   "answer": 2,
+   "expr": "11-5-4"
+  },
+  {
+   "id": "seat_heat-d-005",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "시트 열선을 5 곱하기 2 빼기 7단으로 맞춰 줘!",
+   "hint": "곱한 값을 먼저 구하고 그 수에서 빼 봐.",
+   "answer": 3,
+   "expr": "5*2-7"
+  },
+  {
+   "id": "seat_heat-d-006",
+   "kind": "MATH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "엉덩이가 따뜻하게 열선을 12 빼기 4 빼기 5단으로 맞춰 줘!",
+   "hint": "큰 수에서 하나씩 차례로 빼 봐.",
+   "answer": 3,
+   "expr": "12-4-5"
+  },
+  {
+   "id": "seat_heat-l-007",
+   "kind": "ENGLISH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "의자 열선을 ONE단으로 맞춰 줘!",
+   "hint": "영어로 숫자를 세는 노래를 떠올려 봐.",
+   "answer": 1,
+   "word": "ONE"
+  },
+  {
+   "id": "seat_heat-l-008",
+   "kind": "ENGLISH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "시트 열선을 TWO단으로 맞춰 줘!",
+   "hint": "영어로 숫자를 하나씩 세면서 이 단어를 찾아봐.",
+   "answer": 2,
+   "word": "TWO"
+  },
+  {
+   "id": "seat_heat-l-009",
+   "kind": "ENGLISH",
+   "dial": "SEAT_HEAT",
+   "age": "LITTLE",
+   "text": "엉덩이 열선을 THREE단으로 맞춰 줘!",
+   "hint": "손가락을 하나씩 펴면서 영어로 숫자를 세어 봐.",
+   "answer": 3,
+   "word": "THREE"
+  },
+  {
+   "id": "seat_heat-d-019",
+   "kind": "ENGLISH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "의자 열선을 ON의 글자 수와 같은 단으로 맞춰 줘!",
+   "hint": "영어 단어의 글자를 하나씩 손가락으로 짚으면서 세어 봐.",
+   "answer": 2,
+   "word": "ON"
+  },
+  {
+   "id": "seat_heat-d-009",
+   "kind": "ENGLISH",
+   "dial": "SEAT_HEAT",
+   "age": "DETECTIVE",
+   "text": "HOT의 글자 수만큼 의자 열선을 맞춰 줘!",
+   "hint": "단어의 알파벳을 손가락으로 하나씩 세어 봐.",
+   "answer": 3,
+   "word": "HOT"
+  },
+  {
+   "id": "ac-off-l-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "감기 걸린 펭귄 선장은 더울 때 켜는 시원한 바람이 켜져 있어서 추워. 온도 숫자는 그대로 두고 차 버튼으로 선장을 도와줘!",
+   "hint": "감기 걸린 친구에게 시원한 바람이 지금도 필요할까?",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-l-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "감기 걸린 수달 요리사가 더울 때 켜는 시원한 바람이 켜져 있어서 덜덜 떨어. 온도 숫자는 그대로 두고 차 버튼으로 도와줘!",
+   "hint": "더울 때 누르는 버튼이 지금도 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-l-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "감기 걸린 토끼 기관사가 더울 때 켜는 시원한 바람이 켜져 있어서 덜덜 떨어. 온도 숫자는 그대로 두고 차 버튼으로 도와줘!",
+   "hint": "감기 걸린 토끼 기관사에게 시원한 바람이 지금도 필요할까?",
+   "answer": 0
+  },
+  {
+   "id": "ac-on-l-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 창문은 닫아 둔 채로 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "여름에 더울 때 켜는 시원한 바람 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-l-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "사막여우가 뛰어놀고 와서 헥헥, 바람은 나오는데 안 시원하대. 바람 세기는 그대로 두고 차 버튼으로 사막여우를 도와줘!",
+   "hint": "바람을 차갑게 만드는 걸 켜고 끄는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-l-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "LITTLE",
+   "text": "새싹 로봇이 줄넘기를 해서 땀이 뻘뻘, 바람은 나오는데 안 시원하대. 창문은 닫아 둔 채로 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "더울 때 켜서 나오는 바람을 차갑게 만드는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-off-c-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "감기 걸린 사막여우는 더울 때 켜는 시원한 바람이 켜져 있어서 덜덜 떨어. 새싹 로봇은 온도가 딱 좋대서 온도 숫자는 그대로 두고 차 버튼으로 사막여우를 도와줘!",
+   "hint": "감기 걸린 친구에게 시원한 바람이 지금도 필요할지 생각해 봐.",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-c-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "감기 걸린 투덜이 기계가 더울 때 켜는 시원한 바람이 켜져 있어서 나사가 달달 떨려. 수달 요리사는 딱 좋대서 온도 숫자는 그대로 두고 차 버튼으로 도와줘!",
+   "hint": "감기 걸린 친구에게 차가운 바람이 지금도 필요할지 생각해 봐.",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-c-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "감기 걸린 새싹 로봇이 더울 때 켜는 시원한 바람이 켜져 있어서 잎이 바들바들 떨려. 안전 지킴이가 딱 좋대서 온도 숫자는 그대로 두고 차 버튼으로 도와줘!",
+   "hint": "감기 걸린 새싹 로봇에게 시원한 바람이 지금도 필요할까?",
+   "answer": 0
+  },
+  {
+   "id": "ac-on-c-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "펭귄 선장이 줄다리기를 하고 와서 땀을 뻘뻘, 바람은 나오는데 하나도 안 시원하대. 온도 숫자는 그대로 두고 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "남극처럼 차가운 바람, 여름에 더울 때 켜는 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-c-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 매운 카레를 먹고 헥헥 투덜거려, 바람은 나오는데 하나도 안 시원하대. 창문은 닫아 둔 채로 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "나오는 바람을 차갑게 만드는 걸 켜고 끄는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-c-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "CAPTAIN",
+   "text": "토끼 기관사가 깡충깡충 뛰기 시합을 하고 와서 땀이 줄줄, 바람은 나오는데 하나도 안 시원하대. 바람 세기는 그대로 두고 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "여름에 더울 때 켜는 시원한 바람은 어떤 버튼일지 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-off-d-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "감기 걸린 수달 요리사가 더울 때 켜는 시원한 바람이 켜져 있어서 숟가락을 든 채 덜덜 떨어. 사막여우는 온도 숫자는 그대로 두라고 하고, 투덜이 기계는 바람은 계속 나와도 괜찮대. 차 버튼으로 도와줘!",
+   "hint": "바람이 나오는 것과 바람을 차갑게 하는 것은 서로 다른 버튼이야.",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-d-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "감기 걸린 펭귄 선장이 목도리를 두르고도 더울 때 켜는 시원한 바람이 켜져 있어서 덜덜 떨어. 토끼 기관사는 온도 숫자는 그대로 두라고 하고, 새싹 로봇은 바람은 계속 나와도 괜찮대. 차 버튼으로 선장을 도와줘!",
+   "hint": "바람은 그대로 두고, 바람을 차갑게 만드는 걸 켜고 끄는 버튼을 찾아봐.",
+   "answer": 0
+  },
+  {
+   "id": "ac-off-d-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "감기 걸린 토끼 기관사가 기차표를 꼭 쥔 채 더울 때 켜는 시원한 바람이 켜져 있어서 떨어. 안전 지킴이는 온도 숫자는 그대로 두라고 하고, 펭귄 선장은 바람은 계속 나와도 괜찮대. 차 버튼으로 기관사를 도와줘!",
+   "hint": "감기 걸린 친구에게 시원한 바람이 지금도 필요할지, 바람을 차갑게 만드는 버튼을 찾아봐.",
+   "answer": 0
+  },
+  {
+   "id": "ac-on-d-r01",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "수달 요리사가 매운 고추 맛을 보다가 이마에 땀이 줄줄 흘러. 바람은 나오는데 그 바람이 하나도 시원하지 않대. 온도 숫자도 바람 세기도 그대로 두고 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "세게도, 숫자 바꾸기도 아니라면 바람을 차갑게 만드는 걸 켜는 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-d-r02",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "사막여우가 공놀이를 실컷 하고 와서 헥헥거리며 땀을 닦아. 바람은 나오는데 그 바람이 하나도 시원하지 않대. 창문은 닫아 둔 채로, 온도 숫자는 그대로 두고 차 버튼으로 사막여우를 도와줘!",
+   "hint": "사막과 반대로 차가운 바람, 여름에 더울 때 켜는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "ac-on-d-r03",
+   "kind": "REASON",
+   "dial": "AC",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 노 젓기 연습을 하고 와서 이마에 땀방울이 송골송골 맺혔어. 바람은 나오는데 하나도 시원하지 않대. 바람 세기도 온도 숫자도 그대로 두고 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "남극 바다처럼 차가운 바람이 필요해, 더울 때 켜는 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-off-c-r01",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "창밖에 벌이 윙윙 날아서 창문은 닫아 둔 채로 있어야 해. 같은 공기만 빙글빙글 돌아서 숨이 답답한 펭귄 선장을 차 버튼으로 도와줘!",
+   "hint": "빙글 도는 화살표 버튼이 켜져 있으면 밖의 공기가 들어올 수 없어.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-off-c-r02",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "모기가 들어오면 안 되니까 창문은 닫아 둔 채로 둬야 해. 차 안 공기가 맴돌기만 해서 숨이 답답한 사막여우를 차 버튼으로 도와줘!",
+   "hint": "차 안 공기만 돌게 하는 화살표 버튼이 켜져 있는지 그림을 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-off-c-r03",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "수달 요리사가 먹은 김밥 냄새가 차 안에서 빙글빙글 맴돌기만 해. 날벌레가 들어오면 안 되니 창문은 닫아 둔 채로, 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "새 공기가 들어오는 길을 막고 있는 빙글 화살표 버튼을 찾아봐.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-on-c-r01",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "옆에 선 버스에서 나온 연기 냄새가 바람 구멍으로 솔솔 들어와서 펭귄 선장이 콜록콜록 기침을 해. 바람은 계속 나오게 두고 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "버스 냄새는 밖에서 바람을 타고 들어와, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-on-c-r02",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "꽃밭에서 날린 꽃가루가 바람 구멍으로 날아 들어와서 사막여우가 에취 재채기를 해. 창문은 닫아 둔 채로 차 버튼으로 사막여우의 코를 도와줘!",
+   "hint": "꽃가루는 밖에서 바람을 타고 들어와, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-on-c-r03",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "CAPTAIN",
+   "text": "옆 공사장의 흙먼지가 바람 구멍으로 솔솔 들어와서 새싹 로봇의 초록 잎이 뿌옇게 변하고 있어. 바람은 계속 나오게 두고 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "흙먼지는 밖에서 바람을 타고 들어와, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-off-d-r01",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "같은 공기만 맴돌아서 새싹 로봇이 숨이 답답하다며 잎을 늘어뜨렸어. 창밖에 벌이 윙윙거려서 창문은 닫아 둔 채로, 바람 세기는 그대로 두고 바깥의 새 공기를 데려와야 해. 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "바람이 세져도 같은 공기면 소용없으니, 공기가 어디서 오는지 화살표 그림을 봐.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-off-d-r02",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "토끼 기관사가 먹은 마늘빵 냄새가 차 안에서 맴돌아서 투덜이 기계가 투덜거려. 바람 세기는 그대로 두고, 모기가 들어오니 창문은 닫아 둔 채로 냄새를 빼야 해. 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "냄새가 안 빠지는 건 바람이 약해서가 아니라 공기가 차 안에서만 돌아서일지도 몰라.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-off-d-r03",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 오래 앉아 그림책을 봤더니 공기가 텁텁해서 하품이 자꾸 나온대. 날벌레가 들어오면 안 되니 창문은 닫아 둔 채로, 바람 세기도 그대로 두고 새 공기로 바꿔야 해. 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "새 공기는 차 밖에서 와야 하니, 그 길을 막고 켜져 있는 화살표 버튼을 찾아봐.",
+   "answer": 0
+  },
+  {
+   "id": "recirc-on-d-r01",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "토끼 기관사가 바람 구멍 앞에서만 버스 연기 냄새가 난다며 코를 찡그려. 차 뒤에는 버스가 줄지어 서 있어. 창문은 닫아 둔 채로 바람은 계속 나오게 두고 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "냄새가 밖에서 바람을 타고 들어온다면, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-on-d-r02",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "수달 요리사의 코끝에 노란 꽃가루가 자꾸 묻는대. 차 안에는 꽃이 하나도 없는데, 차 옆 꽃밭에서 날린 가루가 바람 구멍으로 함께 들어오고 있어. 바람은 계속 나오게 두고 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "꽃가루가 밖에서 바람을 타고 온다면, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 살펴봐.",
+   "answer": 1
+  },
+  {
+   "id": "recirc-on-d-r03",
+   "kind": "REASON",
+   "dial": "RECIRC",
+   "age": "DETECTIVE",
+   "text": "투덜이 기계가 바람 구멍에서 쿰쿰한 냄새가 난다고 투덜거려. 차 안에는 냄새 날 물건이 없는데, 옆에 쓰레기차가 서 있어. 창문은 닫아 둔 채로 바람은 계속 나오게 두고 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "냄새가 쓰레기차에서 바람을 타고 들어온다면, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-l-r01",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "LITTLE",
+   "text": "펭귄 선장의 호호 입김에 앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아서 안 돼. 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-l-r02",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "LITTLE",
+   "text": "새싹 로봇의 젖은 수건에 앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아서 안 돼. 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "버튼 그림에서 꼬불꼬불 화살표를 찾아봐, 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-l-r03",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "LITTLE",
+   "text": "사막여우의 코코아 김에 앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아서 안 돼. 차 버튼으로 사막여우를 도와줘!",
+   "hint": "안전 지킴이와 함께 봐, 꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-c-r01",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "CAPTAIN",
+   "text": "토끼 기관사가 기차놀이를 하고 와서 헉헉대니 앞 유리 안쪽이 뿌예지려고 해. 와이퍼는 바깥쪽만 닦으니까 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "뿌예지는 곳이 앞 유리니까, 꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-c-r02",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "CAPTAIN",
+   "text": "수달 요리사가 젖은 비옷을 입고 타서 앞 유리 안쪽이 뿌예지려고 해. 손으로 닦으면 얼룩이 남으니까 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "닦는 대신 버튼 그림을 봐, 꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-c-r03",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 투덜대며 하얀 김을 칙칙 뿜어서 앞 유리 안쪽이 뿌예지려고 해. 수건으로 닦아도 김이 금방 또 생긴다니 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-d-r01",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "DETECTIVE",
+   "text": "투덜이 기계와 새싹 로봇이 신나게 노래를 불러서 앞 유리 안쪽이 뿌예지려고 해. 뒷유리는 멀쩡하고, 손으로 문지르면 얼룩이 남는대. 차 버튼으로 두 친구를 도와줘!",
+   "hint": "어느 유리인지 떠올려 봐, 꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-d-r02",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "DETECTIVE",
+   "text": "수달 요리사가 따뜻한 코코아를 후후 불어 마시는 동안 앞 유리 안쪽이 뿌예지려고 해. 뒷유리는 멀쩡하고, 와이퍼는 바깥쪽만 닦는대. 뿌예지기 전에 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "안쪽과 앞쪽을 함께 생각해 봐, 꼬불꼬불 화살표 버튼 중 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "defrost-d-r03",
+   "kind": "REASON",
+   "dial": "DEFROST",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 물놀이를 하고 와서 젖은 깃털을 털었더니 앞 유리 안쪽이 뿌예지려고 해. 손으로 닦으면 얼룩이 남고, 와이퍼는 바깥쪽만 닦는다고 사막여우가 알려 줬어. 차 버튼으로 펭귄 선장과 사막여우를 도와줘!",
+   "hint": "두 단서를 합쳐 봐, 꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-l-r01",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "LITTLE",
+   "text": "사막여우의 귀털이 바람 나오는 구멍 앞에서 살짝만 흔들려. 귀털이 팔랑팔랑 날리게 차 버튼으로 도와줘!",
+   "hint": "귀털이 팔랑팔랑 날리려면 바람이 지금보다 어떻게 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-l-r02",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "LITTLE",
+   "text": "새싹 로봇의 바람개비가 느릿느릿 돌아. 바람개비가 빙글빙글 빨리 돌게 차 버튼으로 도와줘!",
+   "hint": "바람개비가 빨리 돌려면 바람이 살랑살랑이 좋을까, 쌩쌩이 좋을까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-l-r03",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "LITTLE",
+   "text": "토끼 기관사의 작은 깃발이 살짝만 흔들려. 깃발이 펄럭펄럭 날리게 차 버튼으로 도와줘!",
+   "hint": "깃발이 펄럭이려면 바람이 지금처럼 약하면 될까, 더 힘차야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-c-r01",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "CAPTAIN",
+   "text": "펭귄 선장이 뒷자리에 앉았는데 바람이 약해서 뒷자리까지 잘 안 와. 펭귄 선장은 지금 온도가 딱 좋대, 차 버튼으로 바람이 뒷자리까지 오게 도와줘!",
+   "hint": "바람이 뒷자리까지 멀리 가려면 바람이 어떻게 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-c-r02",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 머리에 단 리본이 바람에 살짝만 흔들려서 투덜투덜해. 투덜이 기계는 지금 온도가 딱 좋대, 리본이 펄럭이게 차 버튼으로 도와줘!",
+   "hint": "리본이 펄럭펄럭 날리려면 바람이 지금보다 어떻게 나와야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-c-r03",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "CAPTAIN",
+   "text": "수달 요리사가 앞치마 끈을 바람 나오는 구멍 앞에 댔는데 끈이 살짝만 흔들려. 수달 요리사는 지금 온도가 딱 좋대, 끈이 펄럭이게 차 버튼으로 도와줘!",
+   "hint": "끈이 살짝만 흔들린다는 건 바람이 어떻다는 뜻인지 생각해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-d-r01",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "DETECTIVE",
+   "text": "새싹 로봇이 젖은 나뭇잎을 바람 나오는 구멍 앞에 댔는데 살짝만 흔들리고 잘 안 말라. 새싹 로봇은 지금 온도가 딱 좋대. 새싹 로봇 말을 지키면서 나뭇잎이 빨리 마르게 차 버튼으로 도와줘!",
+   "hint": "나뭇잎이 살짝만 흔들린다는 건 바람이 어떻다는 뜻인지 생각해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-d-r02",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 종이배를 바람 나오는 구멍 앞에 두었는데 돛이 살짝만 부풀어. 펭귄 선장은 지금 온도가 딱 좋고 에어컨 버튼도 그대로 두고 싶대. 돛이 빵빵하게 부풀게 차 버튼으로 도와줘!",
+   "hint": "돛이 살짝만 부푼다는 건 지금 바람이 어떻다는 뜻인지 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-up-d-r03",
+   "kind": "REASON",
+   "dial": "FAN_UP",
+   "age": "DETECTIVE",
+   "text": "사막여우가 뒷자리에서 작은 깃털을 바람에 태우려는데 바람이 조금만 와서 깃털이 금방 떨어져. 앞자리 수달 요리사는 지금 온도가 딱 좋대. 수달 요리사 말을 지키면서 깃털이 둥실 뜨게 차 버튼으로 도와줘!",
+   "hint": "깃털이 뒷자리에서 둥실 뜨려면 바람이 어떻게 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-l-r01",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "LITTLE",
+   "text": "바람이 쌩쌩 불어서 사막여우의 큰 귀가 펄럭펄럭 뒤집혀. 바람은 조금 나와야 하니까 차 버튼으로 사막여우를 도와줘!",
+   "hint": "바람이 쌩쌩 말고 살살 불면 귀가 어떻게 될지 생각해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-l-r02",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "LITTLE",
+   "text": "바람이 쌩쌩 불어서 새싹 로봇의 잎사귀가 마구 흔들려. 바람은 조금 나와야 하니까 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "바람 그림 버튼을 보고 바람이 살살 불려면 어떻게 될지 생각해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-l-r03",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "LITTLE",
+   "text": "바람이 쌩쌩 불어서 펭귄 선장의 그림 종이가 훨훨 날아가. 바람은 조금 나와야 하니까 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "종이가 가만히 있으려면 바람이 어떻게 불어야 할지 생각해 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-c-r01",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "CAPTAIN",
+   "text": "바람이 너무 세게 불어서 토끼 기관사의 긴 귀가 펄럭펄럭 춤을 춰. 바람은 계속 나와야 하니까 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "바람을 멈추지 않고 귀가 얌전해지려면 바람이 어떻게 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-c-r02",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "CAPTAIN",
+   "text": "바람이 너무 세게 불어서 사막여우의 큰 귀에 윙윙 소리가 울려. 바람이 오는 쪽은 그대로 두고 차 버튼으로 사막여우를 도와줘!",
+   "hint": "바람이 가는 쪽 말고 바람이 얼마나 쌩쌩 부는지를 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-c-r03",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "CAPTAIN",
+   "text": "바람이 너무 세게 불어서 수달 요리사의 긴 수염이 펄럭펄럭 흔들려. 바람은 계속 나와야 하니까 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "바람개비 그림 버튼에서 바람이 살살 불려면 무엇이 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-d-r01",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장은 뛰어놀고 와서 바람은 계속 나와야 한대. 그런데 바람이 너무 세게 불어서 눈을 뜨기 어렵고 안전 지킴이 목소리도 잘 안 들려. 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "바람은 계속 나와야 하는데 지금 바람의 무엇이 너무 지나친지 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-d-r02",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "DETECTIVE",
+   "text": "사막여우가 무릎 위에 지도를 펼쳤는데 바람이 너무 세게 불어서 지도가 펄럭이고 큰 귀에 윙윙 소리가 울려. 바람이 오는 쪽은 그대로 두고 바람은 계속 나와야 하니까 차 버튼으로 사막여우를 도와줘!",
+   "hint": "바람을 멈추지도 돌리지도 않고 지도가 얌전해지려면 바람 그림 버튼을 어떻게 해야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "fan-down-d-r03",
+   "kind": "REASON",
+   "dial": "FAN_DOWN",
+   "age": "DETECTIVE",
+   "text": "투덜이 기계가 퍼즐을 맞추는데 바람이 너무 세게 불어서 조각이 자꾸 굴러가고 바람 소리도 쌩쌩 커. 바람이 오는 쪽은 그대로 두고 바람은 계속 나와야 하니까 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "조각도 가만히 있고 소리도 조용해지려면 바람이 어떻게 달라져야 할까?",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-l-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "LITTLE",
+   "text": "펭귄 선장이 얼음을 올려 둬서 안전 지킴이 의자가 차가워. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "안전 지킴이 의자를 데워 주는 의자 그림 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-l-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "LITTLE",
+   "text": "수달 요리사가 찬 물병을 안전 지킴이 의자에 올려 뒀어. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "차가운 건 의자니까 의자 그림이 그려진 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-l-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "LITTLE",
+   "text": "토끼 기관사가 안전 지킴이 의자에 얼음 주머니를 뒀어. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "얼음이 닿았던 의자를 데워 주는 의자 그림 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-c-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 얼음 주머니를 올려 둬서 안전 지킴이 의자가 차가워졌어. 차 안 공기는 괜찮으니 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "공기 말고 안전 지킴이 의자를 데워 주는 의자 그림 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-c-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "CAPTAIN",
+   "text": "사막여우가 차가운 물병을 안전 지킴이 의자에 올려 둬서 의자가 차가워졌어. 차 안 공기는 괜찮으니 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "물병이 놓였던 자리를 데워 주는 의자 그림 버튼을 살펴봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-c-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "CAPTAIN",
+   "text": "새싹 로봇이 얼음 주머니를 안전 지킴이 의자에 올려 둬서 의자가 차가워졌어. 차 안 공기는 괜찮으니 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "안전 지킴이 의자를 데워 주는 의자 그림 버튼을 찾아봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-d-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "DETECTIVE",
+   "text": "토끼 기관사가 차가운 물병을 안전 지킴이 의자에 올려 둬서 의자가 차가워졌어. 새싹 로봇은 차 안 공기가 딱 좋대. 온도 숫자랑 바람 세기는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "공기도 바람도 아니라면 몸이 닿는 의자를 데워 주는 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-d-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "DETECTIVE",
+   "text": "수달 요리사가 생선을 담던 얼음 주머니를 안전 지킴이 의자에 올려 뒀었어. 안전 지킴이는 손이랑 얼굴은 괜찮은데 등이 차갑대. 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "공기 말고 안전 지킴이 의자를 데워 주는 의자 그림 버튼을 떠올려 봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-on-d-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_ON",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 차가운 물병 세 개를 안전 지킴이 의자에 줄줄이 세워 뒀었어. 사막여우는 차 안 공기가 딱 좋대. 바람 세기랑 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "안전 지킴이 의자를 데워 주는 의자 그림 버튼이 어느 쪽에 있는지 살펴봐.",
+   "answer": 1
+  },
+  {
+   "id": "seat-heat-off-l-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "LITTLE",
+   "text": "수달 요리사가 보니 안전 지킴이 의자가 찐빵처럼 계속 뜨끈해. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-l-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "LITTLE",
+   "text": "새싹 로봇이 보니 안전 지킴이 의자가 난로처럼 계속 뜨끈해. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "안전 지킴이 쪽 의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-l-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "LITTLE",
+   "text": "투덜이 기계가 만져 보니 안전 지킴이 의자가 계속 뜨끈뜨끈해. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "앞자리 의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-c-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "CAPTAIN",
+   "text": "사막여우가 보니 안전 지킴이 의자가 계속 데워져 엉덩이가 뜨끈하고 땀이 나. 안전 지킴이는 조금 덜 뜨끈한 것도 싫다니까 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "엉덩이를 데우는 의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-c-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "CAPTAIN",
+   "text": "안전 지킴이 의자가 계속 데워져 엉덩이가 뜨끈하고 코끝에 땀이 맺혔어. 젖은 수달 요리사는 차 안이 시원해지면 덜덜 떠니까 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "안전 지킴이 쪽 의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-c-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "CAPTAIN",
+   "text": "안전 지킴이 의자가 계속 데워져 엉덩이가 뜨끈하고 땀이 나. 토끼 기관사 수프가 식으면 안 되니 차 안을 시원하게 하지 말고 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-d-r01",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "DETECTIVE",
+   "text": "안전 지킴이 의자가 계속 뜨끈뜨끈하게 데워져서 이마에 땀이 송골송골 맺혔어. 감기 걸린 펭귄 선장은 차 안이 시원해지면 안 되고, 안전 지킴이는 조금 덜 따뜻한 것도 싫대. 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "한 사람만 덥다면 그 사람 의자 그림 버튼에 불이 켜져 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-d-r02",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "DETECTIVE",
+   "text": "안전 지킴이 의자가 계속 데워져 엉덩이가 뜨끈뜨끈하고 땀까지 나. 추위 타는 투덜이 기계 때문에 차 안이 시원해지면 안 되고, 안전 지킴이는 의자 바람은 간지러워 싫대. 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "의자 그림 버튼 가운데 지금 불이 켜져 있는 게 있는지 살펴봐.",
+   "answer": 0
+  },
+  {
+   "id": "seat-heat-off-d-r03",
+   "kind": "REASON",
+   "dial": "SEAT_HEAT_OFF",
+   "age": "DETECTIVE",
+   "text": "안전 지킴이 의자가 계속 데워져 엉덩이가 뜨끈하고 손바닥에 땀이 나. 새싹 로봇은 차 안이 시원해지면 시들고, 안전 지킴이는 살짝 덜 뜨끈한 것도 싫대. 차 버튼으로 안전 지킴이를 도와줘!",
+   "hint": "의자 그림 버튼에 불이 켜져 있는지 살펴보고, 조금이 아니라 아예 어떻게 할지 생각해 봐.",
+   "answer": 0
+  },
+  {
+   "id": "light-child-l-r01",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "LITTLE",
+   "text": "펭귄 선장 그림책의 그림이 개미만큼 작아서 네 자리가 더 밝아야 해. 창문은 깨끗해, 차 버튼으로 그림책 보기를 도와줘!",
+   "hint": "네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-l-r02",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "LITTLE",
+   "text": "새싹 로봇이 그린 그림이 개미만큼 작아서 네 자리가 더 밝아야 해. 차 안 공기는 딱 좋아, 차 버튼으로 그림 구경을 도와줘!",
+   "hint": "고개를 들어 네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-l-r03",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "LITTLE",
+   "text": "사막여우 그림 편지 속 그림이 개미만큼 작아서 네 자리가 더 밝아야 해. 창문은 깨끗해, 차 버튼으로 편지 보기를 도와줘!",
+   "hint": "방을 환하게 하는 것을 떠올리고 네 머리 위 작은 불을 가리켜 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-c-r01",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "CAPTAIN",
+   "text": "펭귄 선장이 준 보물 지도의 길이 개미만큼 작아서 네 자리가 더 밝아야 잘 보여. 차 안 공기는 딱 좋으니 차 버튼으로 보물 찾기를 도와줘!",
+   "hint": "공기는 괜찮으니 네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-c-r02",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "CAPTAIN",
+   "text": "토끼 기관사가 보낸 편지 글씨가 개미만큼 작아서 네 자리가 더 밝아야 읽을 수 있어. 창문은 깨끗하니 차 버튼으로 편지 읽기를 도와줘!",
+   "hint": "창문 말고 네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-c-r03",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 건넨 미로 그림의 길이 개미만큼 작아서 네 자리가 더 밝아야 잘 보여. 차 안 공기는 딱 좋으니 차 버튼으로 미로 풀기를 도와줘!",
+   "hint": "미로를 잘 보려면 무엇이 더 필요할까, 네 머리 위 작은 불을 가리켜 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-d-r01",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "DETECTIVE",
+   "text": "수달 요리사가 준 요리책 글씨가 개미만큼 작아서 네 자리가 더 밝아야 읽을 수 있어. 창문은 깨끗하고 차 안 공기도 딱 좋아. 차 버튼으로 수달 요리사의 요리책 읽기를 도와줘!",
+   "hint": "창문과 공기는 괜찮으니 네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-d-r02",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "DETECTIVE",
+   "text": "사막여우가 그려 준 보물 지도에 개미만 한 표시가 숨어 있어서 네 무릎 위가 더 밝아야 찾을 수 있어. 창문은 깨끗하고 차 안 공기도 딱 좋아. 차 버튼으로 보물 표시 찾기를 도와줘!",
+   "hint": "유리와 공기 말고 지도에 모자란 것을 떠올리고 네 머리 위 작은 불을 가리켜 봐.",
+   "answer": 1
+  },
+  {
+   "id": "light-child-d-r03",
+   "kind": "REASON",
+   "dial": "LIGHT_CHILD",
+   "age": "DETECTIVE",
+   "text": "새싹 로봇이 일기장을 읽어 달라는데 글씨가 개미만큼 작아서 네 자리가 더 밝아야 해. 네 몸은 춥지도 덥지도 않고 창문도 깨끗해. 차 버튼으로 새싹 로봇의 일기 읽기를 도와줘!",
+   "hint": "몸과 창문은 괜찮으니 네 머리 위 작은 불을 가리켜 봐, 손이 닿으면 벨트 맨 채로 눌러 봐.",
+   "answer": 1
+  },
+  {
+   "id": "lights-off-l-r01",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "LITTLE",
+   "text": "사막여우가 코 자려는데 작은 불이 하나도 안 켜져 있어야 잠이 온대. 차 버튼으로 사막여우를 도와줘!",
+   "hint": "켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-l-r02",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "LITTLE",
+   "text": "토끼 기관사가 반짝 별 스티커를 보려면 작은 불이 하나도 안 켜져 있어야 한대. 차 버튼으로 토끼 기관사를 도와줘!",
+   "hint": "별 스티커를 생각하며 켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-l-r03",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "LITTLE",
+   "text": "새싹 로봇이 꿈나라에 가려는데 작은 불이 하나도 안 켜져 있어야 마음이 놓인대. 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "전구 그림 버튼을 보며 켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-c-r01",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "CAPTAIN",
+   "text": "펭귄 선장이 잘 시간인데 작은 불이 켜져 있으면 잠이 안 온대. 하나만 꺼서는 안 되고 하나도 안 켜져 있어야 하니 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "한 번 더 둘러보고 켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-c-r02",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "CAPTAIN",
+   "text": "수달 요리사는 작은 불이 하나라도 켜져 있으면 자장가를 들어도 잠이 안 온대. 작은 불이 하나도 안 켜져 있게 차 버튼으로 수달 요리사를 도와줘!",
+   "hint": "자장가를 들으며 켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-c-r03",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "CAPTAIN",
+   "text": "투덜이 기계가 꿈속 기차 여행을 떠나려는데 작은 불이 켜져 있으면 눈이 안 감긴대. 하나만 끄지 말고 하나도 안 켜져 있게 차 버튼으로 투덜이 기계를 도와줘!",
+   "hint": "켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-d-r01",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "DETECTIVE",
+   "text": "펭귄 선장이 모자의 야광 별 스티커를 보고 싶대. 그런데 작은 불이 하나라도 켜져 있으면 별빛이 안 보이고, 하나만 끄는 건 소용없대. 작은 불이 하나도 안 켜져 있게 차 버튼으로 펭귄 선장을 도와줘!",
+   "hint": "켜져 있는 작은 불을 전부 다 찾아보고, 손이 안 닿는 불은 안전 지킴이에게 부탁해 봐.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-d-r02",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "DETECTIVE",
+   "text": "사막여우가 담요를 덮고 잘 준비를 했는데 작은 불이 하나라도 켜져 있으면 잠이 안 온대. 춥거나 더운 건 괜찮고 불 하나만 끄는 걸로는 부족하대. 작은 불이 하나도 안 켜져 있게 차 버튼으로 사막여우를 도와줘!",
+   "hint": "춥고 더운 건 상관없으니 켜져 있는 작은 불을 전부 다 찾아봐, 벨트는 맨 채로야.",
+   "answer": 0
+  },
+  {
+   "id": "lights-off-d-r03",
+   "kind": "REASON",
+   "dial": "LIGHTS_OFF",
+   "age": "DETECTIVE",
+   "text": "새싹 로봇이 야광 펜으로 그린 그림을 보고 싶대. 작은 불이 하나라도 켜져 있으면 그림이 안 보이고, 덥거나 추운 건 상관없대. 하나만 끄지 말고 작은 불이 하나도 안 켜져 있게 차 버튼으로 새싹 로봇을 도와줘!",
+   "hint": "켜져 있는 작은 불을 전부 다 찾아봐, 손이 닿으면 벨트를 맨 채로 눌러 봐.",
+   "answer": 0
+  }
+ ]
+}

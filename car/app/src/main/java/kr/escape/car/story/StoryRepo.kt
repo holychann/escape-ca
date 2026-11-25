@@ -10,8 +10,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.escape.car.engine.Age
 import kr.escape.car.engine.CarState
+import kr.escape.car.engine.Dial
+import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
+import kr.escape.car.engine.Questions
 import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import org.json.JSONArray
@@ -30,6 +33,8 @@ class StoryRepo(
     private val client: StoryClient,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** The quizzes the planner may ask (the app's copy of the question bank, the same one the server draws from). */
+    private val questions: Questions = Questions.ANY,
 ) {
     enum class Status { NONE, WRITING, READY, OFFLINE, REJECTED }
 
@@ -72,7 +77,7 @@ class StoryRepo(
         if (job?.isActive == true && writingFor == wanted) return
         job?.cancel()
         _preview.value = null
-        val puzzles = Planner.plan(setup, car)
+        val puzzles = Planner.plan(setup, car, questions = questions)
         if (puzzles.isEmpty()) return
         writingFor = wanted
         _status.value = Status.WRITING
@@ -139,22 +144,33 @@ class StoryRepo(
     private fun fits(setup: Setup, car: CarState): Ready? {
         val s = saved ?: return null
         if (s.setup != setup.forStory()) return null
-        val puzzles = s.keys.map { StoryKeys.puzzle(it, car.fanSpeedRange, setup.childSeat) ?: return null }
+        val puzzles = s.keys.map { StoryKeys.puzzle(it) ?: return null }
         if (puzzles.any { !car.devices.containsAll(it.devices) }) return null
+        // kept since an earlier drive: a temperature quiz whose way (up or down) no longer suits the cabin is not played
+        val temp = Planner.tempDial(car)
+        if (puzzles.any { it is Puzzle.Quiz && (it.dial == Dial.TEMP_UP || it.dial == Dial.TEMP_DOWN) && it.dial != temp }) return null
         return Ready(puzzles, s.story)
     }
 
     companion object {
         const val WISH_MAX = 60
 
-        /** The gift choice does not change the puzzles, so a story fits either way. */
-        private fun Setup.forStory() = copy(giftReady = false, wish = wish.trim())
+        /**
+         * The lessons a story can carry, one picked at random for each episode the server writes, apart from the kind
+         * of story the family chose (server models.LESSON_LABEL has their words).
+         */
+        val LESSONS = listOf("COURAGE", "CARE", "CREATIVITY", "GRIT", "TEAMWORK", "SHARING", "HONESTY", "THANKS",
+            "PROMISE", "FRIENDSHIP")
+
+        private fun Setup.forStory() = copy(wish = wish.trim())
 
         /**
          * Enums, numbers and answer keys; the only free text is the family's own wish, and with it the server is asked
          * to draw that world too. No name, voice or place ever leaves the car otherwise.
          */
-        fun request(installId: String, setup: Setup, puzzles: List<Puzzle>, now: Calendar): JSONObject {
+        fun request(
+            installId: String, setup: Setup, puzzles: List<Puzzle>, now: Calendar, lesson: String = LESSONS.random(),
+        ): JSONObject {
             val hour = now.get(Calendar.HOUR_OF_DAY)
             val timeOfDay = when (hour) {
                 in 5..10 -> "MORNING"
@@ -173,7 +189,9 @@ class StoryRepo(
                 .put("ages", JSONArray(setup.ages.map { it.name }))
                 .put("minutes", setup.minutes)
                 .put("context", JSONObject().put("timeOfDay", timeOfDay).put("season", season))
-                .put("puzzles", JSONArray(puzzles.map { p -> JSONArray(StoryKeys.variants(p).map(StoryKeys::key)) }))
+                // one key per puzzle: a quiz's answer is fixed, so the server writes exactly one question for it
+                .put("puzzles", JSONArray(puzzles.map { p -> JSONArray(listOf(StoryKeys.key(p))) }))
+                .put("lesson", lesson)
             val wish = setup.wish.trim().take(WISH_MAX)
             if (wish.isNotEmpty()) body.put("wish", wish).put("pictures", true)
             return body
@@ -184,6 +202,7 @@ class StoryRepo(
                 .put("ages", JSONArray(s.setup.ages.map { it.name }))
                 .put("minutes", s.setup.minutes)
                 .put("childSeat", s.setup.childSeat.name)
+                .put("friend", s.setup.friend.name)
                 .put("wish", s.setup.wish))
             .put("keys", JSONArray(s.keys))
             .put("story", s.story.toJson())
@@ -197,6 +216,7 @@ class StoryRepo(
                     ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
                     minutes = st.getInt("minutes"),
                     childSeat = Seat.valueOf(st.getString("childSeat")),
+                    friend = Friend.entries.firstOrNull { it.name == st.optString("friend") } ?: Friend.BANTE,
                     wish = st.optString("wish", ""),
                 ),
                 List(keys.length()) { keys.getString(it) },

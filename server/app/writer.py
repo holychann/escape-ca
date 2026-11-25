@@ -1,5 +1,6 @@
 """Asks the story model (Claude or Gemini) for a draft in the fixed JSON shape. API keys stay on this server only."""
 import os
+import re
 from typing import Protocol
 
 import anthropic
@@ -98,11 +99,34 @@ class GeminiWriter:
         return Draft.model_validate_json(response.text), response.model_version or self.model
 
 
-def make_writer() -> Writer:
+def _provider() -> str:
     """STORY_PROVIDER picks the model maker; without it, a Gemini key alone means Gemini."""
-    provider = os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
+    return os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
+
+
+def make_writer() -> Writer:
+    provider = _provider()
     if provider == "gemini":
         return GeminiWriter()
     if provider == "claude":
         return ClaudeWriter()
     raise ValueError(f"unknown STORY_PROVIDER: {provider}")
+
+
+# ---------------------------------------------------------------- blind check (tools/make_bank.py)
+
+SOLVER_CLAUDE = "claude-haiku-5-5"
+# room to think first: with a tiny limit a harder question runs out while thinking and gives no answer
+SOLVER_TOKENS = 2048
+
+
+def solver_prompt(question: str, choices: list[str]) -> str:
+    lines = [f"문제: {question}", "보기:", *[f"{i}. {c}" for i, c in enumerate(choices, 1)], "정답 번호만 숫자로 답해."]
+    return "\n".join(lines)
+
+
+def picked(text: str | None, n: int) -> int | None:
+    """The index of the choice a model's answer names, or None when it names no choice."""
+    found = re.search(r"\d+", text or "")
+    i = int(found.group()) - 1 if found else -1
+    return i if 0 <= i < n else None

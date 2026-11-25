@@ -2,15 +2,14 @@
 //
 // node tools/vc.mjs light <seat> on|off        seat: driver, passenger, rear_left, rear_right
 // node tools/vc.mjs seat <seat> on|off         someone sitting there (the game needs the driver seat taken)
-// node tools/vc.mjs together same_time <child seat>
-// node tools/vc.mjs together child_once_parent_twice <child seat>
-// node tools/vc.mjs together fan_while_lit <child seat>
-// node tools/vc.mjs rooms left|right            ③ 두 방 온도: the named side 18 degrees, the other 24
+// node tools/vc.mjs lights <0~4>                that many reading lights on (driver's seat first), the rest off
 // node tools/vc.mjs fan <0~8>
 // node tools/vc.mjs dir <driver|passenger> face|floor
 // node tools/vc.mjs recirc on|off
 // node tools/vc.mjs dual on|off
 // node tools/vc.mjs temp <driver|passenger> <16~30>
+// node tools/vc.mjs ac on|off
+// node tools/vc.mjs seatheat <0~3>              the driver seat's heating step
 // node tools/vc.mjs defrost on|off
 // node tools/vc.mjs power on|off
 // node tools/vc.mjs keep [seconds]              holds the console session open (default 60 s)
@@ -28,8 +27,7 @@ try {
   vc = await connect();
   if (cmd === 'light') await vc.light(a, onOff(b));
   else if (cmd === 'seat') await vc.set('seat-occupancy', onOff(b), seatName(a));
-  else if (cmd === 'together') await vc.together(a, b);
-  else if (cmd === 'rooms') await vc.rooms(a);
+  else if (cmd === 'lights') await vc.lights(a);
   else if (cmd === 'fan') await vc.set('hvac-fan-speed', Number(a));
   else if (cmd === 'dir') await vc.set('hvac-fan-direction', { face: 1, floor: 2 }[b] ?? b, a);
   else if (cmd === 'recirc') await vc.set('hvac-recirc', onOff(a));
@@ -37,6 +35,8 @@ try {
   else if (cmd === 'temp') await vc.set('hvac-temperature-set', Number(b), a);
   else if (cmd === 'defrost') await vc.set('hvac-defroster', onOff(a), 'front_defroster_on');
   else if (cmd === 'power') await vc.set('hvac-power', onOff(a));
+  else if (cmd === 'ac') await vc.set('hvac-ac', onOff(a));
+  else if (cmd === 'seatheat') await vc.set('hvac-seat-temperature', Number(a), 'driver');
   else if (cmd === 'keep') await sleep(Number(a || 60) * 1000);
   else if (cmd === 'show') {
     for (const f of vc.catalog.features) {

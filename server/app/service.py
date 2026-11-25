@@ -1,11 +1,15 @@
-"""One episode: write, check, write once more if the first draft was not clean, then draw its pictures."""
+"""One episode: draw its questions from the bank, have the story written around them, check, write once more if
+the first draft was not clean, then draw its pictures."""
 import logging
+import random
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .checker import Verdict, art_problems, check, friend_problems, to_episode
-from .models import Draft, Episode, EpisodeRequest, SceneText
+from . import quiz
+from .bank import Bank
+from .checker import Verdict, art_problems, check, friend_problems, scene_text, to_episode
+from .models import Draft, DraftQuestion, Episode, EpisodeRequest
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
@@ -13,17 +17,41 @@ from .writer import Writer
 
 log = logging.getLogger("story")
 
+Picks = dict[str, tuple[DraftQuestion, str]]
 
-def make_episode(req: EpisodeRequest, writer: Writer, attempts: int = 2) -> tuple[Episode, Draft] | None:
+
+def pick_questions(req: EpisodeRequest, bank: Bank, rnd: random.Random | None = None) -> Picks:
+    """A random bank question and its hint for every quiz key, fitted to the youngest child on board. A key the bank
+    has nothing for is left out, and its scene is played with the car's own question."""
+    rnd = rnd or random.Random()
+    picks: Picks = {}
+    for key in req.keys:
+        q = quiz.parse(key)
+        if q is not None and (found := bank.pick(q, req.youngest, rnd)) is not None:
+            picks[key] = found
+    return picks
+
+
+def put_questions(draft: Draft, picks: Picks) -> None:
+    """The writer only writes the story: each quiz scene gets its bank question and hint here, before the checks."""
+    for s in draft.scenes:
+        if s.key in picks:
+            s.question, s.hint = picks[s.key]
+
+
+def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int = 2,
+                 rnd: random.Random | None = None) -> tuple[Episode, Draft] | None:
     """The cleanest usable draft and its episode, or None when every draft failed the episode-wide checks."""
+    picks = pick_questions(req, bank, rnd)
     best: tuple[Verdict, Episode, Draft] | None = None
-    user = user_message(req)
+    user = user_message(req, picks)
     for attempt in range(1, attempts + 1):
         try:
             draft, model = writer.write(SYSTEM, user)
         except Exception as e:  # network, rate limit, refusal, broken JSON: all mean "no draft this time"
             log.warning("attempt %d: writer failed: %r", attempt, e)
             continue
+        put_questions(draft, picks)
         verdict = check(draft, req)
         friend = friend_problems(draft.friend, req)
         log.info("attempt %d: episode=%s scenes=%s friend=%s", attempt, verdict.whole, verdict.items, friend)
@@ -38,8 +66,10 @@ def make_episode(req: EpisodeRequest, writer: Writer, attempts: int = 2) -> tupl
     if best is None:
         return None
     verdict, episode, draft = best
-    if verdict.items:
-        episode = repair(req, writer, episode, set(verdict.items))
+    # a quiz the bank had no question for can never pass, so it is not written again
+    bad = {k for k in verdict.items if quiz.parse(k) is None or k in picks}
+    if bad:
+        episode = repair(req, writer, episode, bad, picks)
     return episode, draft
 
 
@@ -47,9 +77,9 @@ def _score(verdict: Verdict, episode: Episode) -> tuple[int, bool]:
     return len(verdict.items), episode.friend is None
 
 
-def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str]) -> Episode:
-    """Asks once more for only the scenes that failed, told the story so far so they still belong to it; a scene
-    that passes this time joins the episode, one that fails again stays with the app's own lines."""
+def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks) -> Episode:
+    """Asks once more for only the scenes that failed, told the story so far so they still belong to it, around the
+    same questions; a scene that passes this time joins the episode, one that fails again stays with the app's own."""
     slots = [[k for k in slot if k in bad] for slot in req.puzzles]
     sub = req.model_copy(update={"puzzles": [slot for slot in slots if slot]})
     told = (
@@ -58,18 +88,19 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str]) -> E
         "- scenes 말고 다른 항목도 형식에 맞게 채우되, 쓰이는 것은 scenes뿐이다."
     )
     try:
-        draft, _ = writer.write(SYSTEM, user_message(sub) + told)
+        draft, _ = writer.write(SYSTEM, user_message(sub, picks) + told)
     except Exception as e:
         log.warning("repair: writer failed: %r", e)
         return ep
+    put_questions(draft, picks)
     verdict = check(draft, sub)
-    fixed = {s.key: s for s in draft.scenes if s.key in bad and s.key not in verdict.items}
+    fixed = {s.key: s for s in reversed(draft.scenes) if s.key in bad and s.key not in verdict.items}
     log.info("repair: fixed=%s still=%s", sorted(fixed), verdict.items)
     if not fixed:
         return ep
     scenes = dict(ep.scenes)
     for key, s in fixed.items():
-        scenes[key] = SceneText(bubble=s.bubble, speech=s.speech, hint=s.hint)
+        scenes[key] = scene_text(key, s)
     return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]})
 
 
@@ -90,7 +121,7 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
             wanted["ending"] = art.ending
             for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
                 # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
-                avoid = sorted({w for key in req.puzzles[i - 1] for w in rule_for(key).art_never})
+                avoid = sorted({w for key in req.puzzles[i - 1] if quiz.parse(key) is None for w in rule_for(key).art_never})
                 wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
         wanted = {name: text for name, text in wanted.items() if name not in skip}
     friend = ep.friend

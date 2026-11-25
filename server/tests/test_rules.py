@@ -1,30 +1,10 @@
 import copy
-import itertools
 import tomllib
 
 import pytest
 from pydantic import ValidationError
 
-from app.rules import RULES, RULES_FILE, StoryRules
-
-# the puzzles whose answer the app may switch at puzzle start (car StoryKeys.variants)
-SWITCHABLE = ("WIND", "DUST", "ROOMS", "SEAT")
-
-
-def _pairs():
-    keys = sorted(RULES.scene)
-    for kind in SWITCHABLE:
-        same = [k for k in keys if k.split(":")[0] == kind]
-        yield from itertools.permutations(same, 2)
-
-
-@pytest.mark.parametrize("key,other", list(_pairs()))
-def test_switchable_answers_forbid_each_others_words(key, other):
-    a, b = RULES.scene[key], RULES.scene[other]
-    for group in a.must:
-        if group in b.must:
-            continue
-        assert any(w in b.never for w in group), f"{other} must forbid one of {group} ({key}'s answer)"
+from app.rules import RULES_FILE, StoryRules
 
 
 def _raw():
@@ -33,7 +13,7 @@ def _raw():
 
 
 def _typo(d):
-    d["scene"]["FOG"]["hint_mst"] = [["유리"]]
+    d["scene"]["BELT"]["hint_mst"] = [["딸깍"]]
 
 
 def _bad_pattern(d):
@@ -41,7 +21,7 @@ def _bad_pattern(d):
 
 
 def _empty_group(d):
-    d["scene"]["ROOMS:LEFT"]["must"].append([])
+    d["scene"]["BELT"]["must"].append([])
 
 
 def _missing_age(d):

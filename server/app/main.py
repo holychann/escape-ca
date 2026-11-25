@@ -19,6 +19,7 @@ from .models import Episode, EpisodeRequest, Report
 from .painter import Painter, make_painter
 from .service import make_episode, paint_pictures
 from .store import DailyLimit, Store
+from .bank import Bank, load as load_bank
 from .writer import Writer, make_writer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -27,10 +28,13 @@ log = logging.getLogger("story")
 _UNSET = object()
 
 
-def create_app(writer: Writer | None = None, data_dir: Path | None = None, painter: Painter | None = _UNSET) -> FastAPI:
+def create_app(writer: Writer | None = None, data_dir: Path | None = None, painter: Painter | None = _UNSET,
+               bank: Bank | None = None) -> FastAPI:
     app = FastAPI(title="차량탈출 이야기 서버", docs_url=None, redoc_url=None)
     writer = writer or make_writer()
     painter = make_painter() if painter is _UNSET else painter
+    # the questions made once and checked (tools/make_bank.py); a broken bank stops the server here
+    bank = bank or load_bank()
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
     images = folder / "images"
@@ -52,7 +56,7 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
         ip = request.client.host if request.client else "unknown"
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        made = make_episode(req, writer)
+        made = make_episode(req, writer, bank)
         if made is None:
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
@@ -80,4 +84,9 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
     return app
 
 
-app = create_app()
+def __getattr__(name: str):
+    # the served app (uvicorn app.main:app) is made on first use, so importing create_app reads no question bank
+    if name == "app":
+        made = globals()["app"] = create_app()
+        return made
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

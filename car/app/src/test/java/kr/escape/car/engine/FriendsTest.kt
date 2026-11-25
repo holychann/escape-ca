@@ -12,56 +12,69 @@ class FriendsTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    private fun book() = FriendBook(tmp.root.resolve("book"))
+
     @Test
-    fun everyCarPuzzleHasItsOwnFriend() {
-        val puzzles = listOf(
-            Puzzle.WindPath(FanDir.FLOOR, 1..2), Puzzle.DustCloud(true), Puzzle.TwoRooms(true),
-            Puzzle.FoggyWindow, Puzzle.SeatSearch(Seat.DRIVER), Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME),
-        )
-        assertEquals(Friend.entries.toSet(), puzzles.mapNotNull(Friend::of).toSet())
-        assertNull(Friend.of(Puzzle.BeltMission))
+    fun sixBaseFriendsAreOpenFromTheStartAndThreeRareOnesAreNot() {
+        val b = Book()
+        assertEquals(6, Friend.BASE.size)
+        assertEquals(listOf(Friend.IO, Friend.SSOLRANG, Friend.CASPIN), Friend.RARE)
+        assertTrue(Friend.BASE.all(b::isOpen))
+        assertTrue(Friend.RARE.none(b::isOpen))
+        assertEquals(Friend.BASE, b.open)
     }
 
-    private fun book(now: Long = 1_000L) = FriendBook(tmp.root.resolve("book"), legacy = tmp.root.resolve("friends.txt")) { now }
-
-    private val bubbles = StoryFriend("방울 해마", "분홍 해마, 진주 목걸이", "노래를 좋아해", "반가워!")
-
     @Test
-    fun aFriendIsNewOnlyOnceThenGetsCloserAndStaysInTheBook() {
+    fun eachFinishedEpisodeIsOneHeartUpToFiveAndIsKept() {
         val b = book()
-        assertTrue(b.meet(Friend.PENGUIN_CAPTAIN))
-        assertFalse(b.meet(Friend.PENGUIN_CAPTAIN))
-        assertFalse(b.meet(Friend.PENGUIN_CAPTAIN))
-        assertTrue(b.meet(Friend.FENNEC_FOX))
+        repeat(7) { b.played(Friend.KONYANG) }
+        assertEquals(Friend.MAX_HEARTS, b.book.value.hearts(Friend.KONYANG))
+        b.played(Friend.RIA)
         val again = book().book.value
-        assertEquals(mapOf(Friend.PENGUIN_CAPTAIN to 3, Friend.FENNEC_FOX to 1), again.crew)
-        assertEquals(setOf(Friend.PENGUIN_CAPTAIN, Friend.FENNEC_FOX), again.met)
-        assertEquals(Friend.MAX_HEARTS, Friend.hearts(9))
+        assertEquals(5, again.hearts(Friend.KONYANG))
+        assertEquals(1, again.hearts(Friend.RIA))
+        assertEquals(0, again.hearts(Friend.BANTE))
     }
 
     @Test
-    fun theOldListOfNamesIsReadOnceAndUnknownNamesAreSkipped() {
-        tmp.root.resolve("friends.txt").writeText("NOBODY\nOTTER_COOK\n")
-        assertEquals(mapOf(Friend.OTTER_COOK to 1), book().book.value.crew)
+    fun aBaseFriendAtFullHeartsOpensTheNextRareFriendOnce() {
+        val b = book()
+        repeat(4) { b.played(Friend.BANTE) }
+        assertFalse(b.book.value.canInvite(Friend.BANTE))
+        assertNull(b.invite(Friend.BANTE))
+        b.played(Friend.BANTE)
+        assertTrue(b.book.value.canInvite(Friend.BANTE))
+        assertEquals(Friend.IO, b.invite(Friend.BANTE))
+        // one invitation per friend
+        assertFalse(b.book.value.canInvite(Friend.BANTE))
+        assertNull(b.invite(Friend.BANTE))
+        assertTrue(book().book.value.isOpen(Friend.IO))
+
+        repeat(5) { b.played(Friend.POTTO) }
+        assertEquals(Friend.SSOLRANG, b.invite(Friend.POTTO))
+        repeat(5) { b.played(Friend.TUBUGI) }
+        assertEquals(Friend.CASPIN, b.invite(Friend.TUBUGI))
+        // all three are open: nobody is asked to go and meet another
+        repeat(5) { b.played(Friend.PAPPI) }
+        assertFalse(b.book.value.canInvite(Friend.PAPPI))
+        assertEquals(Friend.entries, book().book.value.open)
     }
 
     @Test
-    fun eachStoryBringsItsOwnFriendWithItsPortraitKeptInTheBook() {
-        val drawn = tmp.newFolder("story_images", "s1").resolve("friend.webp").apply { writeText("face") }
-        val b = book(now = 42L)
-        val g = b.welcome("s1", bubbles, "바닷속 보물찾기", drawn)!!
-        assertEquals("방울 해마", g.name)
-        assertEquals(42L, g.metAt)
-        // the story's own folder is cleared once the next story is ready; the book keeps its own copy
-        drawn.parentFile!!.deleteRecursively()
-        assertEquals("face", java.io.File(g.picture!!).readText())
-        assertNull(b.welcome("s1", bubbles, "바닷속 보물찾기", null))
+    fun aRareFriendGetsHeartsButInvitesNobody() {
+        val b = book()
+        repeat(5) { b.played(Friend.BANTE) }
+        b.invite(Friend.BANTE)
+        repeat(5) { b.played(Friend.IO) }
+        assertFalse(b.book.value.canInvite(Friend.IO))
+    }
 
-        val other = b.welcome("s2", bubbles.copy(name = "별똥 차장"), "별빛 기차", null)!!
-        assertNull(other.picture)
-        val again = book().book.value
-        assertEquals(listOf("별똥 차장", "방울 해마"), again.guests.map { it.name })
-        assertEquals("바닷속 보물찾기", again.guests[1].story)
-        assertEquals(2, again.size)
+    @Test
+    fun anOldOrBrokenBookStartsEmpty() {
+        tmp.root.resolve("book").mkdirs()
+        tmp.root.resolve("book/book.json").writeText("""{"crew":{"PENGUIN_CAPTAIN":3},"guests":[]}""")
+        assertEquals(Book(), book().book.value)
+        tmp.root.resolve("book/book.json").writeText("not json")
+        assertEquals(Book(), book().book.value)
     }
 }

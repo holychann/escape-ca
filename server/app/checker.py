@@ -9,7 +9,8 @@ import re
 
 from textgate import Verdict, find_forbidden, missing, norm, present, too_long
 
-from .models import Draft, Episode, EpisodeRequest, NewFriend, SceneText
+from . import quiz
+from .models import Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, NewFriend, Question, SceneText
 from .rules import BUBBLE_NEVER, CAST, FORBID, LIMITS, Rule, rule_for
 
 
@@ -44,15 +45,66 @@ def check_scene(rule: Rule, scene: SceneText, youngest: str) -> list[str]:
     return problems
 
 
+def check_quiz_scene(q: quiz.QuizKey, scene: DraftScene, youngest: str) -> list[str]:
+    """A quiz scene: the question works out to the app's answer at this age, and no line gives the answer away."""
+    problems = (
+        too_long("bubble", scene.bubble, LIMITS.bubble)
+        + too_long("speech", scene.speech, getattr(LIMITS.speech, youngest))
+        + too_long("hint", scene.hint, LIMITS.hint)
+    )
+    question = scene.question
+    problems += quiz.check_question(q, question, youngest)
+    if question is None:
+        return problems
+    # the English question's one word is the only English the car may say, and the bank's hint may also count in
+    # English (bank.problems allows the same)
+    word = quiz.english_word(q, question)
+    asked = quiz.without_word(question.text, word)
+    problems += bad_words(" ".join([scene.bubble, scene.speech, quiz.hint_without_english(scene.hint, word), asked]))
+    problems += [f"말풍선에 버튼 말: {w}" for w in present(scene.bubble, BUBBLE_NEVER)]
+    # only the words written for this episode: the bank's hint was checked when it was made and suits any device
+    problems += [f"반대로 들리는 말: {w}" for w in present(" ".join([scene.bubble, scene.speech]), quiz.other_way(q))]
+    if q.kind == "REASON":
+        # the child works the function out from the trouble, so the story never names the button
+        problems += [f"이야기에 버튼 말: {w}" for w in present(scene.speech, quiz.BUTTON_NAMES)]
+    else:
+        lines = {"말풍선": scene.bubble, "이야기": scene.speech, "힌트": scene.hint, "문제": question.text}
+        problems += [f"{name}에 정답 수" for name, text in lines.items() if quiz.leaks(text, q.value)]
+    return problems
+
+
+def scene_text(key: str, scene: DraftScene) -> SceneText:
+    """What the car gets for one checked scene."""
+    q = quiz.parse(key)
+    question = None
+    if q is not None and scene.question is not None:
+        question = to_question(q, scene.question)
+    return SceneText(bubble=scene.bubble, speech=scene.speech, hint=scene.hint, question=question)
+
+
+def to_question(q: quiz.QuizKey, dq: DraftQuestion) -> Question:
+    """Only the parts of the question's kind reach the car."""
+    return Question(
+        kind=q.kind,
+        text=dq.text.strip(),
+        expr=dq.expr.strip() if q.kind == "MATH" else "",
+        word=dq.word.strip().upper() if q.kind == "ENGLISH" else "",
+        terms=list(dq.terms) if q.kind == "PATTERN" else [],
+    )
+
+
 ART_MAX = 200
 
 
 def answer_words(slot: list[str]) -> list[str]:
     """Words that tell one answer of this puzzle slot from another, so a picture must not show them.
 
-    That is every word a variant forbids, plus the required words not shared by all variants (위쪽 / 아래쪽,
-    왼쪽 / 오른쪽, 밖에서 / 안에서, the seat names). A friend's name such as 펭귄 is in every variant and stays allowed.
+    For a quiz that is the answer number. For the belt mission, every word a variant forbids, plus the required
+    words not shared by all variants.
     """
+    quizzes = [q for k in slot if (q := quiz.parse(k)) is not None]
+    if quizzes:
+        return sorted({w for q in quizzes for w in quiz.answer_words(q)})
     rules = [rule_for(k) for k in slot]
     words = {w for r in rules for w in r.never} | {w for r in rules for w in r.art_never}
     for r in rules:
@@ -130,7 +182,12 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
         written.setdefault(s.key, s)
     for key in req.keys:
         scene = written.get(key)
-        problems = ["장면 없음"] if scene is None else check_scene(rule_for(key), scene, req.youngest)
+        if scene is None:
+            problems = ["장면 없음"]
+        elif (q := quiz.parse(key)) is not None:
+            problems = check_quiz_scene(q, scene, req.youngest)
+        else:
+            problems = check_scene(rule_for(key), scene, req.youngest)
         if problems:
             v.items[key] = problems
     return v
@@ -138,11 +195,7 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
 
 def to_episode(draft: Draft, verdict: Verdict, req: EpisodeRequest, story_id: str, model: str) -> Episode:
     written = {s.key: s for s in reversed(draft.scenes)}
-    scenes = {
-        k: SceneText(bubble=written[k].bubble, speech=written[k].speech, hint=written[k].hint)
-        for k in req.keys
-        if k not in verdict.items
-    }
+    scenes = {k: scene_text(k, written[k]) for k in req.keys if k not in verdict.items}
     return Episode(
         storyId=story_id,
         model=model,

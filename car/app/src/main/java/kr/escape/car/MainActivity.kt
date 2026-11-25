@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
@@ -78,7 +79,6 @@ import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.FriendBook
 import kr.escape.car.engine.Book
-import kr.escape.car.engine.Guest
 import kr.escape.car.engine.Gear
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
@@ -86,6 +86,8 @@ import kr.escape.car.engine.Safety
 import kr.escape.car.engine.StopReason
 import kr.escape.car.story.StoryClient
 import kr.escape.car.story.Lines
+import kr.escape.car.story.Question
+import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.ui.AssetImage
@@ -107,9 +109,6 @@ import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
 import kr.escape.car.voice.Lumi
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -125,9 +124,10 @@ class MainActivity : ComponentActivity() {
         Fonts.load(assets)
         source = VehicleSource(this).also { it.start() }
         lumi = Lumi(this)
-        stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope)
-        book = FriendBook(File(filesDir, "friend_book"), legacy = File(filesDir, "friends.txt"))
-        game = Game(source.state, lumi, stories, book, restorer = source)
+        val bank = QuestionBank.load(this)
+        stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope, questions = bank.questions)
+        book = FriendBook(File(filesDir, "friend_book"))
+        game = Game(source.state, lumi, stories, book, restorer = source, bank = bank)
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
         stories.savedSetup()?.let { saved -> game.setup { saved } }
         setContent {
@@ -185,14 +185,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(ui, friends, speaking, view, Modifier.weight(1f).fillMaxWidth())
+                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxWidth())
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(ui, friends, speaking, view, Modifier.weight(1f).fillMaxHeight())
+                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -205,8 +205,8 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
 @Composable
 private fun Header(ui: GameUi, car: CarState) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Portrait("lumi_neutral", 64.dp, ringWidth = 0.dp)
-        KidText("차량탈출", 42.sp, color = Clay.Cream)
+        FriendFace(ui.setup.friend.picture, ui.setup.friend.label, 64.dp, ringWidth = 0.dp)
+        KidText("차근차근 탐험단", 42.sp, color = Clay.Cream)
         StatusChip("주차 중", car.gear == Gear.PARK && !car.uxRestricted)
         StatusChip("운전석 보호자", car.driverSeated == true)
         Spacer(Modifier.weight(1f))
@@ -298,7 +298,8 @@ private fun ParentPanel(
         Phase.INTRO -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
             PanelTitle(ui.story?.title ?: "오늘의 이야기")
-            BodyText(if (ui.story != null) "루미의 이야기는 AI가 만들었어요. 정답은 규칙 엔진이 정해요" else "정답은 규칙 엔진이 정해요")
+            BodyText(if (ui.story != null) "이야기는 AI가 만들었어요. 정답은 규칙 엔진이 정해요" else "정답은 규칙 엔진이 정해요")
+            Notice(Lines.AUTO_OFF_PARENT)
             Middle {
                 FieldLabel("오늘의 퍼즐")
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -314,10 +315,7 @@ private fun ParentPanel(
             Badge("안전 지킴이 · 부모님")
             PanelTitle("정답이에요!")
             BodyText("아이를 듬뿍 칭찬해 주세요. 별 하나를 모았어요")
-            Middle {
-                ui.newFriend?.let { NewFriendCard(it) }
-                ui.closer?.let { CloserCard(it, ui.closerTimes) }
-            }
+            Middle { }
             SafetyLine(ui, car)
             ClayButton(
                 if (ui.index + 1 < ui.puzzles.size) "다음 퍼즐" else "보물 열기", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 104.dp,
@@ -326,20 +324,10 @@ private fun ParentPanel(
         }
         Phase.TREASURE -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
-            PanelTitle(if (ui.setup.giftReady) "선물을 건네 주세요" else "탐험 배지를 받았어요")
-            BodyText(
-                if (ui.setup.giftReady) "글로브박스를 열어 선물을 꺼내, 아이가 앞으로 넘어오지 않게 직접 건네 주세요"
-                else "끝까지 해낸 아이를 꼭 안아 칭찬해 주세요",
-            )
+            PanelTitle("탐험 배지를 받았어요")
+            BodyText("끝까지 해낸 아이를 꼭 안아 칭찬해 주세요")
             Middle {
-                val count = ui.metToday.size + (if (ui.newGuest != null) 1 else 0)
-                if (count > 0) {
-                    FieldLabel("오늘 도감에 들어온 친구 ${count}명")
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        ui.newGuest?.let { FriendFace(it.picture?.let { p -> Story.FILE + p }, it.name, 96.dp, ring = Clay.Sun, ringWidth = 4.dp) }
-                        ui.metToday.forEach { Portrait(it.picture, 96.dp, ring = Clay.Mint, ringWidth = 4.dp) }
-                    }
-                }
+                ui.heartsNow?.let { CloserCard(ui.setup.friend, it) }
             }
             ClayButton("처음 설정으로", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp) { game.finish() }
         }
@@ -378,19 +366,17 @@ private fun ParentPanel(
 private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, modifier: Modifier) {
     val blockers = Safety.startBlockers(car)
     // with no puzzle this car can play, game.begin() would return without a word
-    val playable = Planner.plan(ui.setup, car).isNotEmpty()
+    val playable = game.playable(car)
     PanelCard(modifier) {
-        Badge("부모님 준비")
         PanelTitle("시작하기 전에 골라 주세요", 48)
         Middle {
             WishBox(ui.setup.wish, view) { wish -> game.setup { it.copy(wish = wish) } }
-            FieldLabel("아이 나이 · 형제자매는 두 명까지")
+            FieldLabel("함께할 친구")
+            ChosenFriend(ui.setup.friend)
+            FieldLabel("아이 나이")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                for (age in Age.entries) ChoiceTile(age.years, age.label, ui.setup.ages.contains(age), Modifier.weight(1f)) {
-                    game.setup { s ->
-                        val ages = if (s.ages.contains(age)) s.ages - age else (s.ages + age).takeLast(2)
-                        s.copy(ages = ages.ifEmpty { listOf(age) })
-                    }
+                for (age in Age.entries) ChoiceTile(age.years, age.label, ui.setup.ages.firstOrNull() == age, Modifier.weight(1f)) {
+                    game.setup { it.copy(ages = listOf(age)) }
                 }
             }
             FieldLabel("기다릴 시간")
@@ -399,7 +385,6 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
                     game.setup { it.copy(minutes = m) }
                 }
             }
-            GiftToggle(ui.setup.giftReady) { game.setup { it.copy(giftReady = !it.giftReady) } }
             Spacer(Modifier.height(4.dp))
             blockers.forEach { Notice(it.message) }
             if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
@@ -441,20 +426,32 @@ private fun rememberElapsedSeconds(running: Boolean, key: Any?): Int {
  * times: the words take about 10 s, the pictures about 15 s more.
  */
 private fun wishStep(waited: Int) = when {
-    waited < 10 -> "루미가 이야기를 쓰고 있어요"
+    waited < 10 -> "이야기를 쓰고 있어요"
     waited < 25 -> "친구들 그림을 그리고 있어요"
     else -> "거의 다 됐어요!"
 }
 
-private val WISH_IDEAS = listOf("공룡 섬에서 보물찾기", "우주 정거장 구조대", "과자 나라 축제", "눈 오는 숲속 마을", "바닷속 인어 왕국", "로봇 도시 운동회")
+// kinds that suit any place the family types and need no character beyond the friend book, and carry any lesson
+private val STORY_KINDS = listOf("보물찾기", "구조대", "탐정 놀이", "고장 수리", "축제 준비", "발명 대회")
+private const val PLACE_MAX = 20
+private val WISH_FORM = Regex("^(.+)에서 펼쳐지는 (.+) 이야기$")
+
+private fun wishOf(place: String, kind: String) = "${place.trim()}에서 펼쳐지는 $kind 이야기"
+
+/** The place and the kind of story a wish was made from, so the box shows them again. */
+private fun wishParts(wish: String): Pair<String, String?> =
+    WISH_FORM.matchEntire(wish)?.let { it.groupValues[1] to it.groupValues[2].takeIf { k -> k in STORY_KINDS } } ?: ("" to null)
 
 /**
- * 오늘의 이야기 소원: the family types or picks the story they want; the story server writes it around today's puzzles
- * and draws its world. The puzzles and their answers stay the rule engine's.
+ * 오늘의 이야기 소원: the family types a place and picks a kind of story; the story server writes it around today's
+ * puzzles and draws its world. The puzzles and their answers stay the rule engine's.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WishBox(wish: String, view: StoryView, onWish: (String) -> Unit) {
-    var draft by remember(wish) { mutableStateOf(wish) }
+    var place by remember(wish) { mutableStateOf(wishParts(wish).first) }
+    var kind by remember(wish) { mutableStateOf(wishParts(wish).second) }
+    val draft = kind?.takeIf { place.isNotBlank() }?.let { wishOf(place, it) }
     val shape = RoundedCornerShape(28.dp)
     Column(
         Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, if (wish.isNotBlank()) Clay.Sun else Clay.Line, shape)
@@ -465,30 +462,30 @@ private fun WishBox(wish: String, view: StoryView, onWish: (String) -> Unit) {
             ClayGlyph(ClayIcon.STAR, Clay.SunLip, Modifier.size(30.dp))
             KidText("오늘의 이야기 소원", 32.sp)
         }
-        BodyText("듣고 싶은 이야기를 적거나 골라 주세요. AI가 오늘 퍼즐에 맞춰 이야기와 그림을 새로 만들어요", size = 19.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            val field = RoundedCornerShape(20.dp)
-            BasicTextField(
-                value = draft,
-                onValueChange = { draft = it.take(StoryRepo.WISH_MAX) },
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 24.sp, color = Clay.Ink),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onWish(draft.trim()) }),
-                modifier = Modifier.weight(1f).height(80.dp).clip(field).background(Clay.Cream).border(2.dp, Clay.LineSoft, field),
-                decorationBox = { inner ->
-                    Box(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
-                        if (draft.isEmpty()) BodyText("예: 공룡 섬에서 보물찾기", size = 22.sp, color = Clay.Muted)
-                        inner()
-                    }
-                },
-            )
-            ClayButton("소원 빌기", ClayStyle.SUN, Modifier.width(190.dp), height = 80.dp, enabled = draft.isNotBlank() && draft.trim() != wish) {
-                onWish(draft.trim())
-            }
+        BodyText("장소를 적고 이야기 종류를 골라 주세요. AI가 오늘 퍼즐에 맞춰 이야기와 그림을 새로 만들어요", size = 19.sp)
+        FieldLabel("장소")
+        val field = RoundedCornerShape(20.dp)
+        BasicTextField(
+            value = place,
+            onValueChange = { place = it.take(PLACE_MAX) },
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 24.sp, color = Clay.Ink),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (draft != null) onWish(draft) }),
+            modifier = Modifier.fillMaxWidth().height(80.dp).clip(field).background(Clay.Cream).border(2.dp, Clay.LineSoft, field),
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) {
+                    if (place.isEmpty()) BodyText("예: 공룡 섬", size = 22.sp, color = Clay.Muted)
+                    inner()
+                }
+            },
+        )
+        FieldLabel("이야기 종류")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            STORY_KINDS.forEach { k -> WishChip(k, k == kind) { kind = k } }
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            WISH_IDEAS.forEach { idea -> WishChip(idea, idea == wish) { draft = idea; onWish(idea) } }
+        ClayButton("소원 빌기", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 80.dp, enabled = draft != null && draft != wish) {
+            draft?.let(onWish)
         }
         WishStatus(wish, view) { onWish("") }
         BodyText("아이 이름이나 사는 곳은 적지 말아 주세요", size = 17.sp, color = Clay.Muted)
@@ -544,27 +541,6 @@ private fun CheckLabelText(text: String) {
 private fun Notice(text: String) = BodyText("• $text", size = 20.sp, color = Clay.CoralLip, weight = FontWeight.Medium)
 
 @Composable
-private fun GiftToggle(on: Boolean, onToggle: () -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, Clay.Line, shape).clickable(onClick = onToggle)
-            .padding(horizontal = 22.dp, vertical = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        AssetImage("icon_glovebox", Modifier.size(64.dp), scale = ContentScale.Fit)
-        Column(Modifier.weight(1f)) {
-            KidText("선물 준비됨", 32.sp)
-            BodyText("글로브박스에 선물을 넣어 두었다면 켜요", size = 19.sp)
-        }
-        Box(
-            Modifier.width(96.dp).height(56.dp).clip(RoundedCornerShape(50)).background(if (on) Clay.Mint else Clay.Line).padding(6.dp),
-            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-        ) { Box(Modifier.size(44.dp).clip(CircleShape).background(Color.White)) }
-    }
-}
-
-@Composable
 private fun PuzzleRow(number: Int, title: String, first: Boolean) {
     val shape = RoundedCornerShape(24.dp)
     Row(
@@ -594,32 +570,38 @@ private fun RestoreRow(text: String) {
     }
 }
 
+/** The friend picked in the child's friend book, on the parent's setup panel. */
 @Composable
-private fun NewFriendCard(friend: Friend) {
+private fun ChosenFriend(friend: Friend) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.MintSoft).padding(20.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color.White).border(3.dp, Clay.Line, RoundedCornerShape(28.dp))
+            .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Portrait(friend.picture, 104.dp, ring = Clay.Mint, ringWidth = 4.dp)
-        Column {
-            BodyText("새 친구가 도감에 들어왔어요", size = 19.sp, color = Clay.MintDeep, weight = FontWeight.Medium)
-            KidText(friend.label, 40.sp)
+        FriendFace(friend.picture, friend.label, 72.dp, ring = Clay.Sun, ringWidth = 4.dp)
+        Column(Modifier.weight(1f)) {
+            KidText(friend.label, 32.sp)
+            BodyText("아이 화면의 친구 도감에서 바꿀 수 있어요", size = 19.sp)
         }
     }
 }
 
+/** The episode is over: the friend that went through it is one heart closer. */
 @Composable
-private fun CloserCard(friend: Friend, times: Int) {
+private fun CloserCard(friend: Friend, hearts: Int) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.CreamDeep).padding(20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Portrait(friend.picture, 88.dp, ring = Clay.Coral, ringWidth = 4.dp)
+        FriendFace(friend.picture, friend.label, 88.dp, ring = Clay.Coral, ringWidth = 4.dp)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            BodyText("${Lines.withAnd(friend.label)} 더 친해졌어요 · 함께 푼 퍼즐 ${times}번", size = 19.sp, color = Clay.Sub, weight = FontWeight.Medium)
-            Hearts(Friend.hearts(times), Friend.MAX_HEARTS, 28.dp)
+            BodyText("${Lines.withAnd(friend.label)} 더 친해졌어요", size = 19.sp, color = Clay.Sub, weight = FontWeight.Medium)
+            Hearts(hearts, Friend.MAX_HEARTS, 28.dp)
+            if (hearts >= Friend.MAX_HEARTS && !friend.rare) {
+                BodyText("하트를 다 채웠어요! 친구 도감에서 새 친구를 만날 수 있어요", size = 17.sp, color = Clay.MintDeep, weight = FontWeight.Medium)
+            }
         }
     }
 }
@@ -676,9 +658,8 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
     PanelCard(modifier) {
         Badge("안전 지킴이 · 부모님")
         PanelTitle(p.title)
-        BodyText(if (belt) "다음 칸으로 가기 전 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 가리킨 버튼을 확인하고 눌러 주세요")
+        BodyText(if (belt) "다음 칸으로 가기 전 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 말한 답과 버튼을 확인하고 눌러 주세요")
         Middle {
-            ui.resetNeeded?.let { BodyText(it, size = 22.sp, color = Clay.CoralLip, weight = FontWeight.Bold) }
             if (belt) {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.CreamDeep).padding(22.dp),
@@ -688,12 +669,13 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
                     BodyText("버클을 손으로 짚고 \"딸깍 확인!\"을 외치게 해 주세요", size = 21.sp)
                 }
             } else {
-                VoiceBox(speaking) { lumi.repeat() }
+                VoiceBox(speaking, ui.setup.friend) { lumi.repeat() }
                 if (scene.buttons.isNotEmpty()) {
                     FieldLabel("이 퍼즐에서 쓰는 버튼")
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { scene.buttons.take(3).forEach { CarButton(it) } }
                 }
-                AnswerReveal(if (reveal) "정답: ${scene.answer}" else null, Modifier.pointerInput(ui.index) {
+                val answer = "정답: ${scene.answer}" + (ui.answerNote?.let { ", $it" } ?: "")
+                AnswerReveal(if (reveal) answer else null, Modifier.pointerInput(ui.index) {
                     detectTapGestures(onLongPress = { reveal = true })
                 })
             }
@@ -709,7 +691,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
 }
 
 @Composable
-private fun VoiceBox(speaking: Boolean, onRepeat: () -> Unit) {
+private fun VoiceBox(speaking: Boolean, friend: Friend, onRepeat: () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.CreamDeep).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -717,7 +699,7 @@ private fun VoiceBox(speaking: Boolean, onRepeat: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ClayGlyph(ClayIcon.WAVE, if (speaking) Clay.Mint else Clay.Muted, Modifier.size(32.dp))
             BodyText(
-                if (speaking) "루미가 문제를 말하고 있어요" else "루미의 말을 다시 들을 수 있어요",
+                if (speaking) "${Lines.subject(friend.label)} 문제를 말하고 있어요" else "${Lines.of(friend.label)} 말을 다시 들을 수 있어요",
                 size = 21.sp, color = Clay.Ink, weight = FontWeight.Medium,
             )
         }
@@ -732,21 +714,22 @@ private fun CarButton(label: String) {
         Box(
             Modifier.size(104.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).border(3.dp, Clay.Line, RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.Center,
-        ) { AssetImage(glyphFor(label), Modifier.size(80.dp), scale = ContentScale.Fit) }
+        ) {
+            // a button without a drawn glyph shows its name large instead of a picture that is not its own
+            glyphFor(label)?.let { AssetImage(it, Modifier.size(80.dp), scale = ContentScale.Fit) }
+                ?: KidText(label, 24.sp, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp))
+        }
         BodyText(label, size = 18.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
     }
 }
 
 private fun glyphFor(label: String) = when {
-    "얼굴" in label -> "hvac_face"
-    "발" in label -> "hvac_floor"
     "풍량" in label -> "hvac_fan"
-    "내기" in label -> "hvac_recirc"
-    "외기" in label -> "hvac_fresh"
-    "성에" in label -> "hvac_defrost"
     "온도" in label -> "hvac_temp"
     "독서등" in label -> "hvac_light"
-    else -> "hvac_power"
+    "성에" in label -> "hvac_defrost"
+    "내기 순환" in label -> "hvac_recirc"
+    else -> null
 }
 
 /** 정답 보기 (길게 누르기): a dashed pill that shows the answer only after a long press. */
@@ -772,32 +755,24 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 
 // ---------------------------------------------------------------- kid stage
 
-/** Which of Lumi's four faces fits this moment. */
-private fun lumiFace(ui: GameUi) = when (ui.phase) {
-    Phase.SETUP -> "lumi_neutral"
-    Phase.INTRO, Phase.SOLVED, Phase.TREASURE -> "lumi_happy"
-    Phase.PLAYING -> if (ui.hintHeard) "lumi_thinking" else "lumi_neutral"
-    Phase.RESTORE -> "lumi_sleepy"
-}
-
 @Composable
-private fun KidStage(ui: GameUi, book: Book, speaking: Boolean, view: StoryView, modifier: Modifier) {
+private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view: StoryView, modifier: Modifier) {
     val preview = view.preview
-    var open by remember { mutableStateOf<Pal?>(null) }
+    val buddy = ui.setup.friend
     val p = ui.puzzle
     val story = ui.story
     val theme = story?.picture("cover") ?: story?.themePicture ?: "theme_star_train"
     val (bubble, picture) = when (ui.phase) {
         Phase.SETUP -> when {
             preview != null -> preview.title to (preview.picture("cover") ?: preview.themePicture)
-            ui.setup.wish.isNotBlank() -> "‘${ui.setup.wish}’ 좋아!" to "theme_star_train"
-            else -> "어디로 탐험 갈까?" to "theme_star_train"
+            // the friend picked waits in the explorer team's clubhouse
+            ui.setup.wish.isNotBlank() -> "‘${ui.setup.wish}’ 좋아!" to "home_${buddy.name.lowercase()}"
+            else -> "어디로 탐험 갈까?" to "home_${buddy.name.lowercase()}"
         }
         Phase.INTRO -> (ui.story?.title ?: "별빛 기차가 고장 났대!") to theme
         Phase.PLAYING -> p?.let { ui.scene(it).let { s -> s.bubble to (s.pictures.firstOrNull() ?: theme) } } ?: ("" to theme)
         Phase.SOLVED -> "정답! 별 하나 획득!" to (story?.picture("cover") ?: successPicture(p))
-        Phase.TREASURE -> (if (ui.setup.giftReady) "보물 상자가 열렸어!" else "탐험 배지 획득!") to
-            (story?.picture("ending") ?: if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
+        Phase.TREASURE -> "탐험 배지 획득!" to (story?.picture("ending") ?: "badge_explorer")
         Phase.RESTORE -> when {
             ui.restoring -> "차를 처음처럼 정리하는 중!"
             ui.restoreTried -> "정리 끝! 다음에 또 만나"
@@ -814,37 +789,32 @@ private fun KidStage(ui: GameUi, book: Book, speaking: Boolean, view: StoryView,
         )
         if (ui.phase == Phase.RESTORE) Box(Modifier.fillMaxSize().background(Clay.NightBottom.copy(alpha = 0.35f)))
         Row(Modifier.padding(start = 36.dp, top = 30.dp, end = 36.dp)) {
-            Box(Modifier.shadow(16.dp, CircleShape)) { Portrait(lumiFace(ui), 156.dp, ringWidth = 6.dp) }
+            Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
             Spacer(Modifier.width(22.dp))
             Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SpeechBubble(bubble)
                 if (speaking) SpeakingTag()
             }
         }
-        val friend = story?.friend
         when (ui.phase) {
-            Phase.SETUP -> FriendBook(book, preview, ui.metToday) { open = it }
-            Phase.INTRO -> friend?.let { GuestPop("오늘 함께할 친구", it.name, story?.picture("friend"), it.trait) }
-            Phase.PLAYING -> friend?.let { TagAlong(it.name, story?.picture("friend")) }
-            Phase.SOLVED -> {
-                ui.newFriend?.let { NewFriendPop(it) } ?: ui.closer?.let { CloserPop(it, ui.closerTimes) }
-                friend?.let { TagAlong(it.name, story?.picture("friend")) }
-            }
-            Phase.TREASURE -> ui.newGuest?.let { g ->
-                GuestPop("새 친구!", g.name, g.picture?.let { Story.FILE + it } ?: story?.picture("friend"), "“${g.hello}”")
-            }
+            Phase.SETUP -> FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
+            Phase.INTRO -> GuestPop("오늘 함께할 친구", buddy.label, buddy.picture, buddy.message.takeIf { it.isNotBlank() }?.let { "“$it”" } ?: buddy.symbol)
+            Phase.PLAYING, Phase.SOLVED -> TagAlong(buddy.label, buddy.picture)
+            Phase.TREASURE -> ui.heartsNow?.let { CloserPop(buddy, it) }
             Phase.RESTORE -> Unit
         }
-        open?.let { pal -> PalCard(pal) { open = null } }
+        val quiz = p as? Puzzle.Quiz
+        if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.let { QuestionCard(it) }
         if (ui.phase == Phase.SETUP && view.status == StoryRepo.Status.WRITING && ui.setup.wish.isNotBlank()) {
-            WishingOverlay(ui.setup.wish, view.waited)
+            WishingOverlay(ui.setup.wish, buddy, view.waited)
         }
+        ui.invited?.let { InvitePop(it, game::closeInvite) }
     }
 }
 
-/** While a wish is being made: the stage dims and Lumi thinks inside a spinning ring, with what she is doing. */
+/** While a wish is being made: the stage dims and the friend waits inside a spinning ring, with what is happening. */
 @Composable
-private fun BoxScope.WishingOverlay(wish: String, waited: Int) {
+private fun BoxScope.WishingOverlay(wish: String, buddy: Friend, waited: Int) {
     Box(Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.72f)))
     Column(
         Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
@@ -856,7 +826,7 @@ private fun BoxScope.WishingOverlay(wish: String, waited: Int) {
                 Modifier.fillMaxSize(), color = Clay.Sun, strokeWidth = 10.dp,
                 trackColor = Color.White.copy(alpha = 0.15f), strokeCap = StrokeCap.Round,
             )
-            Portrait("lumi_thinking", 176.dp, ringWidth = 0.dp)
+            FriendFace(buddy.picture, buddy.label, 176.dp, ringWidth = 0.dp)
         }
         KidText(wishStep(waited), 48.sp, color = Clay.Cream, textAlign = TextAlign.Center)
         BodyText("‘$wish’ · ${waited}초 · 보통 30초쯤 걸려요", size = 22.sp, color = Clay.Cream.copy(alpha = 0.8f), textAlign = TextAlign.Center)
@@ -889,65 +859,12 @@ private fun SpeakingTag() {
     }
 }
 
-@Composable
-private fun BoxScope.NewFriendPop(friend: Friend) {
-    val shape = RoundedCornerShape(40.dp)
-    Box(Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp)) {
-        Box(Modifier.matchParentSize().padding(top = 10.dp).clip(shape).background(Clay.Mint))
-        Row(
-            Modifier.padding(bottom = 10.dp).shadow(24.dp, shape).clip(shape).background(Clay.Cream)
-                .padding(start = 24.dp, end = 40.dp, top = 22.dp, bottom = 22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
-        ) {
-            Portrait(friend.picture, 170.dp, ring = Clay.Mint, ringWidth = 6.dp)
-            Column {
-                KidText("새 친구!", 34.sp, color = Clay.MintLip)
-                KidText(friend.label, 64.sp)
-            }
-        }
-    }
-}
-
-/** One face in the friend book: a book friend (with hearts) or a friend a story brought. */
-private data class Pal(
-    val name: String,
-    val picture: String?,
-    /** What it is like. */
-    val about: String,
-    /** What it said when it joined (story friends). */
-    val hello: String? = null,
-    /** Where it was met ("‘바닷속 크림새우 찾기’에서 만났어요 · 11월 14일") or how close it is. */
-    val where: String,
-    /** Puzzles helped with, for a book friend. */
-    val times: Int? = null,
-    val met: Boolean = true,
-    val today: Boolean = false,
-)
-
-private val DAY = SimpleDateFormat("M월 d일", Locale.KOREA)
-
-private fun pals(book: Book, today: List<Friend>): List<Pal> =
-    book.guests.map { g ->
-        Pal(
-            name = g.name, picture = g.picture?.let { Story.FILE + it }, about = g.trait, hello = g.hello,
-            where = "‘${g.story}’에서 만났어요 · ${DAY.format(Date(g.metAt))}",
-        )
-    } + Friend.entries.map { f ->
-        val times = book.crew[f]
-        Pal(
-            name = f.label, picture = f.picture, about = f.trait, where = "함께 푼 퍼즐 ${times ?: 0}번", times = times ?: 0,
-            met = times != null, today = f in today,
-        )
-    }
-
 /**
- * 친구 도감: the friends the stories brought (newest first) and the six book friends, swiped sideways. The ready
- * story's new friend waits at the front, blurred, until the treasure brings it in. A met friend opens its card.
+ * 친구 도감: the nine friends swiped sideways. A tap on an open friend picks it for the next episode; a rare friend
+ * not open yet is a grey silhouette. A base friend at full hearts asks to go and meet a new friend.
  */
 @Composable
-private fun BoxScope.FriendBook(book: Book, preview: Story?, today: List<Friend>, onOpen: (Pal) -> Unit) {
-    val coming = preview?.friend?.takeIf { f -> book.guests.none { it.id == preview.storyId } }
+private fun BoxScope.FriendShelf(book: Book, picked: Friend, onPick: (Friend) -> Unit, onInvite: (Friend) -> Unit) {
     Column(
         Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 32.dp).fillMaxWidth()
             .shadow(24.dp, RoundedCornerShape(36.dp)).clip(RoundedCornerShape(36.dp)).background(Clay.Cream.copy(alpha = 0.95f))
@@ -955,23 +872,26 @@ private fun BoxScope.FriendBook(book: Book, preview: Story?, today: List<Friend>
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(Modifier.padding(horizontal = 28.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            KidText("친구 도감 ${book.size}명", 34.sp)
-            BodyText("이야기마다 새 친구가 찾아와요", size = 19.sp, color = Clay.Muted, weight = FontWeight.Medium)
+            KidText("친구 도감 ${book.open.size}명", 34.sp)
+            BodyText("함께할 친구를 골라 줘. 한 판을 끝내면 하트가 하나 생겨", size = 19.sp, color = Clay.Muted, weight = FontWeight.Medium)
         }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 28.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (coming != null) item {
-                PalItem(name = "누구일까?", picture = preview.picture("friend"), ring = Clay.Sun, hidden = true, label = "오늘의 새 친구")
-            }
-            items(pals(book, today)) { pal ->
+            // the bubble's room is kept on every friend while one has it, so the faces stay in one line
+            val asking = Friend.entries.any(book::canInvite)
+            items(Friend.entries) { f ->
+                val open = book.isOpen(f)
                 PalItem(
-                    name = pal.name, picture = pal.picture,
-                    ring = when { pal.today -> Clay.Sun; pal.met -> Clay.Mint; else -> Color(0xFFD9CBB1) },
-                    dim = !pal.met, times = pal.times?.takeIf { pal.met },
-                    label = if (pal.met) null else "누구일까?",
-                    onClick = if (pal.met) ({ onOpen(pal) }) else null,
+                    // a friend not met yet shows only its outline, so the child can guess who is coming
+                    name = f.label, picture = if (open) f.picture else "${f.picture}_silhouette",
+                    ring = when { f == picked -> Clay.Sun; open -> Clay.Mint; else -> Color(0xFFD9CBB1) },
+                    dim = !open, hidden = !open, hearts = book.hearts(f).takeIf { open },
+                    label = when { !open -> "누구일까?"; f == picked -> "함께해요"; else -> null },
+                    invite = book.canInvite(f), bubbleRoom = asking,
+                    onInvite = { onInvite(f) },
+                    onClick = if (open) ({ onPick(f) }) else null,
                 )
             }
         }
@@ -981,22 +901,42 @@ private fun BoxScope.FriendBook(book: Book, preview: Story?, today: List<Friend>
 @Composable
 private fun PalItem(
     name: String, picture: String?, ring: Color, dim: Boolean = false, hidden: Boolean = false,
-    times: Int? = null, label: String? = null, onClick: (() -> Unit)? = null,
+    hearts: Int? = null, label: String? = null, invite: Boolean = false, bubbleRoom: Boolean = false,
+    onInvite: () -> Unit = {}, onClick: (() -> Unit)? = null,
 ) {
     Column(
-        Modifier.width(128.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        Modifier.width(140.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        FriendFace(picture, name, 112.dp, ring = ring, ringWidth = if (dim) 3.dp else 5.dp, dim = dim, hidden = hidden)
-        if (label != null) BodyText(label, size = 18.sp, color = if (hidden) Clay.SunLip else Clay.Muted, weight = FontWeight.Medium, textAlign = TextAlign.Center)
+        if (bubbleRoom) Box(Modifier.height(64.dp), contentAlignment = Alignment.BottomCenter) { if (invite) InviteBubble(onInvite) }
+        // a silhouette is shown as it is; only a friend with no picture at all gets the grey "?"
+        val outline = hidden && picture?.endsWith("_silhouette") == true
+        FriendFace(
+            picture, name, 112.dp, ring = ring, ringWidth = if (dim) 3.dp else 5.dp,
+            dim = dim && !outline, hidden = hidden && !outline,
+        )
+        if (hidden) BodyText(label ?: "", size = 18.sp, color = Clay.Muted, weight = FontWeight.Medium, textAlign = TextAlign.Center)
         else KidText(name, 22.sp, textAlign = TextAlign.Center, maxLines = 1)
-        if (times != null) Hearts(Friend.hearts(times), Friend.MAX_HEARTS, 14.dp)
+        Box(Modifier.height(14.dp), contentAlignment = Alignment.Center) { if (hearts != null) Hearts(hearts, Friend.MAX_HEARTS, 14.dp) }
+        Box(Modifier.height(22.dp), contentAlignment = Alignment.Center) {
+            if (label != null && !hidden) BodyText(label, size = 16.sp, color = Clay.SunLip, weight = FontWeight.Medium, textAlign = TextAlign.Center)
+        }
     }
 }
 
-/** A friend's card over the stage: big face, where it was met, what it is like and what it said. */
+/** "새로운 친구를 만나러 가자": over a base friend at full hearts; tapping it opens the next rare friend. */
 @Composable
-private fun BoxScope.PalCard(pal: Pal, onClose: () -> Unit) {
+private fun InviteBubble(onClick: () -> Unit) {
+    KidText(
+        "새로운 친구를\n만나러 가자!", 17.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2,
+        modifier = Modifier.shadow(8.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(Clay.Sun)
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+}
+
+/** A rare friend just opened: big over the stage until a touch. */
+@Composable
+private fun BoxScope.InvitePop(friend: Friend, onClose: () -> Unit) {
     Box(
         Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.6f)).pointerInput(Unit) { detectTapGestures { onClose() } },
     ) {
@@ -1005,18 +945,16 @@ private fun BoxScope.PalCard(pal: Pal, onClose: () -> Unit) {
                 .clip(RoundedCornerShape(44.dp)).background(Clay.Cream).padding(horizontal = 44.dp, vertical = 36.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            FriendFace(pal.picture, pal.name, 260.dp, ring = if (pal.times == null) Clay.Sun else Clay.Mint, ringWidth = 8.dp)
-            KidText(pal.name, 56.sp, textAlign = TextAlign.Center)
-            BodyText(pal.where, size = 20.sp, color = Clay.Muted, weight = FontWeight.Medium, textAlign = TextAlign.Center)
-            pal.times?.let { Hearts(Friend.hearts(it), Friend.MAX_HEARTS, 34.dp) }
-            if (pal.about.isNotBlank()) BodyText(pal.about, size = 24.sp, color = Clay.Ink, textAlign = TextAlign.Center)
-            pal.hello?.takeIf { it.isNotBlank() }?.let { KidText("“$it”", 32.sp, color = Clay.MintDeep, textAlign = TextAlign.Center) }
+            KidText("새 친구!", 40.sp, color = Clay.MintLip)
+            FriendFace(friend.picture, friend.label, 260.dp, ring = Clay.Sun, ringWidth = 8.dp)
+            KidText(friend.label, 56.sp, textAlign = TextAlign.Center)
+            BodyText("${friend.animal} · ${friend.symbol}", size = 24.sp, color = Clay.Ink, textAlign = TextAlign.Center)
             BodyText("아무 곳이나 누르면 닫혀요", size = 17.sp, color = Clay.Muted)
         }
     }
 }
 
-/** Today's friend from the story: met at the start ("오늘 함께할 친구"), joining the book at the treasure ("새 친구!"). */
+/** The friend going through the episode, at the start ("오늘 함께할 친구"). */
 @Composable
 private fun BoxScope.GuestPop(title: String, name: String, picture: String?, line: String) {
     val shape = RoundedCornerShape(40.dp)
@@ -1038,9 +976,9 @@ private fun BoxScope.GuestPop(title: String, name: String, picture: String?, lin
     }
 }
 
-/** A book friend helped again: one heart more. */
+/** The episode is over: the friend that went through it is one heart closer. */
 @Composable
-private fun BoxScope.CloserPop(friend: Friend, times: Int) {
+private fun BoxScope.CloserPop(friend: Friend, hearts: Int) {
     val shape = RoundedCornerShape(40.dp)
     Box(Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp)) {
         Box(Modifier.matchParentSize().padding(top = 10.dp).clip(shape).background(Clay.Coral))
@@ -1050,16 +988,30 @@ private fun BoxScope.CloserPop(friend: Friend, times: Int) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            Portrait(friend.picture, 140.dp, ring = Clay.Coral, ringWidth = 6.dp)
+            FriendFace(friend.picture, friend.label, 140.dp, ring = Clay.Coral, ringWidth = 6.dp)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 KidText("${Lines.withAnd(friend.label)} 더 친해졌어!", 40.sp)
-                Hearts(Friend.hearts(times), Friend.MAX_HEARTS, 36.dp)
+                Hearts(hearts, Friend.MAX_HEARTS, 36.dp)
             }
         }
     }
 }
 
-/** Today's friend tagging along in the corner while the puzzles go on. */
+/** The question in big type over the stage ("3 + 2 = ?"); a situation has none, the child hears it. */
+@Composable
+private fun BoxScope.QuestionCard(q: Question) {
+    val line = Lines.card(q) ?: return
+    val shape = RoundedCornerShape(40.dp)
+    Column(
+        Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp, end = 240.dp)
+            .shadow(16.dp, shape).clip(shape).background(Clay.Cream).padding(horizontal = 40.dp, vertical = 26.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        KidText(line, 72.sp, maxLines = 1)
+    }
+}
+
+/** The friend going through the episode, in the corner while the puzzles go on. */
 @Composable
 private fun BoxScope.TagAlong(name: String, picture: String?) {
     Column(
@@ -1072,16 +1024,7 @@ private fun BoxScope.TagAlong(name: String, picture: String?) {
     }
 }
 
-private fun successPicture(p: Puzzle?) = when (p) {
-    is Puzzle.WindPath -> "scene_wind_ok"
-    is Puzzle.DustCloud -> "scene_dust_ok"
-    is Puzzle.TwoRooms -> "scene_rooms_ok"
-    Puzzle.FoggyWindow -> "scene_fog_ok"
-    is Puzzle.SeatSearch -> "scene_seats_ok"
-    is Puzzle.Together -> "scene_together_ok"
-    Puzzle.BeltMission -> "scene_belt_ok"
-    null -> "badge_explorer"
-}
+private fun successPicture(p: Puzzle?) = Lines.successPicture(p)
 
 // ---------------------------------------------------------------- pause
 
@@ -1106,7 +1049,7 @@ private fun PauseOverlay(game: Game, ui: GameUi) {
                 else -> null
             }
             if (picture != null) AssetImage(picture, Modifier.fillMaxWidth().aspectRatio(720f / 420f).clip(RoundedCornerShape(32.dp)))
-            else Portrait("lumi_sleepy", 260.dp, ring = Clay.Line, ringWidth = 6.dp)
+            else FriendFace(ui.setup.friend.picture, ui.setup.friend.label, 260.dp, ring = Clay.Line, ringWidth = 6.dp)
             KidText(if (reason == null) "잠깐 멈췄어요" else "잠깐 쉬어요!", 60.sp)
             BodyText(reason?.message ?: "준비되면 이어 하기를 눌러 주세요", size = 26.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

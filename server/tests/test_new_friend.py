@@ -5,12 +5,12 @@ from app.checker import friend_problems
 from app.main import create_app
 from app.models import EpisodeRequest
 from app.prompt import SYSTEM, user_message
-from tests.fakes import FRIEND, FakeWriter, draft
+from tests.fakes import BANK, FRIEND, MATH, FakeWriter, draft
 from tests.test_wish_and_pictures import ART, BODY, KEYS, FakePainter
 
 
 def post(tmp_path, writer, painter=None, **body):
-    c = TestClient(create_app(writer=writer, data_dir=tmp_path, painter=painter))
+    c = TestClient(create_app(writer=writer, data_dir=tmp_path, painter=painter, bank=BANK))
     return c, c.post("/v1/episode", json={**BODY, **body})
 
 
@@ -42,7 +42,7 @@ def test_every_story_brings_a_portrait_even_without_scene_pictures(tmp_path):
     _, r = post(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter)
     ep = r.json()
     assert set(ep["images"]) == {"friend"} and painter.calls == [] and len(painter.portraits) == 1
-    assert ep["scenes"]["FOG"]["picture"] is None
+    assert ep["scenes"][MATH]["picture"] is None
 
 
 def test_a_friend_that_breaks_a_rule_is_left_out_but_the_story_plays(tmp_path):
@@ -51,7 +51,7 @@ def test_a_friend_that_breaks_a_rule_is_left_out_but_the_story_plays(tmp_path):
     bad = {
         "taken name": FRIEND.model_copy(update={"name": "펭귄 선장"}),
         "english name": FRIEND.model_copy(update={"name": "Star Kid"}),
-        "answer word": FRIEND.model_copy(update={"look": "왼쪽 귀만 파란 꼬마"}),
+        "answer word": FRIEND.model_copy(update={"look": "별 다섯 개를 단 꼬마"}),
         "button word": FRIEND.model_copy(update={"trait": "독서등 아래에서 책 읽기를 좋아해."}),
         "scary": FRIEND.model_copy(update={"hello": "귀신이 나타났다!"}),
         "too long": FRIEND.model_copy(update={"hello": "가" * 41}),
