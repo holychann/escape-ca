@@ -48,7 +48,11 @@ AI는 정답을 정하지 않고 문장만 씁니다. 서버나 AI가 실패하�
 - 읽는 말투(`app/voice.py`의 `STYLE`, `TTS_STYLE`로 바꿈): 아이에게 그림책을 읽어 주는 다정하고 장난스러운 이야기꾼. 높낮이를 크게, 웃으며, 단서 앞에서 살짝 느리게, 질문은 올리고 감탄은 신나게, 소리 흉내말은 재밌게, 또박또박.
 - 녹음하는 줄: `intro`, `success0`~, `treasureGift`, `treasureBadge`, 장면마다 `{key}.speech`, `{key}.hint`. 최대 8줄을 동시에 녹음하고, 실패한 줄은 빠집니다. 파일은 `data/audio/{storyId}/{줄 이름, ':'는 '_'}.wav`(24kHz, 모노, 16비트)이고 앱은 `GET /v1/audio/{storyId}/{이름}.wav`로 받아 그림과 함께 기기에 저장합니다. 에피소드의 `voices`가 줄 이름과 경로를 알려 줍니다.
 - 녹음이 없는 줄(서버 없음, 키 없음, 실패한 줄, 앱 기본 이야기, 멈춤 안내, 새 친구 안내)은 앱이 그대로 Pleos TTS로 읽습니다. 녹음 재생이 실패해도 같은 문장을 Pleos TTS로 읽습니다.
-- `GEMINI_API_KEY`가 있으면 켜지고, `TTS_MODEL=off`로 끕니다. 목소리 고르기: `python -m tools.tts_sample --plain`(유료 호출, 목소리 6개 × 3문장, 밋밋한 톤과 비교, 결과는 `data/tts_sample/`).
+- 말투 지시는 대사와 섞지 않습니다. 대사는 `text`에 글자 그대로, 지시는 `speech_metadata.style`에만 넣습니다(모델은 `text`를 그대로 읽으므로 지시가 섞이면 소리 내 읽습니다). `GeminiVoice.request()`가 이 모양을 만들고 시험이 확인합니다.
+- **캐시**: 녹음은 `data/audio_cache/{sha256(모델|목소리|스타일 + 대사)}.wav`에 남고, 같은 대사·목소리·스타일이면 다시 합성하지 않습니다(칭찬, 안내, 보물 문장처럼 되풀이되는 말). 한 이야기 안의 같은 문장도 한 번만 읽습니다.
+- **무료 한도 지키기**: 하루 `TTS_DAILY_MAX`(기본 100)번까지만 부르고, 모델이 429(한도 초과)를 주면 남은 줄은 부르지 않습니다(하루 한도면 다음 날까지, 분당 한도면 1분). 429는 다시 시도하지 않습니다. 녹음이 없는 줄은 앱이 Pleos TTS로 읽으므로 이야기는 그대로 진행됩니다. 결제가 연결되지 않은 AI Studio 키를 쓰면 한도를 넘어도 요금이 나가지 않고 429만 옵니다.
+- 목소리 이름 확인: `python -m tools.tts_voices Sira Sami` (목록만 조회, 읽기 호출 없음). 기본 목소리 30개(Leda, Puck, Sulafat 등)가 아니면 확장 목소리 목록에서 찾습니다.
+- `GEMINI_API_KEY`가 있으면 켜지고, `TTS_MODEL=off`로 끕니다. 들어 보기: `python -m tools.tts_sample --yes`(1문장, `--lines 2`면 2문장, `--plain`은 밋밋한 톤 비교, 최대 2번 호출, `--yes` 없이는 호출하지 않음, 결과는 `data/tts_sample/`).
 
 ## 실행
 
@@ -75,7 +79,8 @@ adb reverse tcp:8787 tcp:8787
 .\.venv\Scripts\textgate sample tools.story_spec:SPEC -n 30                 # 실제 모델로 30편: 통과율, 실패 원인, 시간, 토큰 수, 비용 (유료 호출)
 .\.venv\Scripts\textgate recheck tools.story_spec:SPEC "data/sample-*.jsonl"  # 저장된 초안을 지금 규칙으로 다시 판정 (호출 없음, 무료)
 .\.venv\Scripts\textgate try app/story_rules.toml "커피가 따뜻해"              # 문장 하나가 어떤 금지 패턴에 걸리는지
-.\.venv\Scripts\python -m tools.tts_sample --plain   # 루미 목소리 후보를 실제 모델로 녹음해 비교 (유료 호출)
+.\.venv\Scripts\python -m tools.tts_voices Sira Sami   # 목소리 이름이 있는지 (목록 조회만)
+.\.venv\Scripts\python -m tools.tts_sample --yes       # 루미 목소리 1문장 들어 보기 (호출 1번)
 .\.venv\Scripts\python -m tools.dev_server   # 키 없이 앱 연결만 확인하는 개발용 서버 (문장에 [개발용] 표시)
 ```
 

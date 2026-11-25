@@ -4,10 +4,14 @@ The car's own voice (Pleos TextToSpeech) has no rate, pitch or SSML control and 
 the server records each checked line once and the app plays the recording. A line without a recording (no key, a
 failed call, the app's own lines) is still read by the car's voice.
 """
+import hashlib
 import io
 import logging
 import os
+import threading
+import time
 import wave
+from datetime import date
 from typing import Protocol
 
 log = logging.getLogger("voice")
@@ -32,9 +36,65 @@ class VoiceError(Exception):
     pass
 
 
+class QuotaError(VoiceError):
+    """The free quota is used up (or the guard below says so); no call was made, or the model refused with 429."""
+
+
 class Voice(Protocol):
     def speak(self, text: str) -> bytes:
         """WAV bytes of [text] read aloud."""
+
+
+def cache_key(voice: object, text: str) -> str:
+    """Same words, same voice, same style: the same recording. [voice] names itself with ``identity``."""
+    who = getattr(voice, "identity", type(voice).__name__)
+    return hashlib.sha256(f"{who}\n{text}".encode("utf-8")).hexdigest()
+
+
+class Quota:
+    """Keeps the speech calls inside a free key's limits, so a key is never pushed past them.
+
+    At most [per_day] calls a day (TTS_DAILY_MAX). When the model answers 429, the calls stop: until tomorrow for a
+    daily limit, for [cooldown] seconds for a per-minute one. Every line that is not read is read by the car's voice.
+    """
+
+    def __init__(self, per_day: int, cooldown: float = 60.0, today=date.today, clock=time.monotonic):
+        self.per_day = per_day
+        self.cooldown = cooldown
+        self._today = today
+        self._clock = clock
+        self._day = today()
+        self._used = 0
+        self._closed_day: date | None = None
+        self._closed_until = 0.0
+        self._lock = threading.Lock()
+
+    def take(self) -> None:
+        """Raises QuotaError instead of letting a call go out."""
+        with self._lock:
+            today = self._today()
+            if today != self._day:
+                self._day, self._used = today, 0
+            if self._closed_day == today:
+                raise QuotaError("daily free quota used up")
+            if self._clock() < self._closed_until:
+                raise QuotaError("per-minute quota, cooling down")
+            if self._used >= self.per_day:
+                raise QuotaError(f"TTS_DAILY_MAX={self.per_day} reached")
+            self._used += 1
+
+    def refused(self, error: Exception) -> None:
+        """The model said 429: stop for the day when it names a daily limit, otherwise for a minute."""
+        text = str(error)
+        with self._lock:
+            if "PerDay" in text or "per day" in text.lower():
+                self._closed_day = self._today()
+            else:
+                self._closed_until = self._clock() + self.cooldown
+
+
+def is_quota(error: Exception) -> bool:
+    return getattr(error, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(error)
 
 
 def to_wav(audio: bytes, rate: int = RATE) -> bytes:
@@ -54,24 +114,44 @@ class GeminiVoice:
     """Shared by the threads that read one episode's lines at the same time, so the client is made once up front
     (as in GeminiPainter)."""
 
-    def __init__(self, model: str | None = None, voice: str | None = None, style: str | None = None, client=None):
+    def __init__(self, model: str | None = None, voice: str | None = None, style: str | None = None, client=None,
+                 quota: Quota | None = None):
         from google import genai
         from google.genai import types
 
         self.model = model or os.environ.get("TTS_MODEL", TTS_MODEL)
         self.voice = voice or os.environ.get("TTS_VOICE", TTS_VOICE)
         self.style = style or os.environ.get("TTS_STYLE") or STYLE
+        # a 429 is not tried again here: on a free key it means the quota is gone, and [Quota] stops the calls instead
         self.client = client or genai.Client(http_options=types.HttpOptions(
             timeout=120_000,
-            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[429, 500, 503]),
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[500, 503]),
         ))
+        self.quota = quota or Quota(per_day=int(os.environ.get("TTS_DAILY_MAX", "100")))
 
-    def speak(self, text: str) -> bytes:
-        response = self.client.models.generate_content(
+    @property
+    def identity(self) -> str:
+        """What makes two recordings of the same words differ, for the cache."""
+        return f"{self.model}|{self.voice}|{self.style}"
+
+    def request(self, text: str) -> dict:
+        """The call's arguments. The line goes in ``text`` exactly as written and the reading instructions only in
+        ``speech_metadata.style``: the model reads ``text`` verbatim, so an instruction there would be read aloud."""
+        return dict(
             model=self.model,
             contents=[{"role": "user", "parts": [{"text": text, "speech_metadata": {"style": self.style}}]}],
             config={"response_modalities": ["AUDIO"], "speech_config": {"voice_config": {"voice": self.voice}}},
         )
+
+    def speak(self, text: str) -> bytes:
+        self.quota.take()
+        try:
+            response = self.client.models.generate_content(**self.request(text))
+        except Exception as e:
+            if is_quota(e):
+                self.quota.refused(e)
+                raise QuotaError(str(e)) from e
+            raise
         candidate = response.candidates[0] if response.candidates else None
         parts = (candidate.content.parts if candidate and candidate.content else None) or []
         for part in parts:

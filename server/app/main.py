@@ -43,6 +43,8 @@ def create_app(
     store = Store(folder)
     images = folder / "images"
     audio = folder / "audio"
+    # recordings by words, voice and style, shared by every story
+    audio_cache = folder / "audio_cache"
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
@@ -72,7 +74,7 @@ def create_app(
             ep = paint_pictures(ep, draft, req, painter, images, scenes=req.pictures)
         # Lumi's lines read aloud; a line without a recording is read by the car's own voice
         if voice is not None:
-            ep = read_aloud(ep, voice, audio)
+            ep = read_aloud(ep, voice, audio, cache=audio_cache)
         store.episode(ep, req)
         return ep
 

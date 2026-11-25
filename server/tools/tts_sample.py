@@ -1,21 +1,23 @@
-"""Reads a few of Lumi's lines with several Gemini voices, to pick one by ear. Paid calls (voices x lines).
+"""Reads one or two of Lumi's lines aloud, to hear the voice by ear. Every line is one speech call on the key.
 
-    python -m tools.tts_sample                         (needs GEMINI_API_KEY; reads .env)
-    python -m tools.tts_sample --voices Leda,Puck      only these voices
-    python -m tools.tts_sample --plain                 also each line read plainly, to hear what the style adds
-    python -m tools.tts_sample --out data/tts_sample   where the WAV files go (the default)
+    python -m tools.tts_sample --yes                    1 line with TTS_VOICE / TTS_STYLE from .env
+    python -m tools.tts_sample --yes --lines 2          the greeting and the praise (at most 2)
+    python -m tools.tts_sample --yes --voices Sira,Sami one line per voice (still at most 2 calls in all)
+    python -m tools.tts_sample --yes --plain            the same line read plainly, to hear what the style adds
+    python -m tools.tts_sample --yes --out data/tts_sample
 
-The lines are the app's own (car/app/.../story/Lines.kt): the greeting, the dust puzzle and the praise.
+Nothing is called without --yes. The calls go through the same quota guard as the server (TTS_DAILY_MAX, and a
+429 stops the rest), so on a key without billing a used-up free quota only ends the sample.
+The lines are the app's own (car/app/.../story/Lines.kt).
 """
 import argparse
 import os
 from pathlib import Path
 
-from app.voice import PLAIN, STYLE, GeminiVoice
+from app.voice import PLAIN, GeminiVoice, Quota, QuotaError
 
-VOICES = ["Leda", "Puck", "Sadachbia", "Laomedeia", "Achird", "Vindemiatrix"]
+MAX_CALLS = 2
 LINES = {
-    "intro": "안녕, 탐험대장! 나는 루미야. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. 펭귄 선장과 친구들을 도와 기차를 고쳐 보자! 단서를 듣고 버튼을 찾으면, 손가락으로 가리키며 안전 지킴이에게 알려 줘.",
     "dust": "수달 요리사가 큰일이래! 밖에서 먼지 구름이 몰려와서 수프에 먼지가 들어가겠어. 바깥 공기가 들어오지 않게 막는 버튼을 찾아서 안전 지킴이에게 가리켜 줘.",
     "success": "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!",
 }
@@ -23,8 +25,10 @@ LINES = {
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--voices", default=",".join(VOICES), help="comma separated voice names")
-    ap.add_argument("--plain", action="store_true", help="also record each line in a plain tone")
+    ap.add_argument("--yes", action="store_true", help="really make the calls")
+    ap.add_argument("--lines", type=int, default=1, choices=[1, 2])
+    ap.add_argument("--voices", default="", help="comma separated voice names (default: TTS_VOICE)")
+    ap.add_argument("--plain", action="store_true", help="read the first line plainly too")
     ap.add_argument("--out", default="data/tts_sample", type=Path)
     args = ap.parse_args()
 
@@ -36,20 +40,31 @@ def main() -> None:
     if not os.environ.get("GEMINI_API_KEY"):
         raise SystemExit("GEMINI_API_KEY가 없어요 (.env)")
 
+    voices = [v.strip() for v in args.voices.split(",") if v.strip()] or [None]
+    jobs = [(v, None, line) for v in voices for line in list(LINES)[: args.lines]]
+    if args.plain:
+        jobs.append((voices[0], PLAIN, next(iter(LINES))))
+    jobs = jobs[:MAX_CALLS]
+    if not args.yes:
+        for v, style, line in jobs:
+            print(f"할 일: {v or os.environ.get('TTS_VOICE', '(기본)')} {'plain' if style else 'story'} {line}")
+        raise SystemExit(f"호출 {len(jobs)}번을 하려면 --yes를 붙여 주세요")
+
     args.out.mkdir(parents=True, exist_ok=True)
-    tones = {"story": STYLE} | ({"plain": PLAIN} if args.plain else {})
+    quota = Quota(per_day=int(os.environ.get("TTS_DAILY_MAX", "100")))
     client = None
-    for name in [v.strip() for v in args.voices.split(",") if v.strip()]:
-        for tone, style in tones.items():
-            voice = GeminiVoice(voice=name, style=style, client=client)
-            client = voice.client
-            for line, text in LINES.items():
-                path = args.out / f"{name}_{tone}_{line}.wav"
-                try:
-                    path.write_bytes(voice.speak(text))
-                    print(f"ok   {path}")
-                except Exception as e:
-                    print(f"fail {path}: {e!r}")
+    for name, style, line in jobs:
+        voice = GeminiVoice(voice=name, style=style, client=client, quota=quota)
+        client = voice.client
+        path = args.out / f"{voice.voice}_{'plain' if style else 'story'}_{line}.wav"
+        try:
+            path.write_bytes(voice.speak(LINES[line]))
+            print(f"ok   {path}")
+        except QuotaError as e:
+            print(f"stop 무료 한도: {e}")
+            break
+        except Exception as e:
+            print(f"fail {path}: {e!r}")
 
 
 if __name__ == "__main__":

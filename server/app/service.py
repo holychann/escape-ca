@@ -1,5 +1,6 @@
 """One episode: write, check, write once more if the first draft was not clean, then draw its pictures."""
 import logging
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,7 +10,7 @@ from .models import Draft, Episode, EpisodeRequest, SceneText
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
-from .voice import Voice
+from .voice import QuotaError, Voice, cache_key
 from .writer import Writer
 
 log = logging.getLogger("story")
@@ -152,28 +153,54 @@ def voice_file(name: str) -> str:
     return name.replace(":", "_")
 
 
-def read_aloud(ep: Episode, voice: Voice, folder: Path) -> Episode:
-    """Records every line side by side; a line that fails is left out and the car reads it with its own voice."""
+def read_aloud(ep: Episode, voice: Voice, folder: Path, cache: Path | None = None) -> Episode:
+    """Records every line side by side; a line that fails is left out and the car reads it with its own voice.
+
+    A recording is kept in [cache] by its words, voice and style, so a line said again (the same praise, the same
+    guide or treasure line, the same scene) is never made twice. Once the quota says no, the remaining lines are not
+    tried at all."""
     lines = voice_lines(ep)
     if not lines:
         return ep
+    stopped = threading.Event()
 
-    def speak(name: str, text: str) -> tuple[str, bytes | None]:
+    def recorded(text: str) -> bytes | None:
+        key = cache_key(voice, text)
+        cached = cache / f"{key}.wav" if cache is not None else None
+        if cached is not None and cached.is_file():
+            return cached.read_bytes()
+        if stopped.is_set():
+            return None
         try:
-            return name, voice.speak(text)
+            data = voice.speak(text)
+        except QuotaError as e:
+            stopped.set()
+            log.warning("voice quota: %s; the car reads the rest itself", e)
+            return None
         except Exception as e:  # refusal, timeout, no audio part
-            log.warning("voice %s failed: %r", name, e)
-            return name, None
+            log.warning("voice failed: %r", e)
+            return None
+        if cached is not None and data:
+            cache.mkdir(parents=True, exist_ok=True)
+            tmp = cached.with_suffix(".part")
+            tmp.write_bytes(data)
+            tmp.replace(cached)
+        return data
 
-    with ThreadPoolExecutor(max_workers=min(8, len(lines))) as pool:
-        spoken = list(pool.map(lambda item: speak(*item), lines.items()))
+    # the same words twice in one episode (two variants with one hint) are read once
+    texts = sorted(set(lines.values()))
+    with ThreadPoolExecutor(max_workers=min(8, len(texts))) as pool:
+        spoken = dict(zip(texts, pool.map(recorded, texts)))
 
     out = folder / ep.storyId
     voices = {}
-    for name, data in spoken:
+    for name, text in lines.items():
+        data = spoken.get(text)
         if data:
             out.mkdir(parents=True, exist_ok=True)
             file = voice_file(name)
             (out / f"{file}.wav").write_bytes(data)
             voices[name] = f"/v1/audio/{ep.storyId}/{file}.wav"
+    if len(voices) < len(lines):
+        log.info("voice: %d of %d lines recorded", len(voices), len(lines))
     return ep.model_copy(update={"voices": voices})
