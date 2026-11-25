@@ -154,4 +154,23 @@ class StoryTest {
         assertEquals("펭귄 선장과", Lines.withAnd("펭귄 선장"))
         assertEquals("토끼 기관사와", Lines.withAnd("토끼 기관사"))
     }
+
+    @Test
+    fun onlyRecordingsOnTheDeviceArePlayed() {
+        val o = JSONObject("""
+            {"storyId":"s1","theme":"STAR_TRAIN","title":"t","intro":"i","success":["a","b","c"],
+             "treasureGift":"g","treasureBadge":"b","scenes":{},
+             "voices":{"intro":"/v1/audio/s1/intro.wav","success1":"/data/story_images/s1/voice/success1.wav"}}
+        """.trimIndent())
+        val story = Story.parse(o)
+        // a server path is not played; it must be downloaded first
+        assertNull(story.voice("intro"))
+        assertEquals("/data/story_images/s1/voice/success1.wav", story.voice("success1"))
+        assertEquals("/data/story_images/s1/voice/success1.wav", story.successVoice(4))
+        assertNull(story.successVoice(0))
+        assertEquals(story, Story.parse(story.toJson()))
+        // a story saved before recordings existed still parses
+        o.remove("voices")
+        assertEquals(emptyMap<String, String>(), Story.parse(o).voices)
+    }
 }

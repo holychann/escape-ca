@@ -27,6 +27,11 @@ data class Story(
     val scenePictures: Map<String, String> = emptyMap(),
     /** Today's new friend, who joins the friend book at the treasure; its portrait is [picture] "friend". */
     val friend: StoryFriend? = null,
+    /**
+     * Line name ("intro", "success0", "treasureGift", "ROOMS:LEFT.speech", "FOG.hint", ..) -> the server's recording,
+     * and after [StoryRepo] downloads it, a local WAV file. A line without one is read by the car's own voice.
+     */
+    val voices: Map<String, String> = emptyMap(),
 ) {
     /** [picture] names this scene's picture in [images]. */
     data class Words(val bubble: String, val speech: String, val hint: String, val picture: String? = null)
@@ -40,6 +45,12 @@ data class Story(
 
     /** A drawn picture as a stage picture name ("file:/…/cover.webp"), or null when there is none on the device. */
     fun picture(name: String): String? = images[name]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }?.let { FILE + it }
+
+    /** A recorded line as a file on the device, or null when there is none (same rule as [picture], no prefix). */
+    fun voice(line: String): String? = voices[line]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }
+
+    /** The recording of the praise [success] (n) plays. */
+    fun successVoice(n: Int): String? = if (success.isEmpty()) null else voice("success${n % success.size}")
 
     fun scene(p: Puzzle): Scene {
         val key = StoryKeys.key(p)
@@ -57,6 +68,7 @@ data class Story(
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
         .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
+        .put("voices", JSONObject(voices))
         .put("friend", friend?.let { JSONObject().put("name", it.name).put("look", it.look).put("trait", it.trait).put("hello", it.hello) } ?: JSONObject.NULL)
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
@@ -93,6 +105,7 @@ data class Story(
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
                 scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
                 // a friend with a missing field is no friend; the story still plays
+                voices = o.optJSONObject("voices")?.let { v -> v.keys().asSequence().associateWith { v.getString(it) } } ?: emptyMap(),
                 friend = o.optJSONObject("friend")?.let { f ->
                     runCatching { StoryFriend(f.getString("name"), f.getString("look"), f.getString("trait"), f.getString("hello")) }.getOrNull()
                 },

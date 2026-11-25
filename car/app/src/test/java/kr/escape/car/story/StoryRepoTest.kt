@@ -137,6 +137,34 @@ class StoryRepoTest {
     }
 
     @Test
+    fun recordedLinesAreKeptOnTheDeviceAndSurviveARestart() = runTest {
+        val base = Story.parse(JSONObject(stored).getJSONObject("story"))
+        val read = base.copy(storyId = "b".repeat(32), voices = mapOf(
+            "intro" to "/v1/audio/b/intro.wav",
+            "BELT.speech" to "/v1/audio/b/BELT.speech.wav",
+            "DUST:OUTSIDE.hint" to "/v1/audio/b/DUST_OUTSIDE.hint.wav",
+            "success0" to "/v1/audio/broken/success0.wav",
+        ))
+        val r = repoWith(FakeClient { read }, keep = null)
+        r.prepare(Setup(), parked)
+        advanceUntilIdle()
+        val story = r.preview.value!!
+        // the line that failed to download is left out and read by the car's voice
+        assertEquals(setOf("intro", "BELT.speech", "DUST:OUTSIDE.hint"), story.voices.keys)
+        // read the stored path itself: voice() only takes "/..." paths, which a Windows test machine does not make
+        val hint = java.io.File(story.voices.getValue("DUST:OUTSIDE.hint"))
+        assertEquals("DUST_OUTSIDE.hint.wav", hint.name)
+        assertEquals("voice", hint.parentFile!!.name)
+        assertEquals("/v1/audio/b/DUST_OUTSIDE.hint.wav", hint.readText())
+        assertNull(story.successVoice(0))
+        val afterRestart = StoryRepo(
+            tmp.root.resolve("next_episode.json"), "00000000-0000-0000-0000-000000000000", FakeClient { read },
+            CoroutineScope(Dispatchers.Unconfined),
+        )
+        assertEquals(story.voices, afterRestart.take(Setup(), parked)?.story?.voices)
+    }
+
+    @Test
     fun aRefusedWishSaysWhy() = runTest {
         val r = repoWith(FakeClient { throw WishRejected(listOf("무서운 말: 귀신")) }, keep = null)
         r.prepare(Setup(wish = "귀신의 집"), parked)

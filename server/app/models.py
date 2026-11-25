@@ -206,6 +206,9 @@ class Episode(BaseModel):
     pictures: dict[str, str] = {}
     # today's new friend, its portrait in images["friend"]; None when the draft had none or it failed the checks
     friend: NewFriend | None = None
+    # line name ("intro", "success0", "treasureGift", "ROOMS:LEFT.speech", "FOG.hint", ..) -> its recording on this
+    # server (/v1/audio/{storyId}/{file}.wav); a line without one is read by the car's own voice
+    voices: dict[str, str] = {}
 
 
 class Report(BaseModel):

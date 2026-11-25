@@ -19,6 +19,7 @@ import kr.escape.car.engine.TogetherJudge
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
+import kr.escape.car.story.StoryKeys
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.voice.Lumi
 import java.io.File
@@ -99,7 +100,7 @@ class Game(
         if (puzzles.isEmpty()) return
         _ui.update { GameUi(phase = Phase.INTRO, setup = setup, puzzles = puzzles, snapshot = Snapshot.of(s), story = ready?.story) }
         lastTickMs = null
-        lumi.say(ready?.story?.intro ?: Lines.INTRO)
+        lumi.say(ready?.story?.intro ?: Lines.INTRO, ready?.story?.voice("intro"))
         stories?.prepare(setup, s)
     }
 
@@ -112,8 +113,11 @@ class Game(
             val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
             ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, closer = null, resetNeeded = null)
         }
-        lumi.say(_ui.value.scene(p).speech)
+        lumi.say(_ui.value.scene(p).speech, voice(p, "speech"))
     }
+
+    /** The recording of puzzle [p]'s [part] ("speech" or "hint"); null plays the app's own lines with the car's voice. */
+    private fun voice(p: Puzzle, part: String): String? = _ui.value.story?.voice("${StoryKeys.key(p)}.$part")
 
     fun next() {
         val ui = _ui.value
@@ -124,18 +128,18 @@ class Game(
                 book?.welcome(story.storyId, f, story.title, story.picture("friend")?.removePrefix(Story.FILE)?.let(::File))
             }
             _ui.update { it.copy(phase = Phase.TREASURE, newGuest = guest, closer = null) }
-            val treasure = when {
-                ui.setup.giftReady -> story?.treasureGift ?: Lines.TREASURE_GIFT
-                else -> story?.treasureBadge ?: Lines.TREASURE_BADGE
+            val (treasure, audio) = when {
+                ui.setup.giftReady -> (story?.treasureGift ?: Lines.TREASURE_GIFT) to story?.voice("treasureGift")
+                else -> (story?.treasureBadge ?: Lines.TREASURE_BADGE) to story?.voice("treasureBadge")
             }
-            lumi.say(if (guest == null) treasure else "$treasure ${Lines.newGuest(guest.name)}")
+            lumi.say(treasure, audio, then = guest?.let { Lines.newGuest(it.name) })
         }
     }
 
     fun hint() {
         val p = _ui.value.puzzle ?: return
         _ui.update { it.copy(hintHeard = true) }
-        lumi.say(_ui.value.scene(p).hint)
+        lumi.say(_ui.value.scene(p).hint, voice(p, "hint"))
     }
 
     /** 벨트 딸깍 미션: the parent saw the child buckle up (no car signal is read). */
@@ -195,7 +199,7 @@ class Game(
             )
         }
         val praise = ui.story?.success(ui.stars) ?: Lines.SUCCESS
-        lumi.say(if (friend == null) praise else "$praise ${Lines.newFriend(friend)}")
+        lumi.say(praise, ui.story?.successVoice(ui.stars), then = friend?.let(Lines::newFriend))
     }
 
     /** 이야기 신고 from the parent's screen. */

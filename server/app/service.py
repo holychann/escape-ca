@@ -9,6 +9,7 @@ from .models import Draft, Episode, EpisodeRequest, SceneText
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
+from .voice import Voice
 from .writer import Writer
 
 log = logging.getLogger("story")
@@ -132,3 +133,47 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
                 if key in scenes_out:
                     scenes_out[key] = scenes_out[key].model_copy(update={"picture": f"p{i}"})
     return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})
+
+
+def voice_lines(ep: Episode) -> dict[str, str]:
+    """Every line Lumi says from this episode, by name: intro, success0.., treasureGift, treasureBadge, {key}.speech
+    and {key}.hint."""
+    lines = {"intro": ep.intro}
+    lines |= {f"success{i}": s for i, s in enumerate(ep.success)}
+    lines |= {"treasureGift": ep.treasureGift, "treasureBadge": ep.treasureBadge}
+    for key, s in ep.scenes.items():
+        lines[f"{key}.speech"] = s.speech
+        lines[f"{key}.hint"] = s.hint
+    return {name: text for name, text in lines.items() if text.strip()}
+
+
+def voice_file(name: str) -> str:
+    """A line's file name: the answer keys' ':' are not safe in a file name ("ROOMS:LEFT.speech" -> "ROOMS_LEFT.speech")."""
+    return name.replace(":", "_")
+
+
+def read_aloud(ep: Episode, voice: Voice, folder: Path) -> Episode:
+    """Records every line side by side; a line that fails is left out and the car reads it with its own voice."""
+    lines = voice_lines(ep)
+    if not lines:
+        return ep
+
+    def speak(name: str, text: str) -> tuple[str, bytes | None]:
+        try:
+            return name, voice.speak(text)
+        except Exception as e:  # refusal, timeout, no audio part
+            log.warning("voice %s failed: %r", name, e)
+            return name, None
+
+    with ThreadPoolExecutor(max_workers=min(8, len(lines))) as pool:
+        spoken = list(pool.map(lambda item: speak(*item), lines.items()))
+
+    out = folder / ep.storyId
+    voices = {}
+    for name, data in spoken:
+        if data:
+            out.mkdir(parents=True, exist_ok=True)
+            file = voice_file(name)
+            (out / f"{file}.wav").write_bytes(data)
+            voices[name] = f"/v1/audio/{ep.storyId}/{file}.wav"
+    return ep.model_copy(update={"voices": voices})
