@@ -29,6 +29,19 @@ object Lines {
     fun newFriend(f: Friend) = "새 친구 ${f.label}, 친구 도감에 쏙 들어왔어!"
     fun newGuest(name: String) = "오늘 함께한 새 친구 $name, 친구 도감에 쏙 들어왔어!"
 
+    /** A wrong button: gentle, and never a clue, so the same words fit every puzzle and every story. */
+    val WRONG = listOf(
+        "음, 그건 아닌 것 같아. 다시 생각해 볼까?",
+        "앗, 그 버튼은 아니래. 단서를 다시 떠올려 보자!",
+        "아깝다! 다른 버튼일지도 몰라. 천천히 다시 찾아볼까?",
+    )
+
+    /** ⑥ 하나 둘 셋 missed its beat; a light switched on only counts again once it has been off. */
+    fun missedBeat(rhythm: Rhythm) = when (rhythm) {
+        Rhythm.FAN_WHILE_LIT -> "앗, 박자가 살짝 어긋났어. 탐험대장 불이 켜져 있을 때 바람을 올려야 해. 다시 해 보자!"
+        else -> "앗, 박자가 살짝 어긋났어. 켠 불을 끄고 하나, 둘, 셋에 다시 맞춰 보자!"
+    }
+
     /** [word] with 과 or 와, whichever its last syllable takes ("펭귄 선장과", "토끼 기관사와"). */
     fun withAnd(word: String): String {
         val last = word.trimEnd().lastOrNull() ?: return word

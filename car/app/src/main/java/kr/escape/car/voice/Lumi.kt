@@ -72,6 +72,13 @@ class Lumi(context: Context) {
         }
     }
 
+    /** Says [text] like [say], but 다시 듣기 still repeats the line before it (the puzzle, not "다시 생각해 볼까?"). */
+    fun aside(text: String) {
+        val keep = last
+        say(text)
+        last = keep
+    }
+
     /** 다시 듣기. */
     fun repeat() {
         last?.let { say(it) }

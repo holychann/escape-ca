@@ -16,6 +16,7 @@ import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
 import kr.escape.car.engine.TogetherJudge
+import kr.escape.car.engine.WrongJudge
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
@@ -82,6 +83,8 @@ class Game(
 
     private var hold: HoldJudge? = null
     private var together: TogetherJudge? = null
+    private var wrong: WrongJudge? = null
+    private var wrongTold = 0
     private var lastTickMs: Long? = null
     private var recirculationSince: Long? = null
 
@@ -108,6 +111,7 @@ class Game(
         val p = Planner.refresh(planned, car.value)
         hold = if (p is Puzzle.Together || p is Puzzle.BeltMission) null else HoldJudge(p)
         together = (p as? Puzzle.Together)?.let { TogetherJudge(it) }
+        wrong = if (p is Puzzle.BeltMission) null else WrongJudge(p)
         _ui.update { ui ->
             val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
             ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, closer = null, resetNeeded = null)
@@ -182,6 +186,7 @@ class Game(
     private fun solved() {
         hold = null
         together = null
+        wrong = null
         val ui = _ui.value
         val helper = ui.puzzle?.let(Friend::of)
         val first = helper != null && book?.meet(helper) == true
@@ -220,7 +225,10 @@ class Game(
             _ui.update { it.copy(stopped = stop) }
             if (stop != null) lumi.say(Lines.PAUSED)
         }
-        if (stop != null || ui.held) return
+        if (stop != null || ui.held) {
+            wrong?.pause()
+            return
+        }
 
         if (s.recirculation == true) {
             if (recirculationSince == null) recirculationSince = nowMs
@@ -234,6 +242,14 @@ class Game(
         val done = hold?.update(s, nowMs) == true || together?.update(s, nowMs) == true
         val reset = hold?.resetNeeded(s) ?: together?.resetNeeded()
         if (reset != ui.resetNeeded) _ui.update { it.copy(resetNeeded = reset) }
-        if (done) solved()
+        if (done) {
+            solved()
+            return
+        }
+        when (wrong?.update(s, nowMs)) {
+            WrongJudge.Kind.BUTTON -> lumi.aside(Lines.WRONG[wrongTold++ % Lines.WRONG.size])
+            WrongJudge.Kind.BEAT -> (ui.puzzle as? Puzzle.Together)?.let { lumi.aside(Lines.missedBeat(it.rhythm)) }
+            null -> {}
+        }
     }
 }
