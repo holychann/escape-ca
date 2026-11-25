@@ -1,5 +1,4 @@
-// Talks to the Pleos emulator's Virtual Console the way its own page does. Used by tools/vc.mjs (one command)
-// and tools/remote/server.mjs (the puzzle remote window).
+// Talks to the Pleos emulator's Virtual Console the way its own page does. Used by tools/vc.mjs (one command).
 // The emulator only passes a console change on to the car (and so to the app) while a console session is alive,
 // so a connection keeps sending the session signal until it is closed.
 import { execFile, execFileSync } from 'node:child_process';

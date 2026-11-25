@@ -1,5 +1,4 @@
 // Changes car values on the Pleos emulator through its Virtual Console, one command at a time.
-// The same actions have buttons in the puzzle remote (tools/remote, 퍼즐리모컨.bat).
 //
 // node tools/vc.mjs light <seat> on|off        seat: driver, passenger, rear_left, rear_right
 // node tools/vc.mjs seat <seat> on|off         someone sitting there (the game needs the driver seat taken)

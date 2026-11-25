@@ -32,7 +32,7 @@
 
 - **AI 이야기 서버 없이도 됩니다.** 이 APK는 `http://127.0.0.1:8787`의 이야기 서버에 접속하고, 서버가 없으면 앱 안의 기본 이야기(별빛 기차)로 퍼즐, 친구 도감, 보물 상자, 처음 설정 복원까지 전체 탐험이 그대로 진행됩니다.
 - AI 이야기·그림·새 친구까지 보려면 아래 [3. 이야기 서버](#3-이야기-서버)대로 서버를 켜고(Gemini API 키 필요) `adb reverse tcp:8787 tcp:8787`로 에뮬레이터를 PC의 서버에 연결합니다.
-- 차량 상태를 바꾸는 `tools/vc.mjs`와 퍼즐 리모컨에는 Node.js 18 이상이 필요합니다.
+- 차량 상태는 Pleos 공식 도구인 Virtual Console(웹 페이지)로 바꿉니다. 한 줄 명령 `tools/vc.mjs`를 쓸 때만 Node.js 18 이상이 필요합니다.
 - 직접 빌드할 때는 JDK 21을 씁니다(아래 [2. 차 앱](#2-차-앱)).
 
 ## 폴더
@@ -42,7 +42,7 @@
 | `apk/` | 제출용 release APK |
 | `car/` | 차 앱. Kotlin, Jetpack Compose, Pleos Vehicle SDK 2.3.2, TextToSpeech 3.3.1 |
 | `server/` | AI 이야기 서버. Python, FastAPI, Gemini. 자세한 설명은 [server/README.md](server/README.md) |
-| `tools/` | 퍼즐 리모컨(`tools/remote`)과 Virtual Console 명령(`tools/vc.mjs`) |
+| `tools/` | Virtual Console 명령(`tools/vc.mjs`) |
 | `에뮬레이터_테스트_방법.md` | 에뮬레이터에서 퍼즐을 직접 풀어 보는 방법 |
 | `TTS_대본.md` | 루미 목소리 대본 |
 
@@ -51,7 +51,7 @@
 - Windows PC
 - Git, Node.js 18 이상, Python 3.11 이상
 - Android Studio (Android SDK, 에뮬레이터, JDK 21 포함)
-- Pleos 에뮬레이터: [Pleos 문서의 에뮬레이터 설정](https://document.pleos.ai/en/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator)대로 만들고, **AVD 이름을 `pleos`로** 정합니다. 퍼즐 리모컨이 이 이름으로 에뮬레이터를 켭니다.
+- Pleos 에뮬레이터: [Pleos 문서의 에뮬레이터 설정](https://document.pleos.ai/en/docs/connect/guide/getting-started/application-development/setup-connect-sdk-emulator)대로 만들고, **AVD 이름을 `pleos`로** 정합니다. [에뮬레이터_테스트_방법.md](에뮬레이터_테스트_방법.md)의 명령이 이 이름으로 에뮬레이터를 켭니다.
 
 ## 1. 받기
 
@@ -92,9 +92,13 @@ copy .env.example .env
 
 ## 4. 실행
 
-`퍼즐리모컨.bat`을 더블클릭하면 에뮬레이터 옆에 리모컨 창이 뜹니다. 위에서부터 [에뮬레이터 켜기], [이야기 서버 켜기], [앱 설치와 연결], [한 번에 맞추기]를 누른 뒤 퍼즐 카드의 정답 버튼으로 풀어 봅니다.
+에뮬레이터를 켜고 앱을 설치한 뒤, 차량 값은 Pleos 공식 도구인 **Pleos Connect Virtual Console**로 바꿉니다.
 
-리모컨 없이 명령으로 하는 방법과 퍼즐별 정답 넣는 법은 [에뮬레이터_테스트_방법.md](에뮬레이터_테스트_방법.md)에 있습니다.
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" forward tcp:8088 tcp:8088
+```
+
+그다음 브라우저에서 `http://127.0.0.1:8088`을 엽니다. 에뮬레이터 켜는 명령, 시작 조건, 퍼즐별 정답 넣는 법은 [에뮬레이터_테스트_방법.md](에뮬레이터_테스트_방법.md)에 있습니다.
 
 ## macOS에서
 
@@ -102,5 +106,4 @@ copy .env.example .env
 - JDK는 21을 씁니다. Android Studio에 들어 있는 Java 25로는 이 프로젝트의 Gradle 8.10이 돌지 않으니, Android Studio의 Gradle JDK도 21로 맞춰 주세요.
 - 앱: `cd car && ./gradlew assembleDebug`
 - 서버: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, 실행은 `.venv/bin/python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787`
-- 리모컨: `퍼즐리모컨.command`를 더블클릭하거나 `node tools/remote/server.mjs`. Android SDK는 `ANDROID_HOME`, 없으면 `~/Library/Android/sdk`에서 찾습니다.
 - Apple Silicon(arm64) 맥에서는 Pleos 에뮬레이터의 arm64-v8a 이미지(Pleos Connect v2.1.0 APIs)로 실행해 시험했습니다.
