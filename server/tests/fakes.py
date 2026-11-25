@@ -26,7 +26,6 @@ def draft(keys, **override) -> Draft:
         title="별빛 기차를 구해라",
         intro="안녕, 탐험대장! 나는 루미야. 별빛 기차가 멈췄대. 같이 도와주자!",
         success=["정답! 별 하나!", "와, 해냈어!", "역시 탐험대장!"],
-        treasureGift="보물 상자가 열렸어! 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 거야.",
         treasureBadge="모두 도왔어! 탐험 배지를 받았어!",
         scenes=scenes,
         friend=FRIEND,

@@ -20,9 +20,9 @@ def test_the_writer_is_asked_for_a_new_friend():
 
 
 def test_the_writer_is_told_every_episode_wide_length_limit():
-    # the treasure lines also greet today's friend; a draft whose treasure line runs long is thrown away whole
+    # the badge line also greets today's friend; a draft whose badge line runs long is thrown away whole
     msg = user_message(EpisodeRequest.model_validate(BODY))
-    assert "treasureGift와 treasureBadge는 각각 90자 이내" in msg and "title 20자" in msg and "intro 180자" in msg
+    assert "treasureBadge는 90자 이내" in msg and "title 20자" in msg and "intro 180자" in msg
 
 
 def test_a_good_friend_comes_back_with_its_portrait(tmp_path):

@@ -22,7 +22,6 @@ data class Scene(
 object Lines {
     const val INTRO = "안녕, 탐험대장! 나는 루미야. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. 펭귄 선장과 친구들을 도와 기차를 고쳐 보자! 단서를 듣고 버튼을 찾으면, 손가락으로 가리키며 안전 지킴이에게 알려 줘."
     const val SUCCESS = "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!"
-    const val TREASURE_GIFT = "기차가 다 고쳐졌어! 친구들이 고맙다며 보물 상자를 열었대. 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 거야."
     const val TREASURE_BADGE = "기차가 다 고쳐졌어! 펭귄 선장이 고맙다며 반짝이는 탐험 배지를 줬어!"
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
 

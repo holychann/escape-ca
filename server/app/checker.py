@@ -114,15 +114,12 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
     v = Verdict(checked=req.keys)
     v.whole += too_long("title", draft.title, LIMITS.title)
     v.whole += too_long("intro", draft.intro, LIMITS.intro)
-    v.whole += too_long("treasureGift", draft.treasureGift, LIMITS.treasure)
     v.whole += too_long("treasureBadge", draft.treasureBadge, LIMITS.treasure)
     if len(usable_success(draft.success)) < 2:
         v.whole.append("칭찬 문장 부족")
     if req.theme and draft.theme != req.theme:
         v.whole.append("고른 테마와 다름")
-    if "안전지킴이" not in norm(draft.treasureGift):
-        v.whole.append("선물 문장에 안전 지킴이 빠짐")
-    episode_text = " ".join([draft.title, draft.intro, draft.treasureGift, draft.treasureBadge, draft.world])
+    episode_text = " ".join([draft.title, draft.intro, draft.treasureBadge, draft.world])
     v.whole += bad_words(episode_text)
 
     written = {}
@@ -150,7 +147,6 @@ def to_episode(draft: Draft, verdict: Verdict, req: EpisodeRequest, story_id: st
         title=draft.title,
         intro=draft.intro,
         success=usable_success(draft.success),
-        treasureGift=draft.treasureGift,
         treasureBadge=draft.treasureBadge,
         scenes=scenes,
         dropped=[k for k in req.keys if k in verdict.items],

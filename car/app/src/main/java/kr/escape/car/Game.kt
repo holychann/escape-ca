@@ -124,10 +124,7 @@ class Game(
                 book?.welcome(story.storyId, f, story.title, story.picture("friend")?.removePrefix(Story.FILE)?.let(::File))
             }
             _ui.update { it.copy(phase = Phase.TREASURE, newGuest = guest, closer = null) }
-            val treasure = when {
-                ui.setup.giftReady -> story?.treasureGift ?: Lines.TREASURE_GIFT
-                else -> story?.treasureBadge ?: Lines.TREASURE_BADGE
-            }
+            val treasure = story?.treasureBadge ?: Lines.TREASURE_BADGE
             lumi.say(if (guest == null) treasure else "$treasure ${Lines.newGuest(guest.name)}")
         }
     }

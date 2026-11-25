@@ -2,7 +2,7 @@ import pytest
 
 from app.checker import bad_words, check, to_episode
 from app.rules import rule_for
-from app.models import EpisodeRequest
+from app.models import DRAFT_SCHEMA, EpisodeRequest
 from app.prompt import SYSTEM, user_message
 from tests.fakes import GOOD, draft
 
@@ -52,10 +52,14 @@ def test_bubble_naming_the_button_is_dropped():
     assert "말풍선에 버튼 말: 성에" in check(d, req).items["FOG"]
 
 
-def test_gift_line_must_name_the_guardian():
+def test_the_story_ends_with_the_badge_and_no_gift():
+    # the glovebox gift is gone: every adventure ends with the badge, so no gift line is asked for, checked or sent
     req = request([["FOG"]])
-    d = draft(req.keys, treasureGift="탐험 지킴이님, 글로브박스의 보물을 전해 주세요!")
-    assert "선물 문장에 안전 지킴이 빠짐" in check(d, req).whole
+    d = draft(req.keys)
+    assert check(d, req).whole == []
+    assert "treasureGift" not in DRAFT_SCHEMA["properties"] and "treasureGift" not in DRAFT_SCHEMA["required"]
+    assert "treasureGift" not in to_episode(d, check(d, req), req, "s1", "fake").model_dump()
+    assert "글로브박스" not in SYSTEM + user_message(req)
 
 
 def test_scene_never_written_is_dropped():

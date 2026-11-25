@@ -16,7 +16,6 @@ data class Story(
     val title: String,
     val intro: String,
     val success: List<String>,
-    val treasureGift: String,
     val treasureBadge: String,
     val scenes: Map<String, Words>,
     /** The day's world in one line ("공룡이 사는 화산섬"); empty for older stories. */
@@ -55,7 +54,7 @@ data class Story(
 
     fun toJson(): JSONObject = JSONObject()
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
-        .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
+        .put("success", JSONArray(success)).put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
         .put("friend", friend?.let { JSONObject().put("name", it.name).put("look", it.look).put("trait", it.trait).put("hello", it.hello) } ?: JSONObject.NULL)
         .put("scenes", JSONObject().also { o ->
@@ -79,7 +78,6 @@ data class Story(
                 title = o.getString("title"),
                 intro = o.getString("intro"),
                 success = List(s.length()) { s.getString(it) },
-                treasureGift = o.getString("treasureGift"),
                 treasureBadge = o.getString("treasureBadge"),
                 scenes = sc.keys().asSequence().associateWith { k ->
                     sc.getJSONObject(k).let {

@@ -147,8 +147,8 @@ class StoryRepo(
     companion object {
         const val WISH_MAX = 60
 
-        /** The gift choice does not change the puzzles, so a story fits either way. */
-        private fun Setup.forStory() = copy(giftReady = false, wish = wish.trim())
+        /** A wish with spaces around it is the same wish. */
+        private fun Setup.forStory() = copy(wish = wish.trim())
 
         /**
          * Enums, numbers and answer keys; the only free text is the family's own wish, and with it the server is asked

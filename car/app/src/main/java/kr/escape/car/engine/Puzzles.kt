@@ -68,7 +68,6 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
 data class Setup(
     val ages: List<Age> = listOf(Age.CAPTAIN),
     val minutes: Int = 10,
-    val giftReady: Boolean = false,
     val childSeat: Seat = Seat.REAR_RIGHT,
     /** The story the family asked for ("공룡 섬에서 보물찾기"); blank lets the story server choose. Puzzles ignore it. */
     val wish: String = "",

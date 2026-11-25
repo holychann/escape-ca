@@ -119,7 +119,6 @@ class Draft(BaseModel):
     title: str
     intro: str
     success: list[str]
-    treasureGift: str
     treasureBadge: str
     scenes: list[DraftScene]
     # the day's world in one line ("공룡이 사는 화산섬"); empty in drafts written before wishes existed
@@ -141,8 +140,7 @@ DRAFT_SCHEMA = {
         "title": _text("오늘의 탐험 카드 제목. 15자 이내"),
         "intro": _text("루미의 첫인사와 오늘의 사건. 2~3문장"),
         "success": {"type": "array", "items": _text("퍼즐을 풀었을 때 루미의 칭찬 한 문장"), "description": "서로 다른 칭찬 3개"},
-        "treasureGift": _text("모든 퍼즐을 마치고 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 때의 말"),
-        "treasureBadge": _text("선물 없이 탐험 배지를 받을 때의 말"),
+        "treasureBadge": _text("모든 퍼즐을 마치고 탐험 배지를 받을 때의 말"),
         "scenes": {
             "type": "array",
             "items": {
@@ -181,7 +179,7 @@ DRAFT_SCHEMA = {
             "additionalProperties": False,
         },
     },
-    "required": ["theme", "world", "title", "intro", "success", "treasureGift", "treasureBadge", "scenes", "art", "friend"],
+    "required": ["theme", "world", "title", "intro", "success", "treasureBadge", "scenes", "art", "friend"],
     "additionalProperties": False,
 }
 
@@ -195,7 +193,6 @@ class Episode(BaseModel):
     title: str
     intro: str
     success: list[str]
-    treasureGift: str
     treasureBadge: str
     scenes: dict[str, SceneText]
     dropped: list[str] = []

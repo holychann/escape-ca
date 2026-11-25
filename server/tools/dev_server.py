@@ -45,8 +45,6 @@ class TemplateWriter:
             title=f"[개발용] {world}"[:20],
             intro="[개발용] 서버에서 받은 이야기야.",
             success=["[개발용] 칭찬 하나", "[개발용] 칭찬 둘", "[개발용] 칭찬 셋"],
-            # the checker drops the whole draft unless the gift line names the 안전 지킴이
-            treasureGift="[개발용] 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 거야.",
             treasureBadge="[개발용] 배지 받았어!",
             scenes=scenes,
             art=Art(cover=f"{world} 표지", puzzles=[f"{world} 퍼즐 {i}" for i in range(1, slots + 1)], ending=f"{world} 마지막"),

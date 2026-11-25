@@ -326,11 +326,8 @@ private fun ParentPanel(
         }
         Phase.TREASURE -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
-            PanelTitle(if (ui.setup.giftReady) "선물을 건네 주세요" else "탐험 배지를 받았어요")
-            BodyText(
-                if (ui.setup.giftReady) "글로브박스를 열어 선물을 꺼내, 아이가 앞으로 넘어오지 않게 직접 건네 주세요"
-                else "끝까지 해낸 아이를 꼭 안아 칭찬해 주세요",
-            )
+            PanelTitle("탐험 배지를 받았어요")
+            BodyText("끝까지 해낸 아이를 꼭 안아 칭찬해 주세요")
             Middle {
                 val count = ui.metToday.size + (if (ui.newGuest != null) 1 else 0)
                 if (count > 0) {
@@ -399,7 +396,6 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
                     game.setup { it.copy(minutes = m) }
                 }
             }
-            GiftToggle(ui.setup.giftReady) { game.setup { it.copy(giftReady = !it.giftReady) } }
             Spacer(Modifier.height(4.dp))
             blockers.forEach { Notice(it.message) }
             if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
@@ -542,27 +538,6 @@ private fun CheckLabelText(text: String) {
 
 @Composable
 private fun Notice(text: String) = BodyText("• $text", size = 20.sp, color = Clay.CoralLip, weight = FontWeight.Medium)
-
-@Composable
-private fun GiftToggle(on: Boolean, onToggle: () -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, Clay.Line, shape).clickable(onClick = onToggle)
-            .padding(horizontal = 22.dp, vertical = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        AssetImage("icon_glovebox", Modifier.size(64.dp), scale = ContentScale.Fit)
-        Column(Modifier.weight(1f)) {
-            KidText("선물 준비됨", 32.sp)
-            BodyText("글로브박스에 선물을 넣어 두었다면 켜요", size = 19.sp)
-        }
-        Box(
-            Modifier.width(96.dp).height(56.dp).clip(RoundedCornerShape(50)).background(if (on) Clay.Mint else Clay.Line).padding(6.dp),
-            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
-        ) { Box(Modifier.size(44.dp).clip(CircleShape).background(Color.White)) }
-    }
-}
 
 @Composable
 private fun PuzzleRow(number: Int, title: String, first: Boolean) {
@@ -796,8 +771,7 @@ private fun KidStage(ui: GameUi, book: Book, speaking: Boolean, view: StoryView,
         Phase.INTRO -> (ui.story?.title ?: "별빛 기차가 고장 났대!") to theme
         Phase.PLAYING -> p?.let { ui.scene(it).let { s -> s.bubble to (s.pictures.firstOrNull() ?: theme) } } ?: ("" to theme)
         Phase.SOLVED -> "정답! 별 하나 획득!" to (story?.picture("cover") ?: successPicture(p))
-        Phase.TREASURE -> (if (ui.setup.giftReady) "보물 상자가 열렸어!" else "탐험 배지 획득!") to
-            (story?.picture("ending") ?: if (ui.setup.giftReady) "treasure_chest" else "badge_explorer")
+        Phase.TREASURE -> "탐험 배지 획득!" to (story?.picture("ending") ?: "badge_explorer")
         Phase.RESTORE -> when {
             ui.restoring -> "차를 처음처럼 정리하는 중!"
             ui.restoreTried -> "정리 끝! 다음에 또 만나"

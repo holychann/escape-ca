@@ -28,7 +28,7 @@ class StoryRepoTest {
 
     private val parked = CarState(gear = Gear.PARK, driverSeated = true, devices = Device.entries.toSet())
 
-    // the shape the app writes, as saved on the emulator
+    // the shape the app writes, as saved on the emulator before the gift was removed (it still has a gift line)
     private val stored = """
         {"setup":{"ages":["CAPTAIN"],"minutes":10,"childSeat":"REAR_RIGHT"},
          "keys":["SEAT:REAR_RIGHT","WIND:FLOOR:STRONG","BELT","DUST:OUTSIDE"],
@@ -58,8 +58,7 @@ class StoryRepoTest {
         val r = repo()
         assertNull(r.take(Setup(minutes = 5), parked))
         assertNull(r.take(Setup(), parked.copy(devices = Device.entries.toSet() - Device.READING_LIGHT)))
-        // the gift does not change the puzzles
-        assertNotNull(r.take(Setup(giftReady = true), parked))
+        assertNotNull(r.take(Setup(), parked))
         // used up
         assertNull(r.take(Setup(), parked))
     }

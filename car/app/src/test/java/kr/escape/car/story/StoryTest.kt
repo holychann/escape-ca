@@ -11,6 +11,7 @@ import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -64,7 +65,7 @@ class StoryTest {
 
     private val json = """
         {"storyId":"0123456789abcdef0123456789abcdef","model":"m","theme":"SEA_SUB","title":"잠수함 대소동",
-         "intro":"안녕!","success":["최고야!","해냈어!"],"treasureGift":"선물!","treasureBadge":"배지!",
+         "intro":"안녕!","success":["최고야!","해냈어!"],"treasureBadge":"배지!",
          "scenes":{"ROOMS:LEFT":{"bubble":"펭귄 방은?","speech":"펭귄은 왼쪽 방이야. 안전 지킴이에게 알려 주자.","hint":"왼쪽!"}},
          "dropped":["ROOMS:RIGHT"]}
     """.trimIndent()
@@ -84,6 +85,16 @@ class StoryTest {
         assertEquals(listOf("scene_together"), story.scene(Puzzle.Together(Seat.REAR_RIGHT, Rhythm.SAME_TIME)).pictures)
         assertEquals("해냈어!", story.success(3))
         assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
+    fun theStoryEndsWithTheBadgeAndAnOlderGiftLineIsIgnored() {
+        // the glovebox gift is gone: the server writes only the badge line
+        val story = Story.parse(JSONObject(json))
+        assertEquals("배지!", story.treasureBadge)
+        assertFalse(story.toJson().has("treasureGift"))
+        // a story saved on the device or sent by an older server still carries a gift line; it still plays
+        assertEquals(story, Story.parse(JSONObject(json).put("treasureGift", "선물!")))
     }
 
     @Test
@@ -136,7 +147,7 @@ class StoryTest {
     @Test
     fun todaysNewFriendComesWithTheStoryAndSurvivesSaving() {
         val o = JSONObject(
-            """{"storyId":"s1","theme":"SEA_SUB","title":"바닷속","intro":"안녕","success":["좋아"],"treasureGift":"g","treasureBadge":"b",
+            """{"storyId":"s1","theme":"SEA_SUB","title":"바닷속","intro":"안녕","success":["좋아"],"treasureBadge":"b",
                "scenes":{},"images":{"friend":"/data/story_images/s1/friend.webp"},
                "friend":{"name":"방울 해마","look":"분홍 해마","trait":"노래를 좋아해","hello":"반가워!"}}""",
         )
