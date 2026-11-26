@@ -204,8 +204,9 @@ object Planner {
         }
         val quizzes = devices.map { d -> if (d in told) situations(d).random(rnd) else counted.getValue(d) }
         val picks = order(quizzes, s, setup).toMutableList<Puzzle>()
-        // the belt mission sits after the second puzzle, as a short break between car puzzles
-        if (picks.size >= 2) picks.add(2, Puzzle.BeltMission)
+        // every course ends with the belt mission once, as the last mission before the badge (puzzleCount counts
+        // it); with no car puzzle to play there is no game at all
+        if (picks.isNotEmpty()) picks.add(Puzzle.BeltMission)
         return picks
     }
 

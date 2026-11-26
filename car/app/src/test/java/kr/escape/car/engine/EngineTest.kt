@@ -472,9 +472,9 @@ class EngineTest {
         assertEquals(Dial.TEMP_DOWN, Planner.tempDial(parked))
         val onlyTemp = known.copy(devices = setOf(Device.TEMPERATURE))
         repeat(20) { seed ->
-            assertEquals(Dial.TEMP_UP, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 18f), Random(seed)).single() as Puzzle.Quiz).dial)
-            assertEquals(Dial.TEMP_DOWN, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 25f), Random(seed)).single() as Puzzle.Quiz).dial)
-            assertEquals(Dial.TEMP_DOWN, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 25f, acOn = true), Random(seed)).single() as Puzzle.Quiz).dial)
+            assertEquals(Dial.TEMP_UP, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 18f), Random(seed)).filterIsInstance<Puzzle.Quiz>().single()).dial)
+            assertEquals(Dial.TEMP_DOWN, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 25f), Random(seed)).filterIsInstance<Puzzle.Quiz>().single()).dial)
+            assertEquals(Dial.TEMP_DOWN, (Planner.plan(Setup(), onlyTemp.copy(tempLeft = 25f, acOn = true), Random(seed)).filterIsInstance<Puzzle.Quiz>().single()).dial)
         }
     }
 
@@ -497,32 +497,27 @@ class EngineTest {
         assertTrue("$situations of $quizzes", situations * 10 in quizzes * 4..quizzes * 6)
         val onlyAc = known.copy(devices = setOf(Device.AC))
         repeat(20) { seed ->
-            assertEquals(reason(Dial.AC, 1), Planner.plan(Setup(), onlyAc, Random(seed)).single())
-            assertEquals(reason(Dial.AC, 0), Planner.plan(Setup(), onlyAc.copy(acOn = true), Random(seed)).single())
+            assertEquals(reason(Dial.AC, 1), Planner.plan(Setup(), onlyAc, Random(seed)).filterIsInstance<Puzzle.Quiz>().single())
+            assertEquals(reason(Dial.AC, 0), Planner.plan(Setup(), onlyAc.copy(acOn = true), Random(seed)).filterIsInstance<Puzzle.Quiz>().single())
         }
     }
 
     @Test
-    fun theBeltMissionSitsAfterTheSecondPuzzle() {
-        repeat(50) { seed ->
-            val long = Planner.plan(Setup(minutes = 15), known, Random(seed))
-            assertEquals(5, long.size)
-            assertEquals(Puzzle.BeltMission, long[2])
-            assertEquals(1, long.count { it == Puzzle.BeltMission })
-            val mid = Planner.plan(Setup(minutes = 10), known, Random(seed))
-            assertEquals(4, mid.size)
-            assertEquals(Puzzle.BeltMission, mid[2])
-            val short = Planner.plan(Setup(minutes = 5), known, Random(seed))
-            assertEquals(3, short.size)
-            assertEquals(Puzzle.BeltMission, short[2])
+    fun everyCourseEndsWithTheBeltMissionOnce() {
+        // every course, 5 minutes too: its car puzzles, then the belt mission once, as the last mission
+        for ((minutes, size) in listOf(5 to 3, 10 to 4, 15 to 5)) repeat(50) { seed ->
+            val plan = Planner.plan(Setup(minutes = minutes), known, Random(seed))
+            assertEquals(size, plan.size)
+            assertEquals(Puzzle.BeltMission, plan.last())
+            assertEquals(1, plan.count { it == Puzzle.BeltMission })
         }
         // the count on the setup screen is the belt mission included
         for (m in listOf(5, 10, 15)) assertEquals(Planner.puzzleCount(m), Planner.plan(Setup(minutes = m), known, Random(1)).size)
-        // a car with two devices still gets its break, one with a single device does not
-        val two = known.copy(devices = setOf(Device.FAN_SPEED, Device.AC))
-        assertEquals(Puzzle.BeltMission, Planner.plan(Setup(minutes = 15), two, Random(1)).last())
+        // a car with a single device still ends with it
         val one = known.copy(devices = setOf(Device.AC))
-        assertTrue(Planner.plan(Setup(minutes = 15), one, Random(1)).none { it == Puzzle.BeltMission })
+        assertEquals(listOf(reason(Dial.AC, 1), Puzzle.BeltMission), Planner.plan(Setup(minutes = 15), one, Random(1)))
+        // no car puzzle this car can play: no game, not a belt mission alone
+        assertTrue(Planner.plan(Setup(), known.copy(devices = emptySet()), Random(1)).isEmpty())
     }
 
     @Test
