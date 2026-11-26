@@ -1,0 +1,44 @@
+# Lightsail 인스턴스 같은 서버 한 대에서: cd server && docker compose up -d --build
+# 이야기 서버는 server/Dockerfile 그대로, 앞에 Caddy를 두어 HTTPS를 붙입니다.
+# .env(같은 폴더)에 API 키와 STORY_DOMAIN을 넣어 둡니다. 절차는 배포_방법.md
+services:
+  story:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # .env에 다른 값이 있어도 이 두 값은 고정: Caddy 뒤에서 실제 주소를 보고, 기록은 볼륨에
+      STORY_TRUST_PROXY: "1"
+      STORY_DATA_DIR: /app/data
+    volumes:
+      - story-data:/app/data
+    # 바깥으로 포트를 열지 않습니다. 앞의 Caddy만 이 서버에 닿습니다
+    # (열려 있으면 누구나 X-Forwarded-For를 꾸며 주소별 제한을 피할 수 있음)
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - story
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      STORY_DOMAIN: ${STORY_DOMAIN:?set STORY_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  story-data:   # 이야기 기록, 부모 신고, 하루 생성 횟수, 그림(24시간 뒤 자동 삭제)
+  caddy-data:   # HTTPS 인증서. 지우면 다시 받아야 해서 발급 횟수 제한에 걸릴 수 있습니다
+  caddy-config:
