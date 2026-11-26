@@ -137,6 +137,18 @@ class StoryRepo(
         return story.copy(images = local)
     }
 
+    /** The story a saved episode plays, read back after a restart: its pictures stay while the next one is prepared. */
+    fun keepPlaying(storyId: String?) {
+        playing = storyId
+    }
+
+    /** The saved episode was dropped (새로 시작): its pictures go, unless they are the ready next story's. */
+    fun letGo(storyId: String) {
+        if (playing == storyId) playing = null
+        if (saved?.story?.storyId == storyId) return
+        scope.launch(io) { File(pictures, storyId).deleteRecursively() }
+    }
+
     private fun forgetPicturesExcept(keep: Set<String>) {
         pictures.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
     }
