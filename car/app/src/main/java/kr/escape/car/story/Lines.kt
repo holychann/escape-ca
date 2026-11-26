@@ -4,6 +4,7 @@ import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
+import kr.escape.car.engine.WrongJudge
 import kotlin.random.Random
 
 /**
@@ -40,6 +41,33 @@ object Lines {
 
     fun intro(f: Friend) = "안녕, 탐험대장! 나는 ${isName(f.label)}. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. " +
         "나랑 같이 문제를 풀어서 기차를 고쳐 보자! 답을 찾으면, 그 답으로 버튼을 어떻게 바꿀지 안전 지킴이에게 알려 줘."
+
+    /**
+     * A wrong answer (engine WrongJudge), gentle and in words that fit every quiz and every story: they never say the
+     * answer, only whether the button, the amount or the way is off. [n] takes turns through each kind's lines.
+     */
+    fun wrong(kind: WrongJudge.Kind, n: Int): String {
+        val lines = when (kind) {
+            WrongJudge.Kind.BUTTON -> WRONG_BUTTON
+            WrongJudge.Kind.AMOUNT -> WRONG_AMOUNT
+            WrongJudge.Kind.WAY -> WRONG_WAY
+        }
+        return lines[Math.floorMod(n, lines.size)]
+    }
+
+    private val WRONG_BUTTON = listOf(
+        "음, 그 버튼은 아닌 것 같아. 다시 생각해 볼까?",
+        "앗, 다른 버튼이었나 봐. 문제를 다시 떠올려 보자!",
+        "아깝다! 천천히 다시 찾아볼까?",
+    )
+    private val WRONG_AMOUNT = listOf(
+        "버튼은 맞았어! 그런데 답이 조금 다른 것 같아. 다시 풀어 볼까?",
+        "아깝다, 거의 다 왔어! 답을 한 번 더 확인해 볼까?",
+    )
+    private val WRONG_WAY = listOf(
+        "버튼은 맞았는데, 거꾸로 된 것 같아. 다시 생각해 볼까?",
+        "앗, 반대쪽인가 봐. 이야기를 다시 떠올려 볼까?",
+    )
 
     /** After the treasure, in the friend's own words. */
     const val CLOSER = "우리 한층 더 친해졌어!"

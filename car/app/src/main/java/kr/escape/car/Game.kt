@@ -17,6 +17,7 @@ import kr.escape.car.engine.Safety
 import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
+import kr.escape.car.engine.WrongJudge
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Question
 import kr.escape.car.story.QuestionBank
@@ -97,6 +98,8 @@ class Game(
     val ui: StateFlow<GameUi> = _ui
 
     private var hold: HoldJudge? = null
+    private var wrong: WrongJudge? = null
+    private var wrongTold = 0
     private var lastTickMs: Long? = null
     private var recirculationSince: Long? = null
 
@@ -172,6 +175,8 @@ class Game(
         }
         val quiz = p as? Puzzle.Quiz
         hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start, ui.setup.childSeat) }) }
+        // the belt mission reads no car value, so it has no wrong answer
+        wrong = quiz?.let { WrongJudge(it, start, ui.setup.childSeat) }
         _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
         lumi.say(_ui.value.scene(p).speech)
     }
@@ -266,6 +271,7 @@ class Game(
 
     private fun solved() {
         hold = null
+        wrong = null
         val ui = _ui.value
         _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
         lumi.say(ui.solvedLine)
@@ -293,7 +299,10 @@ class Game(
             _ui.update { it.copy(stopped = stop) }
             if (stop != null) lumi.say(Lines.PAUSED)
         }
-        if (stop != null || ui.held) return
+        if (stop != null || ui.held) {
+            wrong?.pause()
+            return
+        }
 
         if (s.recirculation == true) {
             if (recirculationSince == null) recirculationSince = nowMs
@@ -304,6 +313,11 @@ class Game(
         _ui.update { it.copy(playedMs = it.playedMs + dt, recirculationWarning = warn) }
 
         if (ui.phase != Phase.PLAYING) return
-        if (hold?.update(s, nowMs) == true) solved()
+        if (hold?.update(s, nowMs) == true) {
+            solved()
+            return
+        }
+        // a wrong answer is told once it has stayed, never over the friend's words; 다시 듣기 still repeats the puzzle
+        wrong?.update(s, nowMs, quiet = lumi.speaking.value)?.let { lumi.aside(Lines.wrong(it, wrongTold++)) }
     }
 }
