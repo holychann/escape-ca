@@ -31,6 +31,8 @@ object Lines {
     const val SUCCESS = "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!"
     const val TREASURE_BADGE = "기차가 다 고쳐졌어! 고마워, 탐험대장. 반짝이는 탐험 배지를 줄게!"
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
+    /** 이어 하기: before the puzzle the family comes back to, after the car was switched off. */
+    const val WELCOME_BACK = "다시 만났네! 하던 탐험을 이어서 해 보자."
 
     /**
      * At the start of play: the climate's AUTO mode changes the fan, the air conditioner and the recirculation by

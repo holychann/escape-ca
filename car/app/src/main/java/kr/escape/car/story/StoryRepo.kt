@@ -137,6 +137,18 @@ class StoryRepo(
         return story.copy(images = local)
     }
 
+    /** The story a saved episode plays, read back after a restart: its pictures stay while the next one is prepared. */
+    fun keepPlaying(storyId: String?) {
+        playing = storyId
+    }
+
+    /** The saved episode was dropped (새로 시작): its pictures go, unless they are the ready next story's. */
+    fun letGo(storyId: String) {
+        if (playing == storyId) playing = null
+        if (saved?.story?.storyId == storyId) return
+        scope.launch(io) { File(pictures, storyId).deleteRecursively() }
+    }
+
     private fun forgetPicturesExcept(keep: Set<String>) {
         pictures.listFiles()?.filter { it.isDirectory && it.name !in keep }?.forEach { it.deleteRecursively() }
     }
@@ -208,28 +220,35 @@ class StoryRepo(
             return body
         }
 
+        /** The parent's choices as kept on disk, for the next episode here and for the one in progress ([ProgressStore]). */
+        fun setupJson(s: Setup): JSONObject = JSONObject()
+            .put("ages", JSONArray(s.ages.map { it.name }))
+            .put("minutes", s.minutes)
+            .put("childSeat", s.childSeat.name)
+            .put("friend", s.friend.name)
+            .put("wish", s.wish)
+
+        /** Back from [setupJson]; throws on a value this app does not know. A friend it does not know is 반테. */
+        fun setupOf(o: JSONObject): Setup {
+            val ages = o.getJSONArray("ages")
+            return Setup(
+                ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
+                minutes = o.getInt("minutes"),
+                childSeat = Seat.valueOf(o.getString("childSeat")),
+                friend = Friend.entries.firstOrNull { it.name == o.optString("friend") } ?: Friend.BANTE,
+                wish = o.optString("wish", ""),
+            )
+        }
+
         private fun save(s: Saved): JSONObject = JSONObject()
-            .put("setup", JSONObject()
-                .put("ages", JSONArray(s.setup.ages.map { it.name }))
-                .put("minutes", s.setup.minutes)
-                .put("childSeat", s.setup.childSeat.name)
-                .put("friend", s.setup.friend.name)
-                .put("wish", s.setup.wish))
+            .put("setup", setupJson(s.setup))
             .put("keys", JSONArray(s.keys))
             .put("story", s.story.toJson())
 
         private fun load(o: JSONObject): Saved {
-            val st = o.getJSONObject("setup")
-            val ages = st.getJSONArray("ages")
             val keys = o.getJSONArray("keys")
             return Saved(
-                Setup(
-                    ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
-                    minutes = st.getInt("minutes"),
-                    childSeat = Seat.valueOf(st.getString("childSeat")),
-                    friend = Friend.entries.firstOrNull { it.name == st.optString("friend") } ?: Friend.BANTE,
-                    wish = st.optString("wish", ""),
-                ),
+                setupOf(o.getJSONObject("setup")),
                 List(keys.length()) { keys.getString(it) },
                 Story.parse(o.getJSONObject("story")),
             )
