@@ -98,7 +98,7 @@ class StoryTest {
             Question(QuizKind.MATH, "조개 2개에 3개를 더하면?", expr = "2+3"),
             Question(QuizKind.ENGLISH, "영어로 TWO!", word = "TWO"),
             Question(QuizKind.PATTERN, "2, 4, 6, 그다음은?", terms = listOf(2, 4, 6)),
-            Question(QuizKind.REASON, "앞 유리 안쪽이 뿌예지려고 해. 차 버튼으로 펭귄 선장을 도와줘!"),
+            Question(QuizKind.REASON, "앞 유리 안쪽이 뿌예지려고 해. 알맞은 차량 버튼을 찾아 펭귄 선장을 도와줘!"),
         )
         for (q in questions) {
             assertEquals(q, Question.parse(q.toJson()))
@@ -133,13 +133,13 @@ class StoryTest {
            "Q:MATH:TEMP_DOWN:2":{"bubble":"더워!","speech":"방이 더워.","hint":"세어 봐!",
              "question":{"kind":"SPELLING","text":"몇 글자?"}},
            "Q:REASON:DEFROST:1":{"bubble":"앞이 안 보여!","speech":"잠수함 창이 흐려졌어.","hint":"앞 유리를 맑게 하는 버튼!",
-             "question":{"kind":"REASON","text":"펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 차 버튼으로 펭귄 선장을 도와줘!"},
+             "question":{"kind":"REASON","text":"펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 알맞은 차량 버튼을 찾아 펭귄 선장을 도와줘!"},
              "result":""},
            "Q:REASON:LIGHT_CHILD:1":{"bubble":"글씨가 안 보여!","speech":"보물 지도가 작아.","hint":"네 자리를 밝게!",
-             "question":{"kind":"REASON","text":"보물 지도 글씨가 너무 작아. 차 버튼으로 보물 찾기를 도와줘!"},
+             "question":{"kind":"REASON","text":"보물 지도 글씨가 너무 작아. 알맞은 차량 버튼을 찾아 보물 찾기를 도와줘!"},
              "result":"네 자리가 환해져서 지도가 잘 보여!"},
            "Q:REASON:LIGHTS_OFF:0":{"bubble":"잠이 안 와!","speech":"아기 해마가 졸려.","hint":"불을 모두 꺼 봐!",
-             "question":{"kind":"REASON","text":"아기 해마가 낮잠을 자려는데 불빛 때문에 잠이 안 온대. 차 버튼으로 아기 해마를 도와줘!"},
+             "question":{"kind":"REASON","text":"아기 해마가 낮잠을 자려는데 불빛 때문에 잠이 안 온대. 알맞은 차량 버튼을 찾아 아기 해마를 도와줘!"},
              "result":"깜깜해지자 아기 해마가 새근새근 잠들었어!"},
            "BELT":{"bubble":"딸깍!","speech":"벨트를 딸깍!","hint":"딸깍 소리!","result":"딸깍! 출발 준비 끝!"}},
          "dropped":["Q:REASON:AC:1"]}
@@ -169,7 +169,7 @@ class StoryTest {
         assertEquals("앞이 안 보여!", scene.bubble)
         assertEquals("앞 유리를 맑게 하는 버튼!", scene.hint)
         // the situation already asks for help with a car button, so the app adds no instruction of its own
-        assertEquals("잠수함 창이 흐려졌어. 펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 차 버튼으로 펭귄 선장을 도와줘!", scene.speech)
+        assertEquals("잠수함 창이 흐려졌어. 펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 알맞은 차량 버튼을 찾아 펭귄 선장을 도와줘!", scene.speech)
         assertEquals("앞 유리 성에 제거 켜기", scene.answer)
         assertEquals(listOf("앞 유리 성에 제거"), scene.buttons)
         assertNull(Lines.card(q))
@@ -342,7 +342,7 @@ class StoryTest {
                 }
                 QuizKind.REASON -> {
                     // the bank's form: the trouble, then a request for help with a car button, never the button's name
-                    assertTrue(name, q.text.contains("차 버튼으로") && q.text.endsWith("도와줘!"))
+                    assertTrue(name, q.text.contains("차량 버튼을 찾아") && q.text.endsWith("도와줘!"))
                     assertTrue(name, q.expr.isEmpty() && q.word.isEmpty() && q.terms.isEmpty())
                     for (w in ownButton.getValue(p.dial)) assertFalse("$name: $w", q.text.contains(w))
                 }
@@ -445,7 +445,7 @@ class StoryTest {
 
     @Test
     fun aSituationIsToldThenLeftToTheChild() {
-        val q = Question(QuizKind.REASON, "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 차 버튼으로 수달 요리사를 도와줘!")
+        val q = Question(QuizKind.REASON, "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 알맞은 차량 버튼을 찾아 수달 요리사를 도와줘!")
         assertEquals("", Lines.ask(ac, q))
         assertEquals("부엌이 시끌벅적해. ${q.text}", Lines.spoken(" 부엌이 시끌벅적해. ", q, ac))
         assertEquals("에어컨 켜기", Lines.answer(ac, q))

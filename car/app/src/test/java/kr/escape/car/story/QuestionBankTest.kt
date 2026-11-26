@@ -30,8 +30,8 @@ class QuestionBankTest {
          {"id": "m-c-001", "kind": "MATH", "dial": "FAN", "age": "CAPTAIN", "text": "사과 9개 중 4개를 먹으면 몇 개 남을까?", "hint": "하나씩 빼 봐", "answer": 5, "expr": "9-4"},
          {"id": "e-l-001", "kind": "ENGLISH", "dial": "LIGHTS", "age": "LITTLE", "text": "THREE는 우리말로 몇일까?", "hint": "원, 투, 하고 세어 봐", "answer": 3, "word": "THREE"},
          {"id": "p-l-001", "kind": "PATTERN", "dial": "LIGHTS", "age": "LITTLE", "text": "1, 2, 3, 그다음은 몇일까?", "hint": "하나씩 커져", "answer": 4, "terms": [1, 2, 3]},
-         {"id": "ac-on-l-r01", "kind": "REASON", "dial": "AC", "age": "LITTLE", "text": "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 차 버튼으로 수달 요리사를 도와줘!", "hint": "시원한 바람을 만드는 버튼을 찾아봐", "answer": 1},
-         {"id": "recirc-on-c-r01", "kind": "REASON", "dial": "RECIRC", "age": "CAPTAIN", "text": "옆 버스의 연기 냄새가 솔솔 들어와. 차 버튼으로 펭귄 선장을 도와줘!", "hint": "바깥 공기를 막아 봐", "answer": 1},
+         {"id": "ac-on-l-r01", "kind": "REASON", "dial": "AC", "age": "LITTLE", "text": "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 알맞은 차량 버튼을 찾아 수달 요리사를 도와줘!", "hint": "시원한 바람을 만드는 버튼을 찾아봐", "answer": 1},
+         {"id": "recirc-on-c-r01", "kind": "REASON", "dial": "RECIRC", "age": "CAPTAIN", "text": "옆 버스의 연기 냄새가 솔솔 들어와. 알맞은 차량 버튼을 찾아 펭귄 선장을 도와줘!", "hint": "바깥 공기를 막아 봐", "answer": 1},
          {"id": "r-l-001", "kind": "RIDDLE", "dial": "FAN", "age": "LITTLE", "text": "바람이 불면 빙글빙글 도는 장난감은?", "hint": "막대 끝에 날개가 달려 있어", "right": "바람개비", "wrong": ["팽이", "공", "인형"]},
          {"id": "x-l-001", "kind": "DANCE", "dial": "FAN", "age": "LITTLE", "text": "모르는 종류", "hint": "", "answer": 1}
         ]}
@@ -66,7 +66,7 @@ class QuestionBankTest {
         val acOn = Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1)
         val (q, hint) = bank.pick(acOn, Age.CAPTAIN, Random(1))!!
         assertEquals(QuizKind.REASON, q.kind)
-        assertTrue(q.text.endsWith("차 버튼으로 수달 요리사를 도와줘!"))
+        assertTrue(q.text.endsWith("알맞은 차량 버튼을 찾아 수달 요리사를 도와줘!"))
         assertEquals("시원한 바람을 만드는 버튼을 찾아봐", hint)
         assertEquals(Question(QuizKind.REASON, q.text), q)
         // written for switching it on, so never asked for switching it off
@@ -232,6 +232,6 @@ class QuestionBankTest {
             d.values(QuizKind.REASON).flatMap { v -> Age.entries.mapNotNull { a -> shipped.pick(Puzzle.Quiz(QuizKind.REASON, d, v), a, Random(0)) } }
         }
         assertTrue(situations.isNotEmpty())
-        for ((q, _) in situations) assertTrue(q.text, q.text.contains("차 버튼으로") && q.text.trimEnd().endsWith("도와줘!"))
+        for ((q, _) in situations) assertTrue(q.text, q.text.contains("차량 버튼을 찾아") && q.text.trimEnd().endsWith("도와줘!"))
     }
 }

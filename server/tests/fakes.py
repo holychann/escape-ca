@@ -32,14 +32,14 @@ RUN = Entry(id="lights-l-001", kind="PATTERN", dial="LIGHTS", age="LITTLE", answ
             text="켜진 독서등이 모두 1개, 2개, 3개 다음 수가 되게 해 줘!", hint="수가 얼마씩 커지는지 봐.")
 # situations from the shipped bank (app/question_bank.json)
 FOG = Entry(id="defrost-l-r01", kind="REASON", dial="DEFROST", age="LITTLE", answer=1,
-            text="앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아. 차 버튼으로 나를 도와줘!",
+            text="앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아. 알맞은 차량 버튼을 찾아 나를 도와줘!",
             hint="꼬불꼬불 화살표 버튼이 두 개면 둥그스름한 앞 유리 모양 쪽이야.")
 # an air conditioner situation is written for turning it on (1) or off (0) and only serves that answer
 COOL = Entry(id="ac-on-l-r03", kind="REASON", dial="AC", age="LITTLE", answer=1,
-             text="땀방울이 그림 종이에 똑 떨어졌어, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 차 버튼으로 나를 도와줘!",
+             text="땀방울이 그림 종이에 똑 떨어졌어, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 알맞은 차량 버튼을 찾아 나를 도와줘!",
              hint="바람을 시원하게 만들어 주는 버튼이 어디 있을지 찾아봐.")
 COLD = Entry(id="ac-off-l-r02", kind="REASON", dial="AC", age="LITTLE", answer=0,
-             text="나 옷을 두 벌 입어도 추워, 더울 때 켜는 시원한 바람이 켜져 있어. 온도 숫자는 그대로 두고 차 버튼으로 나를 도와줘!",
+             text="나 으슬으슬 추워, 더울 때 켜는 시원한 바람이 켜져 있어. 온도 숫자는 그대로 두고 알맞은 차량 버튼을 찾아 나를 도와줘!",
              hint="추운 나한테 더울 때 쓰는 버튼이 켜져 있어도 될까?")
 # the same answer as SUM with a times sign, for the oldest only
 TIMES = Entry(id="fan-d-001", kind="MATH", dial="FAN", age="DETECTIVE", answer=5, expr="4*3-7",

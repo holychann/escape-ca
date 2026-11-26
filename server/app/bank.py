@@ -121,8 +121,8 @@ def age_problems(e: "Entry") -> list[str]:
 
 # A situation (REASON) is the friend the child picked speaking as "나", whichever friend that is and wherever the
 # story is: it names nobody, no body part only some friends have, nothing tied to one place, and no cause (the story
-# before it tells why). It ends asking for the car's buttons ("차 버튼으로 나를 도와줘!", for the driver's seat "차 버튼으로
-# 안전 지킴이를 도와줘!") and never names its own button. The app asks it only while the car fits it (quiz.REASON_WHEN)
+# before it tells why). It ends asking for the car's buttons ("알맞은 차량 버튼을 찾아 나를 도와줘!", for the driver's seat "해당하는
+# 차량 버튼을 찾아 안전 지킴이를 도와줘!") and never names its own button. The app asks it only while the car fits it (quiz.REASON_WHEN)
 # and knows neither the season nor the light, so a situation states nothing else about the car or the world it cannot
 # check.
 REASON_NAMES = ("루미", "펭귄", "새싹 로봇", "토끼 기관사", "수달", "사막여우", "투덜이", "반테", "코냥", "리아", "투부기",
@@ -132,8 +132,8 @@ REASON_PLACE = ("버스", "쓰레기차", "트럭", "꽃밭", "공사장", "기�
                 "수영장", "운동장")
 REASON_CAUSE = ("감기", "뛰어놀", "줄넘기", "매운", "얼음 주머니", "물병", "수영", "비옷", "입김", "코코아", "춤", "달리기",
                 "자전거", "물풍선", "젖은")
-REASON_ENDING = {"SEAT_HEAT_ON": "차 버튼으로 안전 지킴이를 도와줘!", "SEAT_HEAT_OFF": "차 버튼으로 안전 지킴이를 도와줘!"}
-REASON_ENDING_DEFAULT = "차 버튼으로 나를 도와줘!"
+REASON_ENDING = {"SEAT_HEAT_ON": "알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!", "SEAT_HEAT_OFF": "알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!"}
+REASON_ENDING_DEFAULT = "알맞은 차량 버튼을 찾아 나를 도와줘!"
 # 존댓말 at the end of a sentence: every question and hint is said to the child in 반말
 POLITE = re.compile(r"(요|니다)[.!?,]|(요|니다)$")
 REASON_LEVEL = re.compile(r"(제일|가장)\s*(낮|높|세|약|차갑|뜨겁|따뜻)|(모두|다|전부|빠짐없이)\s*켜|세게\s*(잘\s*)?나오|하나도 빠짐")
@@ -280,8 +280,8 @@ def reason_problems(e: Entry) -> list[str]:
     both = e.text + " " + e.hint
     if e.age == "LITTLE" and e.dial in quiz.REASON_NOT_LITTLE:
         out.append(f"4~6세에는 내지 않는 조작: {e.dial}")
-    if "차 버튼" not in e.text:
-        out.append("차 버튼으로 풀라는 부탁이 없음")
+    if "차량 버튼을 찾아" not in e.text:
+        out.append("차량 버튼을 찾아 풀라는 부탁이 없음")
     if "기능" in both:
         out.append("기능이라는 말")
     if "몇" in e.text or e.text.strip()[-1:] not in ".!":

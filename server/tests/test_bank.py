@@ -26,11 +26,11 @@ STEPS = Entry(id="fan-d-002", kind="PATTERN", dial="FAN", age="DETECTIVE", answe
 # situations the 4~6 are never told (quiz.REASON_NOT_LITTLE), from the shipped bank
 HOT = Entry(id="temp-down-c-r02", kind="REASON", dial="TEMP_DOWN", age="CAPTAIN", answer=1,
             text="나는 땀을 닦고 있어, 에어컨이 켜져 있는데도 아직 조금 덥거든. 바람이 세지면 줄 세워 둔 도미노가 쓰러지니까 "
-                 "차 버튼으로 나를 도와줘!",
+                 "알맞은 차량 버튼을 찾아 나를 도와줘!",
             hint="바람은 그대로 두고, 덥고 추운 정도를 정하는 숫자를 찾아서 시원한 쪽으로 바꿔 봐.")
 POLLEN = Entry(id="recirc-on-c-r02", kind="REASON", dial="RECIRC", age="CAPTAIN", answer=1,
                text="바람 구멍 앞에 앉으니 고약한 냄새에 에취 재채기가 나와. "
-                    "냄새는 차 밖에서 오는 것 같으니 창문은 닫아 둔 채로 차 버튼으로 나를 도와줘!",
+                    "냄새는 차 밖에서 오는 것 같으니 창문은 닫아 둔 채로 알맞은 차량 버튼을 찾아 나를 도와줘!",
                hint="꽃가루는 밖에서 바람을 타고 들어와, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.")
 # the same kind and answer on three devices
 FAN_3 = Entry(id="fan-l-003", kind="MATH", dial="FAN", age="LITTLE", answer=3, expr="1+2",
@@ -113,7 +113,7 @@ def test_a_bad_entry_is_refused(e, expected):
 
 # a situation that keeps every rule; each case below breaks one
 SITUATION = Entry(id="ac-c-900", kind="REASON", dial="AC", age="CAPTAIN", answer=1,
-                  text="나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!",
+                  text="나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!",
                   hint="바람을 차갑게 만드는 버튼을 찾아봐.")
 
 
@@ -126,29 +126,29 @@ def test_the_hand_made_situation_passes():
 
 
 @pytest.mark.parametrize("e,expected", [
-    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 나를 도와줘!"), "차 버튼으로 풀라는 부탁이 없음"),
+    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 나를 도와줘!"), "차량 버튼을 찾아 풀라는 부탁이 없음"),
     (replace(SITUATION, hint="바람을 차갑게 만드는 기능을 찾아봐."), "기능이라는 말"),
     (replace(SITUATION, hint="에어컨 버튼을 찾아봐."), "정답 버튼 이름: 에어컨"),
-    (told("나 땀이 뻘뻘 나, 에어컨이 꺼져 있어서 안 시원해. 차 버튼으로 나를 도와줘!"), "정답 버튼 이름: 에어컨"),
+    (told("나 땀이 뻘뻘 나, 에어컨이 꺼져 있어서 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"), "정답 버튼 이름: 에어컨"),
     # the chosen friend says it as "나": no friend is named, so any friend can say it
-    (told("수달 요리사가 땀이 뻘뻘, 바람은 나오는데 안 시원하대. 차 버튼으로 나를 도와줘!"), "이름: 수달"),
+    (told("수달 요리사가 땀이 뻘뻘, 바람은 나오는데 안 시원하대. 알맞은 차량 버튼을 찾아 나를 도와줘!"), "이름: 수달"),
     (replace(SITUATION, hint="반테처럼 바람을 차갑게 만드는 버튼을 찾아봐."), "이름: 반테"),
-    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 도와줘!"), "끝맺음이 '차 버튼으로 나를 도와줘!'가 아님"),
+    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 도와줘!"), "끝맺음이 '알맞은 차량 버튼을 찾아 나를 도와줘!'가 아님"),
     # the story before the question tells the cause, and the question suits any friend in any place
-    (told("나 줄넘기를 해서 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"), "까닭(이야기가 정함): 줄넘기"),
-    (told("놀이터에서 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"), "장소에 묶인 말: 놀이터"),
-    (told("내 털이 땀에 푹 절었어, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"), "몸 특징: 털"),
-    (told("나 땀이 뻘뻘 나요, 바람은 나오는데 안 시원해요. 차 버튼으로 도와주세요!"), "존댓말: 문제"),
-    (told("여름이라 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"),
+    (told("나 줄넘기를 해서 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"), "까닭(이야기가 정함): 줄넘기"),
+    (told("놀이터에서 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"), "장소에 묶인 말: 놀이터"),
+    (told("내 털이 땀에 푹 절었어, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"), "몸 특징: 털"),
+    (told("나 땀이 뻘뻘 나요, 바람은 나오는데 안 시원해요. 알맞은 차량 버튼을 찾아 도와주세요!"), "존댓말: 문제"),
+    (told("여름이라 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"),
      "날씨, 계절, 밤낮을 단정: 여름"),
-    (told("나 땀이 뻘뻘 나, 바람은 가장 세게 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"),
+    (told("나 땀이 뻘뻘 나, 바람은 가장 세게 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"),
      "단계나 개수를 단정: 가장 세"),
-    (told("차 안이 더워서 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"),
+    (told("차 안이 더워서 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"),
      "차 안 온도를 단정: 차 안이 더워"),
     # turning the air conditioner on is asked whatever the seat heat is, so the story cannot say it is on
-    (told("열선은 켜져 있는데 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 차 버튼으로 나를 도와줘!"),
+    (told("열선은 켜져 있는데 나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!"),
      "조건에 없는 버튼 상태를 말함: {'SEAT_HEAT': 1}"),
-    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 어떤 차 버튼을 누를까?"),
+    (told("나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 어떤 차량 버튼을 찾아 누를까?"),
      "묻는 문장이 아니라 상황을 말하고 부탁하는 문장이어야 함"),
 ], ids=["no car buttons", "function", "own name in hint", "own name in text", "names a friend", "names a friend in hint",
         "wrong ending", "cause", "place", "body", "polite", "season", "level", "cabin temperature",
@@ -159,11 +159,11 @@ def test_a_situation_that_breaks_a_rule_is_refused(e, expected):
 
 def test_the_drivers_seat_situations_end_asking_for_the_guardian():
     seat = Entry(id="seat_heat_on-c-900", kind="REASON", dial="SEAT_HEAT_ON", age="CAPTAIN", answer=1,
-                 text="안전 지킴이 의자가 차가워졌어. 차 안 공기는 괜찮으니 온도 숫자는 그대로 두고 차 버튼으로 안전 지킴이를 도와줘!",
+                 text="안전 지킴이 의자가 차가워졌어. 차 안 공기는 괜찮으니 온도 숫자는 그대로 두고 알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!",
                  hint="안전 지킴이 의자를 데워 주는 의자 그림 버튼을 찾아봐.")
     assert bank.problems(seat) == []
     mine = replace(seat, text=seat.text.replace("안전 지킴이를 도와줘!", "나를 도와줘!"))
-    assert "끝맺음이 '차 버튼으로 안전 지킴이를 도와줘!'가 아님" in bank.problems(mine)
+    assert "끝맺음이 '알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!'가 아님" in bank.problems(mine)
 
 
 def test_a_number_question_in_polite_speech_is_refused():
@@ -192,24 +192,24 @@ def test_what_a_sentence_says_is_switched_on_or_off(text, claims):
 def test_a_switch_may_be_said_only_as_its_condition_holds_it():
     # lowering the temperature is asked only while the air conditioner is on (quiz.REASON_WHEN), so the story may say so
     said = replace(HOT, id="temp-down-c-900",
-                   text="에어컨이 켜져 있는데도 나는 아직 조금 더워. 차 버튼으로 나를 도와줘!")
+                   text="에어컨이 켜져 있는데도 나는 아직 조금 더워. 알맞은 차량 버튼을 찾아 나를 도와줘!")
     assert bank.switch_claims(said.text) == {"AC": 1} and bank.problems(said) == []
     # turning it on is asked while it is off
-    wrong = told("나 땀이 뻘뻘 나, 에어컨은 켜져 있는데 안 시원해. 차 버튼으로 나를 도와줘!")
+    wrong = told("나 땀이 뻘뻘 나, 에어컨은 켜져 있는데 안 시원해. 알맞은 차량 버튼을 찾아 나를 도와줘!")
     assert "조건에 없는 버튼 상태를 말함: {'AC': 1}" in bank.problems(wrong)
 
 
 def test_switching_off_needs_a_clue_that_it_is_on():
     off = replace(SITUATION, id="ac-c-901", answer=0, hint="떨고 있는 나한테 시원한 바람이 지금도 필요할까?",
-                  text="나 덜덜 떨려. 온도 숫자는 그대로 두고 차 버튼으로 나를 도와줘!")
+                  text="나 덜덜 떨려. 온도 숫자는 그대로 두고 알맞은 차량 버튼을 찾아 나를 도와줘!")
     assert "켜져 있는 것을 끄라는 단서가 없음" in bank.problems(off)
-    clued = replace(off, text="나 덜덜 떨리는데 더울 때 켜는 시원한 바람이 켜져 있어. 차 버튼으로 나를 도와줘!")
+    clued = replace(off, text="나 덜덜 떨리는데 더울 때 켜는 시원한 바람이 켜져 있어. 알맞은 차량 버튼을 찾아 나를 도와줘!")
     assert bank.problems(clued) == []
     lights = Entry(id="lights_off-c-900", kind="REASON", dial="LIGHTS_OFF", age="CAPTAIN", answer=0,
-                   text="작은 불이 켜져 있으면 별 스티커가 안 보여. 차 버튼으로 나를 도와줘!",
+                   text="작은 불이 켜져 있으면 별 스티커가 안 보여. 알맞은 차량 버튼을 찾아 나를 도와줘!",
                    hint="켜져 있는 작은 불을 전부 다 찾아봐.")
     assert "목표가 작은 불이 하나도 안 켜져 있게가 아님" in bank.problems(lights)
-    every = replace(lights, text="작은 불이 하나도 안 켜져 있어야 별 스티커가 보여. 차 버튼으로 나를 도와줘!")
+    every = replace(lights, text="작은 불이 하나도 안 켜져 있어야 별 스티커가 보여. 알맞은 차량 버튼을 찾아 나를 도와줘!")
     assert bank.problems(every) == []
 
 
@@ -383,7 +383,7 @@ def test_every_entry_falls_in_a_cell_of_its_device():
 
 def test_a_written_situation_keeps_its_words_and_answer_only():
     written = {"kind": "REASON", "answer": 0, "expr": "1+1", "word": "x", "terms": [1, 2],
-               "text": " 나 덜덜 떨리는데 더울 때 켜는 시원한 바람이 켜져 있어. 차 버튼으로 나를 도와줘! ",
+               "text": " 나 덜덜 떨리는데 더울 때 켜는 시원한 바람이 켜져 있어. 알맞은 차량 버튼을 찾아 나를 도와줘! ",
                "hint": " 감기 걸린 친구에게 시원한 바람이 지금도 필요할까? "}
     off = entry_from("AC", "CAPTAIN", written, "ac-c-909")
     assert off == Entry(id="ac-c-909", kind="REASON", dial="AC", age="CAPTAIN", answer=0, text=written["text"].strip(),
@@ -456,7 +456,7 @@ def test_the_blind_check_lists_every_situation_function_and_wants_the_entrys_own
 def test_situations_are_told_apart_by_their_words_only():
     # a situation has no sum, list or word, so two different ones on one function both stay
     other = replace(COOL, id="ac-on-l-r01",
-                    text="나 헥헥 더워, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 차 버튼으로 나를 도와줘!")
+                    text="나 헥헥 더워, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 알맞은 차량 버튼을 찾아 나를 도와줘!")
     again = replace(COOL, id="ac-on-c-r09", age="CAPTAIN")
     assert [e.id for e in dedupe([again, COOL, other])] == [COOL.id, other.id]
 

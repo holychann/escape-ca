@@ -144,7 +144,7 @@ object Lines {
 
     /**
      * What to do with the answer. The app says this itself, so a written question can never send the child wrong. A
-     * situation already ends by asking for help with a car button ("차 버튼으로 나를 도와줘!"), so nothing
+     * situation already ends by asking for help with a car button ("알맞은 차량 버튼을 찾아 나를 도와줘!"), so nothing
      * follows it.
      */
     fun ask(p: Puzzle.Quiz, q: Question): String {
@@ -286,20 +286,20 @@ object Lines {
      * a car button. It never names the button itself. Each is the first of its function in the question bank.
      */
     private fun situation(p: Puzzle.Quiz): String = when (p.dial) {
-        Dial.AC -> if (p.value == 1) "나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 차 버튼으로 나를 도와줘!"
-            else "나 담요를 덮어도 오들오들 추운데 더울 때 켜는 시원한 바람이 켜져 있어. 온도 숫자는 그대로 두고 차 버튼으로 나를 도와줘!"
-        Dial.RECIRC -> if (p.value == 1) "바람 구멍 앞에만 가면 이상한 냄새가 나서 콜록콜록 기침이 나와. 냄새는 차 밖에서 오는 것 같으니 바람은 계속 나오게 두고 차 버튼으로 나를 도와줘!"
-            else "같은 공기만 빙글빙글 돌아서 나는 숨이 답답해. 창문은 닫아 둔 채로, 차 버튼으로 나를 도와줘!"
-        Dial.DEFROST -> "앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아. 차 버튼으로 나를 도와줘!"
-        Dial.TEMP_UP -> "내 몸이 으슬으슬 떨려. 의자 말고 차 안 공기를 따뜻하게, 차 버튼으로 나를 도와줘!"
-        Dial.TEMP_DOWN -> "에어컨은 켜져 있는데 나는 아직 조금 더워. 바람이 세지면 맞춰 둔 퍼즐 조각이 흩어지니까 차 버튼으로 나를 도와줘!"
-        Dial.FAN_UP -> "내 바람개비가 느릿느릿 돌아. 덥지도 춥지도 않은데, 빙글빙글 빨리 돌게 차 버튼으로 나를 도와줘!"
-        Dial.FAN_DOWN -> "바람이 쌩쌩 불어서 내 그림 종이가 날아가. 바람은 조금 나와야 하니까 차 버튼으로 나를 도와줘!"
-        Dial.SEAT_HEAT_ON -> "안전 지킴이 의자가 차가워졌어. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!"
-        Dial.SEAT_HEAT_OFF -> "안전 지킴이 의자가 찐빵처럼 계속 뜨끈해. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!"
-        Dial.LIGHT_CHILD -> "내가 준 그림 지도가 개미만큼 작아서 네 자리에 빛이 더 있어야 잘 보여. 창문은 깨끗해, 차 버튼으로 나를 도와줘!"
-        Dial.LIGHTS_OFF -> "나 반짝 별 스티커를 보고 싶어. 하나만 말고 작은 불이 하나도 안 켜져 있게 차 버튼으로 나를 도와줘!"
-        Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "차 버튼으로 나를 도와줘!"
+        Dial.AC -> if (p.value == 1) "나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 알맞은 차량 버튼을 찾아 나를 도와줘!"
+            else "나 오들오들 추운데 더울 때 켜는 시원한 바람이 켜져 있어. 온도 숫자는 그대로 두고 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.RECIRC -> if (p.value == 1) "바람 구멍 앞에만 가면 이상한 냄새에 콜록콜록 기침이 나와. 냄새는 차 밖에서 오는 것 같으니 바람은 계속 나오게 두고 알맞은 차량 버튼을 찾아 나를 도와줘!"
+            else "같은 공기만 빙글빙글 돌아서 나는 숨이 답답해. 창문은 닫아 둔 채로, 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.DEFROST -> "앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아. 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.TEMP_UP -> "내 몸이 으슬으슬 떨려. 의자 말고 차 안 공기를 따뜻하게, 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.TEMP_DOWN -> "에어컨은 켜져 있는데 나는 아직 조금 더워. 바람이 세지면 퍼즐 조각이 흩어지니까 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.FAN_UP -> "내 바람개비가 느릿느릿 돌아. 덥지도 춥지도 않은데, 빙글빙글 빨리 돌게 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.FAN_DOWN -> "바람이 쌩쌩 불어서 내 그림 종이가 날아가. 바람은 조금 나와야 하니까 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.SEAT_HEAT_ON -> "안전 지킴이 의자가 차가워졌어. 차 안 공기 말고 의자를 데우게 알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!"
+        Dial.SEAT_HEAT_OFF -> "안전 지킴이 의자가 찐빵처럼 계속 뜨끈해. 의자가 그만 데워지게 알맞은 차량 버튼을 찾아 안전 지킴이를 도와줘!"
+        Dial.LIGHT_CHILD -> "그림 지도가 개미만큼 작아서 네 자리에 빛이 더 있어야 잘 보여. 창문은 깨끗해, 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.LIGHTS_OFF -> "나 반짝 별 스티커를 보고 싶어. 하나만 말고 작은 불이 하나도 안 켜져 있게 알맞은 차량 버튼을 찾아 나를 도와줘!"
+        Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "알맞은 차량 버튼을 찾아 나를 도와줘!"
     }
 
     /** The car instruction after a question asked first, the amount as "그 수": "그 수만큼 온도를 내려 줘!". */
