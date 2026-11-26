@@ -723,4 +723,105 @@ class EngineTest {
         // what was not known before is left alone
         assertEquals(emptyList<String>(), Snapshot.of(parked).changes(after))
     }
+
+    private fun math(dial: Dial, v: Int) = Puzzle.Quiz(QuizKind.MATH, dial, v)
+
+    /** A parked car with two reading lights, the air conditioner on, 20 degrees and the fan at 2. */
+    private val shelfCar = known.copy(
+        acOn = true, tempLeft = 20f, fanSpeed = 2,
+        readingLights = mapOf(Seat.DRIVER to false, Seat.REAR_RIGHT to false),
+    )
+    private val ten = Setup(minutes = 10)
+    private val belt = listOf<Puzzle>(Puzzle.BeltMission)
+
+    @Test
+    fun playableHidesWhatTheCarShowsNow() {
+        val keys = Planner.playable(setup, known.copy(fanSpeed = 3, tempLeft = 23f))
+        assertTrue(math(Dial.FAN, 3) in keys)
+        assertTrue(math(Dial.TEMP_UP, 1) in keys)
+        assertTrue(math(Dial.TEMP_DOWN, 1) in keys)
+        assertTrue(keys.none { it.kind == QuizKind.REASON && it.dial == Dial.TEMP_UP })
+    }
+
+    @Test
+    fun playableHoldsOnlySituationsThatFitNow() {
+        val keys = Planner.playable(setup, shelfCar)
+        assertTrue(reason(Dial.AC, 0) in keys)
+        assertFalse(reason(Dial.AC, 1) in keys)
+        val noAc = Planner.playable(setup, shelfCar.copy(devices = allDevices - Device.AC))
+        assertTrue(noAc.none { it.dial == Dial.AC })
+        assertTrue(noAc.isNotEmpty())
+    }
+
+    @Test
+    fun playableLeavesOutWhatTheYoungestAreNeverToldAndWhatHasNoQuestion() {
+        assertTrue(Planner.playable(little, shelfCar).none { it.kind == QuizKind.REASON && it.dial in listOf(Dial.RECIRC, Dial.TEMP_DOWN) })
+        val none = Planner.playable(setup, shelfCar, Questions { q, _ -> q.dial != Dial.FAN })
+        assertTrue(none.none { it.dial == Dial.FAN })
+        assertTrue(Planner.playable(setup, shelfCar).none { it == Puzzle.BeltMission })
+    }
+
+    @Test
+    fun aShelvedStoryPlaysTheFirstFittingAnswerOfEachSlot() {
+        val slots = listOf(listOf(reason(Dial.AC, 1), reason(Dial.AC, 0)), listOf(math(Dial.FAN, 5)), belt, listOf(math(Dial.LIGHTS, 2)))
+        val got = Planner.accepts(slots, ten, shelfCar)
+        assertEquals(listOf(reason(Dial.AC, 0), math(Dial.FAN, 5), Puzzle.BeltMission, math(Dial.LIGHTS, 2)), got)
+    }
+
+    @Test
+    fun aShelvedStoryNeedingAMissingDeviceIsRefused() {
+        val slots = listOf(listOf(reason(Dial.AC, 0)), listOf(math(Dial.FAN, 5)), belt, listOf(math(Dial.LIGHTS, 2)))
+        assertNotNull(Planner.accepts(slots, ten, shelfCar))
+        assertNull(Planner.accepts(slots, ten, shelfCar.copy(devices = allDevices - Device.AC)))
+    }
+
+    @Test
+    fun aShelvedNumberTheCarAlreadyShowsIsRefused() {
+        assertNull(Planner.accepts(listOf(listOf(math(Dial.FAN, 5))), Setup(minutes = 5), shelfCar.copy(fanSpeed = 5, devices = setOf(Device.FAN_SPEED))))
+    }
+
+    @Test
+    fun aShelvedOrderThatNoLongerWorksIsRefused() {
+        val car = shelfCar.copy(acOn = false)
+        val five = Setup(minutes = 5)
+        assertNull(Planner.accepts(listOf(listOf(reason(Dial.AC, 1)), listOf(reason(Dial.TEMP_UP, 1)), belt), five, car))
+        assertNotNull(Planner.accepts(listOf(listOf(reason(Dial.TEMP_UP, 1)), listOf(reason(Dial.AC, 1)), belt), five, car))
+    }
+
+    @Test
+    fun aShelvedStoryWithTheBeltElsewhereIsRefused() {
+        val ok = listOf(listOf(reason(Dial.AC, 0)), listOf(math(Dial.FAN, 5)), belt, listOf(math(Dial.LIGHTS, 2)))
+        assertNotNull(Planner.accepts(ok, ten, shelfCar))
+        val first = listOf(belt, ok[0], ok[1], ok[3])
+        val last = listOf(ok[0], ok[1], ok[3], belt)
+        val none = listOf(ok[0], ok[1], ok[3])
+        assertNull(Planner.accepts(first, ten, shelfCar))
+        assertNull(Planner.accepts(last, ten, shelfCar))
+        assertNull(Planner.accepts(none, ten, shelfCar))
+    }
+
+    @Test
+    fun aShelvedStoryOfAnotherLengthIsRefused() {
+        val two = listOf(listOf(reason(Dial.AC, 0)), listOf(math(Dial.FAN, 5)), belt)
+        assertNull(Planner.accepts(two, ten, shelfCar))
+        // a car with only two devices that can ask plays two quizzes whatever the time
+        val small = shelfCar.copy(devices = setOf(Device.FAN_SPEED, Device.READING_LIGHT))
+        assertNotNull(Planner.accepts(listOf(listOf(math(Dial.FAN, 5)), listOf(math(Dial.LIGHTS, 2)), belt), ten, small))
+    }
+
+    @Test
+    fun twoPuzzlesOnOneDeviceAreRefused() {
+        val slots = listOf(listOf(math(Dial.FAN, 5)), listOf(math(Dial.FAN, 6)), belt, listOf(math(Dial.LIGHTS, 2)))
+        assertNull(Planner.accepts(slots, ten, shelfCar))
+    }
+
+    @Test
+    fun acceptsChangesNothing() {
+        val slots = listOf(listOf(reason(Dial.AC, 1), reason(Dial.AC, 0)), listOf(math(Dial.FAN, 5)), belt, listOf(math(Dial.LIGHTS, 2)))
+        val copy = slots.map { it.toList() }
+        val car = shelfCar.copy()
+        assertEquals(Planner.accepts(slots, ten, car), Planner.accepts(slots, ten, car))
+        assertEquals(copy, slots)
+        assertEquals(shelfCar, car)
+    }
 }

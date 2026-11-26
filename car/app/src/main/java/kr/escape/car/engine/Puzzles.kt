@@ -209,6 +209,51 @@ object Planner {
         return picks
     }
 
+    /**
+     * The quiz keys the story library may offer this car: every number quiz of a device the car has, whatever it shows
+     * now (so the request does not tell it what the cabin looks like), and the situations that fit now. Only quizzes
+     * [questions] can ask for the youngest child; the belt mission is always playable and is never listed.
+     */
+    fun playable(setup: Setup, s: CarState, questions: Questions = Questions.ANY): List<Puzzle.Quiz> {
+        val age = youngest(setup)
+        return Dial.entries.filter { it.device in s.devices }.flatMap { dial ->
+            dial.kinds.flatMap { kind -> dial.values(kind).map { Puzzle.Quiz(kind, dial, it) } }
+        }.filter { q ->
+            allowed(q, age) && questions.has(q, age) && (q.kind != QuizKind.REASON || fits(q, s, setup))
+        }.distinct()
+    }
+
+    /**
+     * The puzzles a shelved story plays on this car now, slot by slot in the story's order (the first answer of a slot
+     * that fits once the slots before it are solved), or null when the story does not fit as [plan] would have planned
+     * it: one puzzle per device, the belt mission after the second quiz, and as many quizzes as the car can ask.
+     */
+    fun accepts(slots: List<List<Puzzle>>, setup: Setup, s: CarState, questions: Questions = Questions.ANY): List<Puzzle>? {
+        val age = youngest(setup)
+        val picked = mutableListOf<Puzzle>()
+        var now = s
+        for (slot in slots) {
+            if (slot.isNotEmpty() && slot.all { it is Puzzle.BeltMission }) {
+                picked += Puzzle.BeltMission
+                continue
+            }
+            val quizzes = slot.map { it as? Puzzle.Quiz ?: return null }
+            val q = quizzes.firstOrNull { fits(it, now, setup) && questions.has(it, age) } ?: return null
+            picked += q
+            now = after(q, now, setup.childSeat)
+        }
+        val quizzes = picked.filterIsInstance<Puzzle.Quiz>()
+        if (quizzes.map { it.dial.device }.toSet().size != quizzes.size) return null
+        val belt = picked.indices.filter { picked[it] is Puzzle.BeltMission }
+        if (belt != if (quizzes.size >= 2) listOf(2) else emptyList<Int>()) return null
+        if (quizzes.size != minOf(puzzleCount(setup.minutes) - 1, devicesWithOptions(s, setup, questions))) return null
+        return picked
+    }
+
+    /** How many devices of the car have a quiz to ask right now. */
+    private fun devicesWithOptions(s: CarState, setup: Setup, questions: Questions): Int =
+        Device.entries.count { it in s.devices && options(it, s, setup, questions).isNotEmpty() }
+
     /** Every quiz on device [d] the car allows now with a question for the youngest. */
     private fun options(d: Device, s: CarState, setup: Setup, questions: Questions): List<Puzzle.Quiz> {
         val age = youngest(setup)
