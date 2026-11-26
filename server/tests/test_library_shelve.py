@@ -106,3 +106,24 @@ def test_a_storage_error_does_not_reach_the_family(tmp_path):
     r = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY)
     assert r.status_code == 200 and r.json()["scenes"]
     assert lib.size(CELL) == 0
+
+
+def test_a_painted_story_is_shelved_without_its_pictures(tmp_path):
+    from tests.test_wish_and_pictures import ART, FakePainter
+    lib = shelf(tmp_path)
+    d = draft(KEYS, art=ART)
+    c = TestClient(create_app(writer=FakeWriter(d), data_dir=tmp_path, painter=FakePainter(), bank=BANK, library=lib))
+    ep = c.post("/v1/episode", json={**BODY, "pictures": True}).json()
+    assert ep["images"] and any(s["picture"] for s in ep["scenes"].values())
+    s = lib.get(ep["storyId"])
+    assert s.episode.images == {} and s.episode.pictures == {}
+    assert all(sc.picture is None for sc in s.episode.scenes.values())
+
+
+def test_a_shelf_that_cannot_queue_does_not_reach_the_family(tmp_path):
+    def broken(job):
+        raise RuntimeError("executor shut down")
+
+    lib = Library(FolderStorage(tmp_path / "shelf"), run=broken)
+    r = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY)
+    assert r.status_code == 200 and r.json()["scenes"] and lib.size(CELL) == 0
