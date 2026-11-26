@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -220,19 +221,24 @@ fun ClayButton(
 
 /** A choice tile (age, waiting time): sun when chosen, white with a lip otherwise. */
 @Composable
-fun ChoiceTile(big: String, small: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(28.dp)
-    val lip = 6.dp
+fun ChoiceTile(
+    big: String, small: String, selected: Boolean, modifier: Modifier = Modifier,
+    /** Shorter, for a screen that has to show every choice at once without scrolling. */
+    compact: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(if (compact) 22.dp else 28.dp)
+    val lip = if (compact) 5.dp else 6.dp
     Box(modifier) {
         Box(Modifier.matchParentSize().padding(top = lip).clip(shape).background(if (selected) Clay.SunLip else Clay.Line))
         Column(
             Modifier.fillMaxWidth().padding(bottom = lip).clip(shape).background(if (selected) Clay.Sun else Color.White)
                 .then(if (selected) Modifier else Modifier.border(3.dp, Clay.Line, shape))
-                .clickable(onClick = onClick).padding(vertical = 22.dp),
+                .clickable(onClick = onClick).padding(vertical = if (compact) 8.dp else 22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            KidText(big, 40.sp)
-            BodyText(small, size = 19.sp, color = if (selected) Clay.Ink else Clay.Sub, weight = FontWeight.Medium)
+            KidText(big, if (compact) 28.sp else 40.sp)
+            BodyText(small, size = if (compact) 15.sp else 19.sp, color = if (selected) Clay.Ink else Clay.Sub, weight = FontWeight.Medium)
         }
     }
 }
@@ -276,7 +282,7 @@ fun CheckLabel(label: String, ok: Boolean) {
 
 // ---------- line icons ----------
 
-enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART }
+enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART, DICE }
 
 /** Simple rounded line icons drawn in code, so they take any color and need no resources. */
 @Composable
@@ -321,6 +327,13 @@ fun ClayGlyph(icon: ClayIcon, color: Color, modifier: Modifier = Modifier) {
             }
             ClayIcon.WAVE -> wave(color, w)
             ClayIcon.HEART -> drawPath(heartPath(w), color)
+            // a die showing five, for "pick one for me"
+            ClayIcon.DICE -> {
+                drawRoundRect(color, Offset(w * 0.12f, w * 0.12f), Size(w * 0.76f, w * 0.76f), CornerRadius(w * 0.18f), style = s)
+                val pip = w * 0.075f
+                listOf(0.33f to 0.33f, 0.67f to 0.33f, 0.5f to 0.5f, 0.33f to 0.67f, 0.67f to 0.67f)
+                    .forEach { (x, y) -> drawCircle(color, pip, Offset(w * x, w * y)) }
+            }
         }
     }
 }

@@ -62,9 +62,12 @@ class StoryRepo(
     /** The story being played; its pictures must stay while the next one is prepared. */
     private var playing: String? = null
 
-    /** Called while the parent is choosing, and when an episode starts (for the next one). */
-    fun prepare(setup: Setup, car: CarState) {
-        val ready = fits(setup, car)
+    /**
+     * Writes the episode for [setup]. With [planned] (소원 빌기: the puzzles the game is about to play) it is always
+     * written anew around exactly those; without, a story kept for the same setup is used if the car can play it.
+     */
+    fun prepare(setup: Setup, car: CarState, planned: List<Puzzle>? = null) {
+        val ready = if (planned == null) fits(setup, car) else null
         if (ready != null) {
             // a fetch started a moment ago, before the car had reported every device, must not overwrite this
             job?.cancel()
@@ -74,10 +77,11 @@ class StoryRepo(
             return
         }
         val wanted = setup.forStory()
-        if (job?.isActive == true && writingFor == wanted) return
+        // a story being written for the same choices is waited for, unless new puzzles were planned
+        if (planned == null && job?.isActive == true && writingFor == wanted) return
         job?.cancel()
         _preview.value = null
-        val puzzles = Planner.plan(setup, car, questions = questions)
+        val puzzles = planned ?: Planner.plan(setup, car, questions = questions)
         if (puzzles.isEmpty()) return
         writingFor = wanted
         _status.value = Status.WRITING
@@ -105,6 +109,21 @@ class StoryRepo(
             _status.value = Status.READY
             _preview.value = story
         }
+    }
+
+    /**
+     * The story [prepare] just wrote around the puzzles it was given, once it is ready; it is used up. Unlike [take] it
+     * does not ask the car again: those puzzles were checked when the game planned them.
+     */
+    fun takeWritten(): Story? {
+        if (_status.value != Status.READY) return null
+        val s = saved ?: return null
+        saved = null
+        file.delete()
+        playing = s.story.storyId
+        _status.value = Status.NONE
+        _preview.value = null
+        return s.story
     }
 
     /** The ready episode if it was written for this setup and this car can play it; it is used up. */

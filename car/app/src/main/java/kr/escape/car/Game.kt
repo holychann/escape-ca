@@ -74,6 +74,8 @@ data class GameUi(
     val keepSave: Boolean = false,
     /** Held after the app did not run for a while; 이어 하기 then takes the climate and the 20 minutes from now. */
     val rebase: Boolean = false,
+    /** 소원 빌기 asked the story server for this episode and it is still writing: 탐험 시작 waits for it. */
+    val writing: Boolean = false,
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -146,18 +148,19 @@ class Game(
     fun playable(s: CarState): Boolean = Planner.plan(_ui.value.setup, s, Random(0), questions).isNotEmpty()
 
     /**
-     * The start button (이 이야기로 시작하기 / 기본 이야기로 시작하기): plays the episode the story server already wrote for this setup, or plans one and plays
-     * the app's own lines. Remembers the climate as the parent left it, then starts writing the next episode.
+     * 소원 빌기, the setup screen's one button: plans the episode for the parent's choices, remembers the climate as the
+     * parent left it and goes to the episode's first screen at once. With a story server the story is asked for now and
+     * written while the parent turns AUTO off and checks the car there ([storyDone] goes on when it is back); the server
+     * is never asked at any other time. Without one, the app's own lines play.
      */
     fun begin() {
         val s = car.value
         val setup = _ui.value.setup
-        val ready = stories?.take(setup, s)
         var ui = GameUi(
-            phase = Phase.INTRO, setup = setup, puzzles = ready?.puzzles ?: Planner.plan(setup, s, rnd, questions),
-            snapshot = Snapshot.of(s), story = ready?.story,
+            phase = Phase.INTRO, setup = setup, puzzles = Planner.plan(setup, s, rnd, questions),
+            snapshot = Snapshot.of(s), writing = stories != null,
         )
-        // an episode kept since an earlier drive may hold a quiz the car now already answers
+        // never a quiz the car already answers
         var i = 0
         while (i < ui.puzzles.size) {
             val size = ui.puzzles.size
@@ -171,11 +174,42 @@ class Game(
         _ui.value = ui.copy(own = own)
         save()
         lastTickMs = null
-        val intro = "${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}"
-        lumi.say(intro)
-        // every line this episode will say, fetched now so each plays without a wait
-        lumi.prefetch(lines(_ui.value))
-        stories?.prepare(setup, s)
+        if (stories == null) {
+            lumi.say("${Lines.intro(setup.friend)} ${Lines.AUTO_OFF}")
+            // every line this episode will say, fetched now so each plays without a wait
+            lumi.prefetch(lines(_ui.value))
+            return
+        }
+        // the parent turns AUTO off while the story is written; the friend says hello once it is here
+        lumi.say(Lines.AUTO_OFF)
+        stories.prepare(setup, s, _ui.value.puzzles)
+    }
+
+    /**
+     * The story server's answer to the episode [begin] asked for: its story, the app's own lines when it could not
+     * write one, or back to the setup screen when it refused the family's wish (the reason is shown there).
+     */
+    fun storyDone(status: StoryRepo.Status) {
+        val ui = _ui.value
+        if (ui.phase != Phase.INTRO || !ui.writing) return
+        when (status) {
+            StoryRepo.Status.READY -> introduce(stories?.takeWritten())
+            StoryRepo.Status.OFFLINE -> introduce(null)
+            StoryRepo.Status.REJECTED -> {
+                clearSave()
+                _ui.value = GameUi(setup = ui.setup)
+            }
+            StoryRepo.Status.NONE, StoryRepo.Status.WRITING -> Unit
+        }
+    }
+
+    /** The friend's hello once the story is here (the app's own without one), and every line fetched for later. */
+    private fun introduce(story: Story?) {
+        _ui.update { it.copy(story = story, writing = false) }
+        save()
+        val ui = _ui.value
+        lumi.say(story?.intro ?: Lines.intro(ui.setup.friend))
+        lumi.prefetch(lines(ui))
     }
 
     /** [intro] is said before the puzzle's own words (이어 하기's welcome back). */

@@ -1,7 +1,12 @@
 package kr.escape.car
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Device
 import kr.escape.car.engine.Dial
@@ -17,7 +22,13 @@ import kr.escape.car.engine.StopReason
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Progress
 import kr.escape.car.story.ProgressStore
+import kr.escape.car.story.Story
+import kr.escape.car.story.StoryClient
+import kr.escape.car.story.StoryKeys
+import kr.escape.car.story.StoryRepo
+import kr.escape.car.story.WishRejected
 import kr.escape.car.voice.Voice
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -294,5 +305,78 @@ class GameTest {
         g.startOver()
         assertNull(store.read())
         assertNull(g.saved.value)
+    }
+
+    // ------------------------------------------------------------ 소원 빌기: the story is written on the first screen
+
+    /** A story server that answers every request the same way and counts them. */
+    private class Server(private val answer: () -> Story) : StoryClient("http://127.0.0.1:9") {
+        val asked = mutableListOf<JSONObject>()
+        override fun episode(request: JSONObject): Story {
+            asked += request
+            return answer()
+        }
+        override fun download(path: String, to: java.io.File) {}
+    }
+
+    private val written = Story.parse(JSONObject(
+        """{"storyId":"${"c".repeat(32)}","theme":"STAR_TRAIN","title":"구름 위 보물찾기","intro":"안녕, 나는 반테야!",
+           "treasureBadge":"배지 받아!","scenes":{}}""",
+    ))
+
+    private fun TestScope.gameWith(server: Server): Pair<Game, StoryRepo> {
+        val d = StandardTestDispatcher(testScheduler)
+        val repo = StoryRepo(tmp.root.resolve("next_episode.json"), "0".repeat(16), server, CoroutineScope(d), io = d)
+        return Game(car, voice, stories = repo, book = FriendBook(tmp.root.resolve("book")), progress = store, rnd = Random(0)) to repo
+    }
+
+    @Test
+    fun aWishGoesToTheFirstScreenAtOnceAndTheFriendSaysHelloWhenTheStoryIsHere() = runTest {
+        val server = Server { written }
+        val (g, repo) = gameWith(server)
+        g.setup { it.copy(wish = "구름 위 놀이공원에서 펼쳐지는 보물찾기 이야기") }
+        g.begin()
+        // the parent turns AUTO off while the story is written; 탐험 시작 waits
+        assertEquals(Phase.INTRO, g.ui.value.phase)
+        assertTrue(g.ui.value.writing)
+        assertEquals(listOf(Lines.AUTO_OFF), voice.said)
+        advanceUntilIdle()
+        g.storyDone(repo.status.value)
+        assertFalse(g.ui.value.writing)
+        assertEquals(written, g.ui.value.story)
+        assertEquals("안녕, 나는 반테야!", voice.said.last())
+        // asked once, for exactly the puzzles the game plays, and never again for a next episode
+        assertEquals(1, server.asked.size)
+        val slots = server.asked.single().getJSONArray("puzzles")
+        assertEquals(g.ui.value.puzzles.map(StoryKeys::key), List(slots.length()) { slots.getJSONArray(it).getString(0) })
+        assertEquals(written, store.read()!!.story)
+    }
+
+    @Test
+    fun withoutTheServerTheFirstScreenGoesOnWithTheAppsOwnLines() = runTest {
+        val (g, repo) = gameWith(Server { throw java.io.IOException("server down") })
+        g.setup { it.copy(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기") }
+        g.begin()
+        advanceUntilIdle()
+        g.storyDone(repo.status.value)
+        assertEquals(Phase.INTRO, g.ui.value.phase)
+        assertFalse(g.ui.value.writing)
+        assertNull(g.ui.value.story)
+        assertEquals(Lines.intro(g.ui.value.setup.friend), voice.said.last())
+    }
+
+    @Test
+    fun aRefusedWishGoesBackToTheSetupToBeChanged() = runTest {
+        val (g, repo) = gameWith(Server { throw WishRejected(listOf("무서운 말: 귀신")) })
+        val wish = "귀신의 집에서 펼쳐지는 탐정 놀이 이야기"
+        g.setup { it.copy(wish = wish) }
+        g.begin()
+        advanceUntilIdle()
+        g.storyDone(repo.status.value)
+        assertEquals(Phase.SETUP, g.ui.value.phase)
+        // the wish is still in the box, and no episode is kept to go on with
+        assertEquals(wish, g.ui.value.setup.wish)
+        assertNull(store.read())
+        assertEquals(listOf("무서운 말: 귀신"), repo.rejection.value)
     }
 }
