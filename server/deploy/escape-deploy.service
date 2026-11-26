@@ -1,0 +1,13 @@
+# 팀 저장소 main을 확인하고, 테스트를 통과한 새 커밋이면 이야기 서버를 다시 배포합니다.
+# escape-deploy.timer가 2분마다 부릅니다. 설치는 server/배포_방법.md 7번.
+[Unit]
+Description=escape-car story server: deploy tested main
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/usr/bin/bash /home/ubuntu/escape-car/server/deploy/lightsail_poll.sh
+# 이미지를 새로 만들고 healthy를 기다리는 시간까지
+TimeoutStartSec=20min
