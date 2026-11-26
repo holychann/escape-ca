@@ -41,8 +41,44 @@ class Lumi(private val cache: VoiceCache?) {
     /** Tags the subtitle steps posted on [main], so a new line or stop() takes them all back. */
     private val steps = Any()
 
+    /** Lines still to say after this one ([sayAll]); a plain [say] or [stop] empties it. */
+    private val queue = ArrayDeque<String>()
+
+    /** True while [sayAll] is reading lines in a row. */
+    private val _reading = MutableStateFlow(false)
+    val reading: StateFlow<Boolean> = _reading
+
     /** Says [text], cutting off whatever Lumi was saying. Call on the main thread. */
     fun say(text: String) {
+        queue.clear()
+        _reading.value = false
+        start(text)
+    }
+
+    /**
+     * Says [lines] one after another (the rulebook's [읽어 줘]), each with its own recording and subtitles, cutting off
+     * whatever Lumi was saying. Any [say] or [stop] ends it.
+     */
+    fun sayAll(lines: List<String>) {
+        val todo = lines.filter { it.isNotBlank() }
+        if (todo.isEmpty()) return
+        queue.clear()
+        queue.addAll(todo.drop(1))
+        _reading.value = true
+        prefetch(todo)
+        start(todo.first())
+    }
+
+    /** The next line of [sayAll], a short breath after the last one ended. */
+    private fun next(mine: Int, afterMs: Long) {
+        if (queue.isEmpty()) {
+            main.postDelayed({ if (mine == turn) _reading.value = false }, steps, afterMs)
+            return
+        }
+        main.postDelayed({ if (mine == turn) queue.removeFirstOrNull()?.let(::start) }, steps, afterMs)
+    }
+
+    private fun start(text: String) {
         last = text
         val mine = ++turn
         stopPlayer()
@@ -80,6 +116,8 @@ class Lumi(private val cache: VoiceCache?) {
     }
 
     fun stop() {
+        queue.clear()
+        _reading.value = false
         turn++
         stopPlayer()
         main.removeCallbacksAndMessages(steps)
@@ -114,6 +152,8 @@ class Lumi(private val cache: VoiceCache?) {
         _speaking.value = false
         _noSound.value = true
         show(pieces, mine, null)
+        // with no sound, the next line of [sayAll] waits until this one could be read
+        next(mine, pieces.sumOf(Subtitles::readMs) + BREATH_MS)
     }
 
     private fun play(file: File, pieces: List<String>, mine: Int) {
@@ -138,6 +178,7 @@ class Lumi(private val cache: VoiceCache?) {
                 release(done)
                 _speaking.value = false
                 main.postDelayed({ if (mine == turn) _subtitle.value = null }, steps, LINGER_MS)
+                next(mine, BREATH_MS)
             }
             mp.setOnErrorListener { failed, what, extra ->
                 if (player === failed) {
@@ -176,5 +217,8 @@ class Lumi(private val cache: VoiceCache?) {
     companion object {
         /** How long the last piece stays after the sound ends. */
         const val LINGER_MS = 1500L
+
+        /** The pause between two lines of [sayAll]. */
+        const val BREATH_MS = 600L
     }
 }
