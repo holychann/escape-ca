@@ -51,7 +51,7 @@
 - **`POST /v1/library`**: 차가 같은 칸의 이야기 후보를 달라고 합니다(`STORY_LIBRARY_CANDIDATES`편까지, 그림 없음). 서버는 후보만 주고, 어느 것을 쓸지와 퍼즐 정답은 앱의 규칙 엔진이 정합니다. 맞는 것이 없으면 앱이 `/v1/episode`로 새 이야기를 씁니다. 칸의 이야기가 `STORY_LIBRARY_MIN`편보다 적으면 가끔(`STORY_LIBRARY_FRESH` 확률) 후보 없이 돌려보내 새 이야기를 쓰게 합니다. 주소 하나당 하루 `STORY_LIBRARY_PER_IP`번까지 부를 수 있습니다.
 - **신고**: 부모가 신고하면 그 이야기는 창고에서 빠지고 더 이상 후보로 나가지 않습니다. 주소 하나가 하루에 빼 낼 수 있는 이야기는 `STORY_LIBRARY_BLOCKS_PER_IP`편입니다.
 - **다시 검사**: 서버가 켜질 때 창고의 이야기를 모두 지금 규칙으로 다시 검사하고, 읽을 수 없거나 허용되지 않은 모델이 쓴 이야기, 신고된 이야기, 검사에 걸리는 이야기는 건너뜁니다. 창고를 읽다가 실패하면 서버는 창고 없이 뜹니다.
-- **환경 변수**: `STORY_LIBRARY_BUCKET`, `STORY_LIBRARY_PREFIX`(기본 빈 값), `STORY_LIBRARY_DIR`, `STORY_LIBRARY_MODELS`, `STORY_LIBRARY_CAP`(200), `STORY_LIBRARY_MIN`(30), `STORY_LIBRARY_FRESH`(0.3), `STORY_LIBRARY_CANDIDATES`(10), `STORY_LIBRARY_PER_IP`(500), `STORY_LIBRARY_BLOCKS_PER_IP`(5). `.env.example`에 있습니다. S3를 쓸 때 AWS 리전과 키는 boto3 표준 환경 변수를 따릅니다([배포_방법.md](배포_방법.md)).
+- **환경 변수**: `STORY_LIBRARY_BUCKET`, `STORY_LIBRARY_PREFIX`(기본 빈 값), `STORY_LIBRARY_DIR`, `STORY_LIBRARY_MODELS`, `STORY_LIBRARY_CAP`(200), `STORY_LIBRARY_MIN`(30), `STORY_LIBRARY_FRESH`(0.3), `STORY_LIBRARY_CANDIDATES`(10), `STORY_LIBRARY_PER_IP`(500), `STORY_LIBRARY_BLOCKS_PER_IP`(5). `.env.example`에 있습니다. S3를 쓸 때 AWS 리전(`AWS_DEFAULT_REGION`)과 키는 boto3 표준 환경 변수를 따릅니다([배포_방법.md](배포_방법.md)).
 
 ## 이야기 소원과 그림 (맞춤 이야기)
 
