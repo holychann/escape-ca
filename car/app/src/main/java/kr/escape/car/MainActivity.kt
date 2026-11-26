@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,8 +72,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kr.escape.car.car.VehicleSource
 import kr.escape.car.engine.Age
@@ -84,10 +84,9 @@ import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.Safety
 import kr.escape.car.engine.StopReason
-import kr.escape.car.story.StoryClient
 import kr.escape.car.story.Lines
+import kr.escape.car.story.Progress
 import kr.escape.car.story.Question
-import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.ui.AssetImage
@@ -108,53 +107,26 @@ import kr.escape.car.ui.Portrait
 import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
 import kr.escape.car.voice.Lumi
-import java.io.File
-import java.util.UUID
 
 class MainActivity : ComponentActivity() {
-    private lateinit var source: VehicleSource
-    private lateinit var lumi: Lumi
-    private lateinit var game: Game
-    private lateinit var stories: StoryRepo
-    private lateinit var book: FriendBook
-    private val scope = MainScope()
+    /** The car, Lumi and the game live here, so a rebuilt screen goes on with the same episode. */
+    private val model: GameModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Fonts.load(assets)
-        source = VehicleSource(this).also { it.start() }
-        lumi = Lumi(this)
-        val bank = QuestionBank.load(this)
-        stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope, questions = bank.questions)
-        book = FriendBook(File(filesDir, "friend_book"))
-        game = Game(source.state, lumi, stories, book, restorer = source, bank = bank)
-        // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
-        stories.savedSetup()?.let { saved -> game.setup { saved } }
+        val m = model
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Clay.Ink, background = Clay.NightBottom, surface = Clay.Cream)) {
                 LaunchedEffect(Unit) {
                     while (true) {
-                        game.tick(SystemClock.elapsedRealtime())
+                        m.game.tick(SystemClock.elapsedRealtime())
                         delay(200)
                     }
                 }
-                App(game, source, lumi, stories, book)
+                App(m.game, m.source, m.lumi, m.stories, m.book)
             }
         }
-    }
-
-    /** A random id made once per install, only for the story server's daily limit. */
-    private fun installId(): String {
-        val prefs = getSharedPreferences("story", MODE_PRIVATE)
-        return prefs.getString("installId", null)
-            ?: UUID.randomUUID().toString().also { prefs.edit().putString("installId", it).apply() }
-    }
-
-    override fun onDestroy() {
-        scope.cancel()
-        lumi.stop()
-        source.stop()
-        super.onDestroy()
     }
 }
 
@@ -294,7 +266,12 @@ private fun ParentPanel(
     modifier: Modifier,
 ) {
     when (ui.phase) {
-        Phase.SETUP -> SetupPanel(game, ui, car, view, modifier)
+        Phase.SETUP -> {
+            // the episode the car was switched off in comes first: the parent goes on with it or starts anew
+            val saved by game.saved.collectAsState()
+            val resume = saved
+            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, modifier)
+        }
         Phase.INTRO -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
             PanelTitle(ui.story?.title ?: "오늘의 이야기")
@@ -398,6 +375,38 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
         }
         ClayButton(start, ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = blockers.isEmpty() && playable) {
             game.begin()
+        }
+    }
+}
+
+/** 이어 하기 카드: the episode the car was switched off in (or rested after 20 minutes), offered before a new one. */
+@Composable
+private fun ResumePanel(game: Game, saved: Progress, car: CarState, modifier: Modifier) {
+    val blockers = Safety.startBlockers(car)
+    // the rest after 20 minutes counts down while the card is open
+    val restLeft by produceState(game.restLeftMs(), saved) {
+        while (true) {
+            value = game.restLeftMs()
+            delay(1_000)
+        }
+    }
+    val ready = game.canContinue(car) && restLeft == 0L
+    val where = if (saved.next < saved.puzzles.size) "${saved.next + 1}번째 퍼즐부터" else "보물만 남았어요"
+    PanelCard(modifier) {
+        Badge("안전 지킴이 · 부모님")
+        PanelTitle("하다 만 탐험이 있어요", 48)
+        Middle {
+            FieldLabel("이어 할 이야기")
+            BodyText("‘${saved.story?.title ?: "기본 이야기"}’", size = 28.sp, weight = FontWeight.Bold)
+            BodyText("함께한 친구 ${saved.setup.friend.label} · $where · 별 ${saved.stars}개", size = 22.sp)
+            Spacer(Modifier.height(4.dp))
+            blockers.forEach { Notice(it.message) }
+            if (restLeft > 0) Notice("${(restLeft + 59_999) / 60_000}분 뒤에 이어 할 수 있어요")
+            if (blockers.isEmpty() && restLeft == 0L && !ready) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ClayButton("이어 하기", ClayStyle.SUN, Modifier.weight(1f), height = 112.dp, enabled = ready) { game.continueSaved() }
+            ClayButton("새로 시작", ClayStyle.GHOST, Modifier.width(220.dp), height = 112.dp) { game.startOver() }
         }
     }
 }
@@ -762,8 +771,13 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view
     val p = ui.puzzle
     val story = ui.story
     val theme = story?.picture("cover") ?: story?.themePicture ?: "theme_star_train"
+    val saved by game.saved.collectAsState()
+    val resume = saved
     val (bubble, picture) = when (ui.phase) {
         Phase.SETUP -> when {
+            // the episode to go on with, while the parent's card offers it
+            resume != null -> (resume.story?.title ?: "하던 탐험을 이어 할까?") to
+                (resume.story?.picture("cover") ?: resume.story?.themePicture ?: "theme_star_train")
             preview != null -> preview.title to (preview.picture("cover") ?: preview.themePicture)
             // the friend picked waits in the explorer team's clubhouse
             ui.setup.wish.isNotBlank() -> "‘${ui.setup.wish}’ 좋아!" to "home_${buddy.name.lowercase()}"
@@ -1052,9 +1066,14 @@ private fun PauseOverlay(game: Game, ui: GameUi) {
             else FriendFace(ui.setup.friend.picture, ui.setup.friend.label, 260.dp, ring = Clay.Line, ringWidth = 6.dp)
             KidText(if (reason == null) "잠깐 멈췄어요" else "잠깐 쉬어요!", 60.sp)
             BodyText(reason?.message ?: "준비되면 이어 하기를 눌러 주세요", size = 26.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ClayButton("이어 하기", ClayStyle.SUN, Modifier.weight(1f), enabled = reason == null) { game.resume() }
-                ClayButton("끝내기", ClayStyle.GHOST, Modifier.width(300.dp)) { game.finish() }
+            if (reason == StopReason.TIME_UP) {
+                // the episode is kept: after the rest the setup screen offers 이어 하기
+                ClayButton("저장하고 쉬기", ClayStyle.SUN, Modifier.fillMaxWidth()) { game.restAndSave() }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ClayButton("이어 하기", ClayStyle.SUN, Modifier.weight(1f), enabled = reason == null) { game.resume() }
+                    ClayButton("끝내기", ClayStyle.GHOST, Modifier.width(300.dp)) { game.finish() }
+                }
             }
         }
     }
