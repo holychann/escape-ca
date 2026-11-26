@@ -56,6 +56,16 @@ class EngineTest {
         assertFalse(Safety.recirculationTooLong(on.copy(recirculation = false), 0, Safety.RECIRCULATION_LIMIT_MS))
     }
 
+    @Test
+    fun aLongGapIsARestartAndOnlyASecondCounts() {
+        assertEquals(200L, Safety.countedMs(200))
+        // a car asleep, or a screen being rebuilt, does not play
+        assertEquals(1_000L, Safety.countedMs(5_000))
+        assertEquals(0L, Safety.countedMs(-5))
+        assertFalse(Safety.restarted(59_999))
+        assertTrue(Safety.restarted(60_000))
+    }
+
     // ------------------------------------------------------------ the dials match the server
 
     @Test

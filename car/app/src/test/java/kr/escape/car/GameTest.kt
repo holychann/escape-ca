@@ -13,6 +13,7 @@ import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
+import kr.escape.car.engine.StopReason
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Progress
 import kr.escape.car.story.ProgressStore
@@ -161,6 +162,80 @@ class GameTest {
         g.finish()
         assertNull(store.read())
         assertNull(g.saved.value)
+    }
+
+    // ------------------------------------------------------------ 20 minutes, and the time the car was off
+
+    /** A saved episode the family went on with, at its quiz. */
+    private fun playing(): Game {
+        saved(listOf(quiz, Puzzle.BeltMission), next = 0)
+        return game().also { it.continueSaved() }
+    }
+
+    /** Ticks a second at a time from [from] until the 20 minutes stop the game; returns the last tick's time. */
+    private fun Game.playTwentyMinutes(from: Long = 0): Long {
+        var t = from
+        tick(t)
+        repeat(1_210) {
+            if (ui.value.stopped == StopReason.TIME_UP) return t
+            t += 1_000
+            tick(t)
+        }
+        throw AssertionError("20 minutes never stopped the game (played ${ui.value.playedMs} ms)")
+    }
+
+    @Test
+    fun twentyMinutesSaveARestAndRestAndSaveKeepsIt() {
+        val g = playing()
+        g.playTwentyMinutes()
+        assertEquals(now + ProgressStore.REST_MS, store.read()!!.restUntil)
+        g.restAndSave()
+        assertEquals(Phase.RESTORE, g.ui.value.phase)
+        g.reset()
+        assertEquals(Phase.SETUP, g.ui.value.phase)
+        assertNotNull(g.saved.value)
+        assertFalse(g.canContinue(car.value))
+        assertEquals(ProgressStore.REST_MS, g.restLeftMs())
+        now += ProgressStore.REST_MS
+        assertTrue(g.canContinue(car.value))
+    }
+
+    @Test
+    fun twentyMinutesLeaveARestEvenWithoutTheButton() {
+        playing().playTwentyMinutes()
+        // the car is switched off on the pause screen and on again: the app starts anew
+        val again = game()
+        assertNotNull(again.saved.value)
+        assertFalse(again.canContinue(car.value))
+    }
+
+    @Test
+    fun aShortStallIsNotCountedWhole() {
+        val g = playing()
+        g.tick(0)
+        g.tick(5_000)
+        assertEquals(1_000L, g.ui.value.playedMs)
+    }
+
+    @Test
+    fun aLongGapPausesAndTheParentRestartsTheClockAndTheBaseline() {
+        val g = playing()
+        g.tick(0)
+        g.tick(1_000)
+        assertEquals(1_000L, g.ui.value.playedMs)
+        // the car slept for a minute with the app still in memory
+        g.tick(62_000)
+        assertTrue(g.ui.value.held)
+        assertTrue(g.ui.value.rebase)
+        assertEquals(1_000L, g.ui.value.playedMs)
+        car.value = known.copy(fanSpeed = 6)
+        g.resume()
+        val ui = g.ui.value
+        assertFalse(ui.held)
+        assertFalse(ui.rebase)
+        assertEquals(0L, ui.playedMs)
+        assertEquals(6, ui.snapshot!!.fanSpeed)
+        assertTrue(voice.said.last().startsWith(Lines.WELCOME_BACK))
     }
 
     @Test

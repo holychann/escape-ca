@@ -70,6 +70,10 @@ data class GameUi(
     val restoreNote: String? = null,
     /** Wall-clock ms before which this episode cannot go on after its 20 minutes (kept with the save). */
     val restUntil: Long? = null,
+    /** Set by 저장하고 쉬기: putting the car back and the next 처음 화면으로 leave the save for after the rest. */
+    val keepSave: Boolean = false,
+    /** Held after the app did not run for a while; 이어 하기 then takes the climate and the 20 minutes from now. */
+    val rebase: Boolean = false,
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -260,15 +264,29 @@ class Game(
 
     /** 이어 하기: only once the car is safe again. */
     fun resume() {
-        if (_ui.value.stopped != null) return
-        _ui.update { it.copy(held = false) }
-        lumi.repeat()
+        val ui = _ui.value
+        if (ui.stopped != null) return
+        if (!ui.rebase) {
+            _ui.update { it.copy(held = false) }
+            lumi.repeat()
+            return
+        }
+        // back after the car was off: the climate to put back and the 20 minutes start again from now
+        _ui.update { it.copy(held = false, rebase = false, snapshot = Snapshot.of(car.value), playedMs = 0) }
+        val p = ui.puzzle
+        lumi.say(if (ui.phase == Phase.PLAYING && p != null) "${Lines.WELCOME_BACK} ${ui.scene(p).speech}" else Lines.WELCOME_BACK)
+    }
+
+    /** 20분 멈춤's 저장하고 쉬기: the car is put back like 끝내기, but the episode is kept for after the rest. */
+    fun restAndSave() {
+        _ui.update { it.copy(keepSave = true) }
+        finish()
     }
 
     /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
     fun finish() {
         _ui.update { it.copy(phase = Phase.RESTORE, held = false) }
-        clearSave()
+        if (!_ui.value.keepSave) clearSave()
         restore()
     }
 
@@ -287,7 +305,7 @@ class Game(
 
     fun reset() {
         lumi.stop()
-        clearSave()
+        if (!_ui.value.keepSave) clearSave()
         _ui.update { GameUi(setup = it.setup) }
     }
 
@@ -371,13 +389,28 @@ class Game(
             lastTickMs = nowMs
             return
         }
-        val dt = lastTickMs?.let { nowMs - it } ?: 0
+        val gap = lastTickMs?.let { nowMs - it } ?: 0
         lastTickMs = nowMs
+        // the app did not run for a while (the car asleep with the app in memory): as if switched off and on again,
+        // the parent goes on with 이어 하기. An episode already at its 20 minutes keeps its rest instead.
+        if (Safety.restarted(gap) && ui.stopped != StopReason.TIME_UP) {
+            _ui.update { it.copy(held = true, rebase = true) }
+            lumi.stop()
+            wrong?.pause()
+            return
+        }
+        val dt = Safety.countedMs(gap)
 
         val stop = Safety.pauseReason(s, ui.playedMs)
         if (stop != ui.stopped) {
             _ui.update { it.copy(stopped = stop) }
             if (stop != null) lumi.say(Lines.PAUSED)
+            // 20 minutes: kept with a rest at once, so switching the car off on this screen still rests
+            val store = progress
+            if (stop == StopReason.TIME_UP && ui.restUntil == null && store != null) {
+                _ui.update { it.copy(restUntil = store.now() + ProgressStore.REST_MS) }
+                save()
+            }
         }
         if (stop != null || ui.held) {
             wrong?.pause()
