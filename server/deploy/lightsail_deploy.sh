@@ -41,6 +41,12 @@ main() {
   git fetch --quiet origin main
   # 서버에서 코드를 손으로 고쳐 두었으면 여기서 멈춥니다(.env는 git이 보지 않으니 상관없음)
   git merge --ff-only --quiet origin/main
+  # 예전 설치는 server/만 받는 sparse checkout이었습니다. 앱 그림(car/app/src/main/assets/img) 같은
+  # server/ 밖 파일도 서버에 있도록 저장소 전체를 받습니다. 한 번 풀면 다음부터는 건너뜁니다
+  if [[ "$(git config --get core.sparseCheckout || true)" == "true" ]]; then
+    echo "deploy: server/만 받던 설정을 풀고 저장소 전체를 받습니다"
+    git sparse-checkout disable
+  fi
   echo "deploy: 받은 뒤 $(git rev-parse --short HEAD) $(git log -1 --format=%s)"
 
   # merge-base는 없는 커밋을 원격에서 찾으려 들어서(부분 복제) 받은 기록 안에서만 찾습니다.

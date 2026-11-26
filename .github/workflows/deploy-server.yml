@@ -1,14 +1,13 @@
-# 팀 저장소(leekwangeun/escape-car) main에 server/가 바뀐 커밋이 들어오면(PR merge, 직접 push 모두)
+# 팀 저장소(leekwangeun/escape-car) main에 커밋이 들어오면(PR merge, 직접 push 모두, 바뀐 폴더와 상관없이)
 # 서버 테스트를 돌리고, 통과하면 Lightsail 서버에 SSH로 들어가 server/deploy/lightsail_deploy.sh를 돌립니다.
+# 서버는 저장소 전체를 받습니다(앱 그림 car/app/src/main/assets/img 등 server/ 밖 파일도).
+# server/가 그대로면 이미지도 그대로라 컨테이너를 다시 띄우지 않습니다.
 # 처음 한 번 할 설정(배포 키, Secrets, Variables)은 server/배포_방법.md 7번.
 name: 이야기 서버 배포
 
 on:
   push:
     branches: [main]
-    paths:
-      - "server/**"
-      - ".github/workflows/deploy-server.yml"
   # Actions 탭에서 손으로 다시 배포할 때
   workflow_dispatch:
 
