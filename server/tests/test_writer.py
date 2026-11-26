@@ -85,7 +85,7 @@ def test_story_and_image_efforts_follow_defaults_and_env(monkeypatch):
 
     painter = GeminiPainter(client=SimpleNamespace(models=FakeImgModels()))
     painter.paint("반테가 웃는다")
-    assert img_calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.LOW
+    assert img_calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.MINIMAL
 
 
 def test_the_writer_is_not_asked_for_questions():
@@ -109,17 +109,37 @@ def test_gemini_stopped_early_is_a_writer_error(kwargs):
         writer.write("규칙", "장면")
 
 
-def test_provider_follows_the_keys(monkeypatch):
-    for name in ("STORY_PROVIDER", "GEMINI_API_KEY", "STORY_MODEL"):
+def test_the_script_is_written_with_the_anthropic_key(monkeypatch):
+    for name in ("STORY_PROVIDER", "GEMINI_API_KEY", "GEMINI_API_KEY_PAID", "STORY_MODEL"):
         monkeypatch.delenv(name, raising=False)
     assert isinstance(make_writer(), ClaudeWriter)
-    monkeypatch.setenv("GEMINI_API_KEY", "x")
-    assert isinstance(make_writer(), GeminiWriter)
-    monkeypatch.setenv("STORY_PROVIDER", "claude")
+    # the Gemini keys are for speech and pictures: having them does not change the writer
+    monkeypatch.setenv("GEMINI_API_KEY", "free")
+    monkeypatch.setenv("GEMINI_API_KEY_PAID", "paid")
     assert isinstance(make_writer(), ClaudeWriter)
+    monkeypatch.setenv("STORY_PROVIDER", "gemini")
+    assert isinstance(make_writer(), GeminiWriter)
     monkeypatch.setenv("STORY_PROVIDER", "openai")
     with pytest.raises(ValueError):
         make_writer()
+
+
+def test_pictures_are_drawn_with_the_paid_key_only(monkeypatch):
+    from app.painter import GeminiPainter, PainterError, make_painter
+
+    for name in ("GEMINI_API_KEY", "GEMINI_API_KEY_PAID", "IMAGE_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    # the free key alone draws nothing: the image model has no free tier
+    monkeypatch.setenv("GEMINI_API_KEY", "free")
+    assert make_painter() is None
+    with pytest.raises(PainterError):
+        GeminiPainter()
+    monkeypatch.setenv("GEMINI_API_KEY_PAID", "paid")
+    painter = make_painter()
+    assert isinstance(painter, GeminiPainter)
+    assert painter.client._api_client.api_key == "paid"
+    monkeypatch.setenv("IMAGE_MODEL", "off")
+    assert make_painter() is None
 
 
 @pytest.mark.parametrize("text,n,index", [
@@ -171,10 +191,14 @@ def test_story_spec_configured_price_follows_provider(monkeypatch):
     monkeypatch.setattr(story_spec, "load_dotenv", lambda: False)
     for name in ("STORY_PROVIDER", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "STORY_MODEL"):
         monkeypatch.delenv(name, raising=False)
+    # a Gemini key alone still means Claude writes, as in app.writer
     monkeypatch.setenv("GEMINI_API_KEY", "g")
-    assert story_spec.configured_price() == (story_spec.PRICE_IN, story_spec.PRICE_OUT)
+    assert story_spec.configured_price() == story_spec.CLAUDE_PRICES["claude-opus"]
 
-    monkeypatch.setenv("STORY_PROVIDER", "claude")
     monkeypatch.setenv("STORY_MODEL", "claude-sonnet-5-5")
     assert story_spec.configured_price() == (3.00, 15.00)
+
+    monkeypatch.setenv("STORY_PROVIDER", "gemini")
+    monkeypatch.delenv("STORY_MODEL")
+    assert story_spec.configured_price() == (story_spec.PRICE_IN, story_spec.PRICE_OUT)
 

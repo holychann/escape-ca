@@ -3,7 +3,7 @@
     textgate sample tools.story_spec:SPEC -n 30                 every request is a paid API call
     textgate recheck tools.story_spec:SPEC data/sample-*.jsonl  the saved drafts against today's rules, free
 
-Reads keys from .env (ANTHROPIC_API_KEY or GEMINI_API_KEY, see .env.example). Each story is written around questions
+Reads keys from .env (ANTHROPIC_API_KEY, or GEMINI_API_KEY with STORY_PROVIDER=gemini, see .env.example). Each story is written around questions
 drawn from the question bank (app/question_bank.json), as the server does, and saved with them. Drafts and verdicts
 go to data/sample-<time>.jsonl for reading through.
 """
@@ -35,8 +35,9 @@ CLAUDE_PRICES: dict[str, tuple[float, float]] = {
 
 def configured_price() -> tuple[float, float]:
     load_dotenv()
-    provider = os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
-    if provider == "claude" and (os.environ.get("STORY_PROVIDER") == "claude" or os.environ.get("ANTHROPIC_API_KEY")):
+    # the same choice as app.writer: Claude unless STORY_PROVIDER says gemini
+    provider = os.environ.get("STORY_PROVIDER") or "claude"
+    if provider == "claude":
         model = os.environ.get("STORY_MODEL", DEFAULT_MODEL)
         for prefix, price in CLAUDE_PRICES.items():
             if model.startswith(prefix):

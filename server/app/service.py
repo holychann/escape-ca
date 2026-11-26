@@ -139,7 +139,8 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
             log.warning("picture %s failed: %r", name, e)
             return name, None
 
-    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
+    # two at a time, so one episode does not use the image model's whole minute at once (IMAGE_PARALLEL)
+    with ThreadPoolExecutor(max_workers=max(1, min(len(wanted), int(os.environ.get("IMAGE_PARALLEL", "2"))))) as pool:
         drawn = dict(pool.map(lambda item: draw(*item), wanted.items()))
 
     out = folder / ep.storyId

@@ -93,9 +93,20 @@
 cd escape\server
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
-copy .env.example .env      # ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 입력 (저장소에 올리지 않음)
+copy .env.example .env      # 키 세 개 입력 (아래 '키 세 개', 저장소에 올리지 않음)
 .\.venv\Scripts\python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787
 ```
+
+### 키 세 개
+
+| 키 | 하는 일 | 없으면 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 대본(이야기, 대사) 작성, Claude | 앱의 기본 이야기로 진행 |
+| `GEMINI_API_KEY` (무료) | 대사 읽기(TTS)를 먼저 맡음, 무료 한도 안에서 | 처음부터 유료 키로 읽음 |
+| `GEMINI_API_KEY_PAID` (유료) | 그림 생성 전부, 무료 키가 한도에 걸리거나 실패한 대사 읽기 | AI 그림 없이 앱 그림, 무료 키가 못 읽은 대사는 자막 |
+
+- Gemini 키가 있어도 대본은 Claude가 씁니다. Gemini로 대본을 써 보려면 `STORY_PROVIDER=gemini`를 넣습니다(무료 키 사용, 시험용).
+- 그림은 무료 키로 시도하지 않습니다. 그림 모델에는 무료 등급이 없기 때문입니다.
 
 에뮬레이터의 차 앱은 `http://127.0.0.1:8787`로 접속하므로 PC로 포트를 넘겨 줍니다.
 
@@ -121,9 +132,9 @@ AWS Lightsail 같은 서버 한 대에 올릴 때는 `compose.yaml`(이야기 �
 
 ## 모델과 정책
 
-- 시제품 모델: Gemini `gemini-3.6-flash` 또는 Claude `claude-opus-5-5`. 정해진 JSON 틀(`response_json_schema` / `json_schema`)로 받고 대본 추론 강도는 기본 `STORY_EFFORT=medium`(그림 생성 `IMAGE_EFFORT=low`)으로 품질과 대기 시간의 균형을 맞춥니다. Google 쪽이 붐비거나 분당 횟수 제한에 걸리면 몇 초 뒤 최대 두 번 다시 요청합니다. `.env`에 `GEMINI_API_KEY`가 있으면 Gemini를 쓰고, 두 키를 모두 넣을 때는 `STORY_PROVIDER=claude`로 작성기를 지정합니다.
-- 작성기(`app/writer.py`)는 바꿔 끼울 수 있게 나뉘어 있습니다. Claude(`claude-opus-5-5`)도 들어 있어 `STORY_PROVIDER=claude`와 `ANTHROPIC_API_KEY`만 넣으면 바뀌고, 모델 이름은 `STORY_MODEL`로 바꿉니다. 어떤 모델이 쓰든 같은 검사기를 거칩니다.
+- 시제품 모델: 대본은 Claude `claude-opus-5-5`(`ANTHROPIC_API_KEY`), 그림은 Gemini `gemini-nano-banana-2.1`(`GEMINI_API_KEY_PAID`), 대사 읽기는 Gemini `gemini-3.8-flash-tts`(무료 키 먼저, 그다음 유료 키). 정해진 JSON 틀(`json_schema`)로 받고 대본 추론 강도는 기본 `STORY_EFFORT=medium`(그림 생성 `IMAGE_EFFORT=minimal`, 지금 그림 모델은 `low`를 받지 않음)으로 품질과 대기 시간의 균형을 맞춥니다. Google 쪽이 붐비거나 분당 횟수 제한에 걸리면 몇 초 뒤 최대 두 번 다시 요청합니다.
+- 작성기(`app/writer.py`)는 바꿔 끼울 수 있게 나뉘어 있습니다. `STORY_PROVIDER=gemini`로 Gemini `gemini-3.6-flash`(무료 키)로 바꿀 수 있고, 모델 이름은 `STORY_MODEL`로 바꿉니다. 어떤 모델이 쓰든 같은 검사기를 거칩니다.
 - 출시 전 교체: Gemini API 약관은 18세 미만을 대상으로 하거나 18세 미만이 이용할 가능성이 높은 서비스에 API를 쓰는 것을 허용하지 않습니다. 그래서 실제 출시 때는 Pleos 차량 인앱 LLM(앱용 SDK가 공개되면) 또는 미성년자 서비스를 허용하는 제공사(예: Anthropic, 안전장치를 갖추는 조건)로 작성기를 바꿉니다.
-- 결제를 켠 유료 등급으로 호출하므로 보낸 입력과 출력은 Google의 제품 개선에 쓰이지 않습니다. 서버는 정답 키, 나이 단계, 시간대, 계절만 보내고 아이에 대한 정보는 보내지 않습니다. 창고에 쌓는 이야기를 쓸 때는 시간대와 계절도 모델에 알려 주지 않습니다.
+- 그림은 결제를 켠 유료 키로 부르므로 보낸 입력과 출력이 Google의 제품 개선에 쓰이지 않습니다. 대사 읽기는 무료 키를 먼저 쓰는데, Gemini 무료 등급에서는 보낸 입력과 출력이 Google의 제품 개선에 쓰일 수 있습니다. 그래서 TTS에는 검사를 통과한 대사 문장만 보냅니다. 서버는 어느 모델에도 정답 키, 나이 단계, 시간대, 계절, 가족이 적은 장소와 이야기 종류만 보내고 아이에 대한 정보는 보내지 않습니다. 창고에 쌓는 이야기를 쓸 때는 시간대와 계절도 모델에 알려 주지 않습니다.
 - 이야기 창고에는 Claude가 쓴 이야기만 쌓고 내보냅니다. Gemini가 쓴 이야기는 창고에 들어가지 않습니다(`STORY_LIBRARY_MODELS`).
 - 아이는 AI와 직접 대화하지 않고 검사를 통과한 문장만 듣습니다. 앱은 시작 화면에 AI가 만든 이야기임을 알리고, 부모 화면에 이야기 신고 버튼을 둡니다.
