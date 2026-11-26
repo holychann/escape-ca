@@ -17,7 +17,7 @@ import ai.pleos.playground.tts.listener.OnInitializeListener as TtsInit
  * Lumi's voice: the car's own TTS (Pleos TextToSpeech, on-device Korean) reads the story and the clues through the
  * car speakers. The screen shows "말하는 중" while [speaking] is true and offers [repeat] for the parent.
  */
-class Lumi(context: Context) {
+class Lumi(context: Context) : Voice {
     private val main = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
     private var ready = false
@@ -25,7 +25,7 @@ class Lumi(context: Context) {
     private var last: String? = null
 
     private val _speaking = MutableStateFlow(false)
-    val speaking: StateFlow<Boolean> = _speaking
+    override val speaking: StateFlow<Boolean> = _speaking
 
     init {
         // a car without the speech service (or permission) just stays silent; the game still runs on screen
@@ -58,7 +58,7 @@ class Lumi(context: Context) {
     }
 
     /** Says [text], cutting off whatever Lumi was saying. Before the engine is ready the last line waits. */
-    fun say(text: String) {
+    override fun say(text: String) {
         last = text
         val t = tts ?: return
         if (!ready) {
@@ -73,18 +73,18 @@ class Lumi(context: Context) {
     }
 
     /** Says [text] like [say], but 다시 듣기 still repeats the line before it (the puzzle, not "다시 생각해 볼까?"). */
-    fun aside(text: String) {
+    override fun aside(text: String) {
         val keep = last
         say(text)
         last = keep
     }
 
     /** 다시 듣기. */
-    fun repeat() {
+    override fun repeat() {
         last?.let { say(it) }
     }
 
-    fun stop() {
+    override fun stop() {
         runCatching { tts?.stop() }
         _speaking.value = false
     }
