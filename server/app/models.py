@@ -242,6 +242,18 @@ class Episode(BaseModel):
     pictures: dict[str, str] = {}
 
 
+SPEAK_MAX = 600
+
+
+class SpeakRequest(BaseModel):
+    """One line exactly as the app will say it (story, question and the app's instruction joined)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    installId: str = Field(pattern=r"^[0-9a-f-]{16,64}$")
+    text: str = Field(min_length=1, max_length=SPEAK_MAX)
+
+
 class Report(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

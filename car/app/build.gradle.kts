@@ -4,8 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// The project lives under a non-ASCII folder and aapt2 cannot open such paths on Windows,
-// so build outputs go to an ASCII folder and the app keeps no res/ directory of its own.
+// aapt2 cannot open non-ASCII paths on Windows, so build outputs go to an ASCII folder. The app's only res/ is the
+// launcher icon, so the repo itself must sit on an ASCII path too (README: C:\dev\escape).
 // On macOS, iCloud "Desktop & Documents" sync copies busy build files as "name 2.dex" and the dex merge then fails
 // ("defined multiple times"); iCloud skips folders named *.nosync, so the build goes to car/app/build.nosync.
 // Linux keeps the default car/app/build.
@@ -63,7 +63,6 @@ android {
 
 dependencies {
     implementation("ai.pleos.playground:Vehicle:2.3.2")
-    implementation("ai.pleos.playground:TextToSpeech:3.3.1")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.21")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 

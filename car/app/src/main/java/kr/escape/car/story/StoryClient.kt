@@ -18,6 +18,28 @@ open class StoryClient(private val baseUrl: String) {
         post("/v1/report", JSONObject().put("storyId", storyId).put("reason", reason), readTimeoutMs = 10_000)
     }
 
+    /**
+     * Blocking. One of Lumi's lines read aloud by the story server, exactly as given, as WAV bytes. Throws IOException
+     * when the server has no sound for it (503) or cannot be reached; the app then shows the line as a caption.
+     */
+    open fun speak(installId: String, text: String): ByteArray {
+        val conn = URL(baseUrl.trimEnd('/') + "/v1/speak").openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 5_000
+            // one line takes a few seconds to make the first time, and is kept on the server after that
+            conn.readTimeout = 60_000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            val body = JSONObject().put("installId", installId).put("text", text)
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode !in 200..299) throw IOException("story server /v1/speak: HTTP ${conn.responseCode}")
+            return conn.inputStream.use { it.readBytes() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     /** Blocking. Saves one picture the server drew ([path] as the episode gave it) to [to]. */
     open fun download(path: String, to: File) {
         val conn = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection

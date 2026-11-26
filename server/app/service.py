@@ -2,6 +2,7 @@
 the first draft was not clean, then draw its pictures."""
 import logging
 import random
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,6 +14,7 @@ from .models import Draft, DraftQuestion, Episode, EpisodeRequest
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
+from .voice import QuotaError, Voice, cache_key
 from .writer import Writer
 
 log = logging.getLogger("story")
@@ -144,3 +146,44 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
                 if key in scenes_out:
                     scenes_out[key] = scenes_out[key].model_copy(update={"picture": f"p{i}"})
     return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})
+
+
+def tidy_line(text: str) -> str:
+    """The line as it is made and kept: spaces collapsed, ends trimmed (the app keys its own copy the same way)."""
+    return " ".join(text.split())
+
+
+# one lock per line being made, so two cars asking for the same line at once pay for it once
+_making: dict[str, threading.Lock] = {}
+_making_lock = threading.Lock()
+
+
+def speak_line(text: str, voice: Voice | None, cache: Path) -> bytes | None:
+    """The line read aloud: from [cache] when it was made before with this voice and style, otherwise made now and
+    kept. None when there is no voice or every key failed (the app then shows the line as a caption)."""
+    text = tidy_line(text)
+    key = cache_key(voice, text)
+    cached = cache / f"{key}.wav"
+    if cached.is_file():
+        return cached.read_bytes()
+    if voice is None:
+        return None
+    with _making_lock:
+        lock = _making.setdefault(key, threading.Lock())
+    with lock:
+        if cached.is_file():
+            return cached.read_bytes()
+        try:
+            data = voice.speak(text)
+        except QuotaError as e:
+            log.warning("voice: quota, no sound for this line: %s", e)
+            return None
+        except Exception as e:  # refusal, timeout, no audio part, every key failed
+            log.warning("voice failed: %s", type(e).__name__)
+            return None
+        if data:
+            cache.mkdir(parents=True, exist_ok=True)
+            tmp = cached.with_suffix(".part")
+            tmp.write_bytes(data)
+            tmp.replace(cached)
+        return data or None

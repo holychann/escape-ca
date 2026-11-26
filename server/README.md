@@ -65,6 +65,17 @@
 - 끝 인사는 탐험 배지를 줄 때의 한 가지(`treasureBadge`)뿐입니다. 어느 퍼즐에나 쓰던 칭찬과 글로브박스 선물 인사는 없습니다.
 - 규칙 전체는 `현대기아 앱공모전/차근차근탐험단_이야기프롬프트_규칙안.md`에 있습니다.
 
+## 루미 목소리 (동화 낭독)
+
+- 앱의 모든 대사는 Gemini 음성 모델(`TTS_MODEL`, 기본 `gemini-3.8-flash-tts`)이 그림책 읽어 주는 이야기꾼 목소리로 읽습니다. 차의 목소리(Pleos TextToSpeech)는 앱에서 쓰지 않습니다(속도, 높낮이, SSML을 조절할 수 없어 뉴스처럼 읽기 때문).
+- 목소리는 `TTS_VOICE=ko-kr-storyteller-4`(확장 목소리 목록의 한국어 이야기꾼, 27세 여성, 서울말), 말투는 `TTS_STYLE`(영어 지시문)입니다. 목소리 이름이 있는지는 `python -m tools.tts_voices <이름>`으로 봅니다(목록만 조회, 합성 없음).
+- **대사 그대로 합성**: 앱은 말할 문장을 이어 붙인 그대로(이야기 + 문제 + 앱의 안내 한 줄, 첫인사 + 공조 오토 안내 등) `POST /v1/speak {installId, text}`로 보내고 WAV(24kHz, 모노, 16비트)를 받아 틉니다. 말투 지시는 대사와 섞지 않고 `speech_metadata.style`에만 넣습니다(모델은 `text`를 글자 그대로 읽으므로 섞이면 지시문을 소리 내 읽습니다).
+- **캐시 두 겹**: 서버는 `data/audio_cache/{sha256(모델|목소리|스타일 + 대사)}.wav`에 두고 같은 대사·목소리·스타일이면 다시 합성하지 않습니다(같은 줄을 두 차가 동시에 물어도 한 번만). 앱도 받은 녹음을 기기(`files/voice_cache`)에 둡니다. 판이 시작될 때 그 판의 이야기·문제·정답 뒤 한 줄·끝인사를 미리 받아 두고, 힌트는 누를 때 받습니다(아무도 안 듣는 줄은 합성하지 않음).
+- **키 순서**: 무료 키 `GEMINI_API_KEY`로 먼저 합성합니다. 무료 키는 하루 `TTS_DAILY_MAX`(기본 100)번까지만 부르고, 429가 오면 다시 시도하지 않고 멈춥니다(하루 한도면 다음 날까지, 분당 한도면 1분). 무료 키가 한도에 걸리거나 어떤 오류든 나면 유료 키 `GEMINI_API_KEY_PAID`로 **한 번** 더 시도하고, 넘어갈 때마다 서버 로그에 `voice: free key ... retrying once with the paid key`를 남깁니다. 유료 키에는 횟수 제한이 없습니다. 유료 키가 비어 있으면 넘어가지 않습니다.
+- **소리가 없을 때**: 두 키가 모두 실패하거나 서버에 붙지 못하면, 기기나 서버에 남은 녹음이 있으면 그것을 틀고, 없으면 그 대사를 화면에 자막으로 보여 줍니다.
+- **남용 막기**: 유료 키에 제한이 없으므로 `/v1/speak`는 대사 600자까지, 설치 하나당 하루 400줄(`SPEAK_DAILY_PER_INSTALL`), 주소 하나당 하루 2000줄(`SPEAK_DAILY_PER_IP`), 서버 전체 하루 20000줄(`SPEAK_DAILY_TOTAL`)로 막습니다.
+- `TTS_MODEL=off`로 끄면 모든 대사가 자막으로만 나옵니다. 들어 보기: `python -m tools.tts_sample --yes`(1문장, `--yes` 없이는 호출하지 않음, 최대 2번 호출, 무료 키만 사용).
+
 ## 실행
 
 ```powershell
@@ -92,6 +103,8 @@ AWS Lightsail 같은 서버 한 대에 올릴 때는 `compose.yaml`(이야기 �
 .\.venv\Scripts\textgate sample tools.story_spec:SPEC -n 30                 # 실제 모델로 30편: 통과율, 실패 원인, 시간, 토큰 수, 비용 (유료 호출)
 .\.venv\Scripts\textgate recheck tools.story_spec:SPEC "data/sample-*.jsonl"  # 저장된 초안을 지금 규칙으로 다시 판정 (호출 없음, 무료)
 .\.venv\Scripts\textgate try app/story_rules.toml "커피가 따뜻해"              # 문장 하나가 어떤 금지 패턴에 걸리는지
+.\.venv\Scripts\python -m tools.tts_voices Sira Sami   # 목소리 이름이 있는지 (목록 조회만)
+.\.venv\Scripts\python -m tools.tts_sample --yes       # 루미 목소리 1문장 들어 보기 (호출 1번)
 .\.venv\Scripts\python -m tools.dev_server   # 키 없이 앱 연결만 확인하는 개발용 서버 (문장에 [개발용] 표시)
 ```
 

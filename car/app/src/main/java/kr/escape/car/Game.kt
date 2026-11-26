@@ -171,7 +171,10 @@ class Game(
         _ui.value = ui.copy(own = own)
         save()
         lastTickMs = null
-        lumi.say("${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}")
+        val intro = "${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}"
+        lumi.say(intro)
+        // every line this episode will say, fetched now so each plays without a wait
+        lumi.prefetch(lines(_ui.value))
         stories?.prepare(setup, s)
     }
 
@@ -201,6 +204,26 @@ class Game(
         _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
         save()
         lumi.say(listOfNotNull(intro, _ui.value.scene(p).speech).joinToString(" "))
+        // a quiz swapped just now has new words for after the answer
+        lumi.prefetch(listOf(_ui.value.solvedLine))
+    }
+
+    /**
+     * What Lumi will say in [ui], exactly as she will say it: each puzzle's story and question, the line after the
+     * answer, the gentle wrong-answer lines, the last words and the pause line. Hints are left to when they are asked
+     * for, so a line nobody hears is never paid for.
+     */
+    private fun lines(ui: GameUi): List<String> = buildList {
+        ui.puzzles.forEachIndexed { i, p ->
+            add(ui.scene(p).speech)
+            add(ui.copy(index = i).solvedLine)
+        }
+        // the few fixed lines for a wrong answer, so "다시 생각해 볼까?" comes at once
+        WrongJudge.Kind.values().forEach { kind -> (0 until 3).forEach { n -> add(Lines.wrong(kind, n)) } }
+        val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
+        add(treasure)
+        add("$treasure ${Lines.CLOSER}")
+        add(Lines.PAUSED)
     }
 
     /**
