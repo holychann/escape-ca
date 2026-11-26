@@ -390,7 +390,9 @@ private fun ResumePanel(game: Game, saved: Progress, car: CarState, modifier: Mo
             delay(1_000)
         }
     }
-    val ready = game.canContinue(car) && restLeft == 0L
+    // restLeft is read first, never skipped: the card then redraws when the rest ends and asks again whether it may go on
+    // (read after a false canContinue, only the notices below would redraw and the button would stay off)
+    val ready = restLeft == 0L && game.canContinue(car)
     val where = if (saved.next < saved.puzzles.size) "${saved.next + 1}번째 퍼즐부터" else "보물만 남았어요"
     PanelCard(modifier) {
         Badge("안전 지킴이 · 부모님")
