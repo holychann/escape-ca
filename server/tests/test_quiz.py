@@ -162,8 +162,11 @@ def test_the_levels_are_easy_enough_to_hear_in_a_car():
     assert (little.ops, little.max_ops, little.max_operand, little.max_factor) == (frozenset("+-"), 1, 5, 0)
     assert (captain.ops, captain.max_ops, captain.max_operand, captain.max_factor) == (frozenset("+-"), 1, 10, 0)
     assert (detective.ops, detective.max_ops, detective.max_operand, detective.max_factor) == (frozenset("+-*"), 2, 12, 5)
-    # number words up to TEN for everyone, counting letters for the oldest only
-    assert [(lv.english_max, lv.english_letters) for lv in (little, captain, detective)] == [(10, False), (10, False), (10, True)]
+    # number words up to FIVE for the youngest and TEN after; counting 3 letters, 4~5, then 6~8; sums in English for
+    # the oldest only
+    assert [(lv.english_max, lv.letters, lv.english_sums) for lv in (little, captain, detective)] == [
+        (5, (3, 3), False), (10, (4, 5), False), (10, (6, 8), True)]
+    assert [quiz.english_reach(a) for a in AGES] == [5, 10, 10]
     # runs: by one for the youngest, by one or two, then by one to three; never doubling
     assert [(lv.step_max, lv.step_down, lv.ratio, lv.max_term) for lv in (little, captain, detective)] == [
         (1, True, False, 10), (2, True, False, 10), (3, True, False, 20)]
@@ -214,15 +217,55 @@ def test_a_sum_that_does_not_work_out_or_fit_the_age_is_refused(key, age, expr, 
 # ---------------------------------------------------------------- english
 
 
-def test_number_words_for_everyone_letter_counts_for_the_oldest():
+def test_number_words_and_letter_counts_grow_with_the_age():
     for age in AGES:
         assert problems(ENGLISH, GOOD[ENGLISH][3], age) == []
-        ten = question("ENGLISH", "바람 세기를 TEN단으로 맞춰 줘!", word="TEN")
-        assert problems("Q:ENGLISH:FAN:8", ten, age) == ["답이 다름: 10 (정답 8)"]
-    cat = question("ENGLISH", "CAT의 글자 수만큼 켜진 독서등이 되게 해 줘!", word="CAT")
-    assert problems("Q:ENGLISH:LIGHTS:3", cat, "DETECTIVE") == []
-    assert problems("Q:ENGLISH:LIGHTS:3", cat, "CAPTAIN") == ["이 나이는 숫자 영단어만"]
-    assert problems("Q:ENGLISH:LIGHTS:3", cat, "LITTLE") == ["이 나이는 숫자 영단어만"]
+    ten = question("ENGLISH", "ten은 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!", word="TEN")
+    assert problems("Q:ENGLISH:FAN:8", ten, "CAPTAIN") == ["답이 다름: 10 (정답 8)"]
+    assert problems("Q:ENGLISH:FAN:8", ten, "LITTLE") == ["이 나이에 어려운 숫자 단어: TEN"]
+    six = question("ENGLISH", "six는 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!", word="SIX")
+    assert problems("Q:ENGLISH:FAN:6", six, "LITTLE") == ["이 나이에 어려운 숫자 단어: SIX"]
+    assert problems("Q:ENGLISH:FAN:6", six, "CAPTAIN") == []
+    # a shorter word suits an older child too (a younger age's question is picked when an age has none)
+    cat = question("ENGLISH", "cat, 고양이를 영어로 쓰면 몇 글자일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!", word="CAT")
+    assert [problems("Q:ENGLISH:LIGHTS:3", cat, a) for a in AGES] == [[], [], []]
+    fish = question("ENGLISH", "fish, 물고기를 영어로 쓰면 몇 글자일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!", word="FISH")
+    assert problems("Q:ENGLISH:LIGHTS:4", fish, "LITTLE") == ["이 나이에 긴 단어: FISH (글자 수 3까지)"]
+    assert problems("Q:ENGLISH:LIGHTS:4", fish, "CAPTAIN") == []
+
+
+def test_a_sum_in_english_number_words_is_worked_out_for_the_oldest():
+    seven_five = question("ENGLISH", "seven 빼기 five는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", expr="SEVEN-FIVE")
+    assert problems("Q:ENGLISH:FAN:2", seven_five, "DETECTIVE") == []
+    assert problems("Q:ENGLISH:FAN:3", seven_five, "DETECTIVE") == ["답이 다름: 2 (정답 3)"]
+    assert problems("Q:ENGLISH:FAN:2", seven_five, "CAPTAIN") == ["이 나이는 영어 숫자 셈을 하지 않음"]
+    times = question("ENGLISH", "three 곱하기 four 빼기 ten은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", expr="THREE*FOUR-TEN")
+    assert problems("Q:ENGLISH:FAN:2", times, "DETECTIVE") == []
+    assert quiz.english_word(quiz.parse("Q:ENGLISH:FAN:2"), times) == "THREE*FOUR-TEN"
+    assert quiz.without_word(times.text, "THREE*FOUR-TEN") == " 곱하기  빼기 은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!"
+
+
+@pytest.mark.parametrize("expr,text,expected", [
+    ("TEN-FIVE", "ten 빼기 five는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "식에 정답 수가 들어 있음"),
+    ("SEVEN-FIVE", "seven 빼기 다섯은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "식의 영단어가 문제에 없음: FIVE"),
+    ("SEVEN-CAT", "seven 빼기 cat은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "숫자 영단어가 아님: CAT"),
+    ("TWELVE-TEN", "twelve 빼기 ten은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "이 나이에 어려운 숫자 단어: TWELVE"),
+    ("SEVEN", "seven은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "영어 숫자 셈은 숫자 영단어와 + - *로만: SEVEN"),
+    ("SIX*FIVE-TEN", "six 곱하기 five 빼기 ten은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", "곱하거나 나누는 수가 너무 큼"),
+])
+def test_an_english_sum_that_does_not_work_out_is_refused(expr, text, expected):
+    assert expected in problems("Q:ENGLISH:FAN:5", question("ENGLISH", text, expr=expr), "DETECTIVE")
+
+
+def test_a_letter_count_word_is_three_letters_or_more_and_not_on_the_never_list():
+    detective = quiz.LEVELS["DETECTIVE"]
+    assert [quiz.solve_english(w, detective) for w in ("cat", "APPLE", "elephant")] == [3, 5, 8]
+    for w in ("on", "IT", "is", "SEE", "air"):
+        with pytest.raises(quiz.Wrong, match="짧거나 헷갈리는 단어"):
+            quiz.solve_english(w, detective)
+    # number words are worth their number, whatever their length
+    assert quiz.solve_english("TWO", detective) == 2
+    assert quiz.letter_count("apple") and not quiz.letter_count("TWO") and not quiz.letter_count("")
 
 
 @pytest.mark.parametrize("key,age,word,text,expected", [
@@ -233,6 +276,10 @@ def test_number_words_for_everyone_letter_counts_for_the_oldest():
     ("Q:ENGLISH:LIGHTS:3", "DETECTIVE", "CAT", "이 동물 이름은 몇 글자일까?", "영어 단어가 문제에 없음"),
     ("Q:ENGLISH:LIGHTS:4", "CAPTAIN", "FIRE", "FIRE는 몇 글자일까?", "쓰면 안 되는 단어: FIRE"),
     ("Q:ENGLISH:LIGHTS:3", "CAPTAIN", "C A T", "C A T은 몇 글자일까?", "영어 단어는 알파벳 2~8글자: C A T"),
+    # a letter count is heard: never a short word or one that sounds like another
+    ("Q:ENGLISH:LIGHTS:2", "DETECTIVE", "ON", "on, 켜짐을 영어로 쓰면 몇 글자일까?", "글자 수를 세기에 짧거나 헷갈리는 단어: ON"),
+    ("Q:ENGLISH:LIGHTS:2", "DETECTIVE", "UP", "up, 위를 영어로 쓰면 몇 글자일까?", "글자 수를 세기에 짧거나 헷갈리는 단어: UP"),
+    ("Q:ENGLISH:LIGHTS:3", "DETECTIVE", "YOU", "you, 너를 영어로 쓰면 몇 글자일까?", "글자 수를 세기에 짧거나 헷갈리는 단어: YOU"),
 ])
 def test_an_english_question_that_does_not_fit_is_refused(key, age, word, text, expected):
     assert expected in problems(key, question("ENGLISH", text, word=word), age)

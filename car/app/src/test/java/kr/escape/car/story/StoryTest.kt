@@ -12,6 +12,7 @@ import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
+import kr.escape.car.voice.Subtitles
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -328,7 +329,9 @@ class StoryTest {
                 QuizKind.MATH -> assertEquals(name, p.value, Calc(q.expr).value())
                 QuizKind.ENGLISH -> {
                     assertEquals(name, p.value, Lines.NUMBER_WORDS.indexOf(q.word) + 1)
-                    assertTrue(name, q.text.contains(q.word))
+                    // asked first, the word in small letters, then the instruction with "그 수"
+                    assertTrue(name, q.text.startsWith("${q.word.lowercase()}${Lines.englishTopic(q.word)} 숫자로 몇일까? "))
+                    assertTrue(name, q.text.contains("그 수") && q.text.endsWith(Lines.thatMany(p.dial)))
                 }
                 QuizKind.PATTERN -> {
                     assertTrue(name, q.terms.size >= 3 && q.terms.all { it >= 0 })
@@ -397,6 +400,50 @@ class StoryTest {
     }
 
     @Test
+    fun theAppsOwnQuestionsAskFirstThenSayTheInstruction() {
+        val fan = Lines.question(Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 1))
+        assertEquals("3 빼기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", fan.text)
+        val up = Lines.question(Puzzle.Quiz(QuizKind.MATH, Dial.TEMP_UP, 3))
+        val (a, b) = up.expr.split("+").map(String::toInt)
+        assertEquals("$a 더하기 $b${if (b == 1) "은" else "는"} 얼마일까? 그 수만큼 온도를 올려 줘!", up.text)
+        assertEquals("one은 숫자로 몇일까? 그 수만큼 온도를 내려 줘!", Lines.question(Puzzle.Quiz(QuizKind.ENGLISH, Dial.TEMP_DOWN, 1)).text)
+        assertEquals("two는 숫자로 몇일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!", Lines.question(Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 2)).text)
+        assertEquals("seven은 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!", Lines.question(Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 7)).text)
+        assertEquals("three는 숫자로 몇일까? 의자 열선을 그 수와 같은 단으로 맞춰 줘!", Lines.question(Puzzle.Quiz(QuizKind.ENGLISH, Dial.SEAT_HEAT, 3)).text)
+        // the particle follows the sound: 원은, 투는, 세븐은, 에잇은, 텐은
+        val particles = listOf("은", "는", "는", "는", "는", "는", "은", "은", "은", "은")
+        Lines.NUMBER_WORDS.take(10).zip(particles).forEach { (w, p) -> assertEquals(w, p, Lines.englishTopic(w)) }
+        // a number read the Sino-Korean way: 일은, 이는, 삼은, 사는, 오는, 육은, 칠은, 팔은, 구는, 십은
+        assertEquals(listOf("은", "는", "은", "는", "는", "은", "은", "은", "는", "은"), (1..10).map(Lines::sinoTopic))
+        // the card for the app's own questions
+        assertEquals("1 + 2 = ?", Lines.card(Question(QuizKind.MATH, "?", expr = "1+2")))
+        assertEquals("TWO = ?", Lines.card(Lines.question(Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 2))))
+    }
+
+    @Test
+    fun aLetterCountsWordIsNeverOnTheChildsScreen() {
+        val p = Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 5)
+        val q = Question(QuizKind.ENGLISH, "apple, 사과를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!", word = "APPLE")
+        // a bubble or a hint that writes the word gives way to the app's own
+        val scene = Lines.quizScene(p, "APPLE이 먹고 싶어!", "새싹이 목말라.", "APPLE은 A부터 시작해!", q)
+        assertTrue(Lines.countsLetters(q))
+        assertEquals("새싹이 목말라!", scene.bubble)
+        assertFalse(scene.hint.contains("A부터"))
+        assertEquals("사과 → 영어 몇 글자?", Lines.card(q))
+        // Lumi still says the word; the subtitles show only its meaning
+        assertTrue(scene.speech.contains("apple, 사과를 영어로 쓰면"))
+        val shown = Subtitles.pieces(scene.speech).joinToString(" ")
+        assertFalse(shown, shown.contains("apple", ignoreCase = true))
+        assertTrue(shown, shown.contains("사과를 영어로 쓰면 몇 글자일까?"))
+        // the parent's 정답 보기 may show it
+        assertEquals("풍량 5단 (APPLE, 5글자)", scene.answer)
+        // words that do not write it stay as written
+        val kept = Lines.quizScene(p, "새콤달콤!", "", "알파벳을 세어 봐!", q)
+        assertEquals("새콤달콤!", kept.bubble)
+        assertEquals("알파벳을 세어 봐!", kept.hint)
+    }
+
+    @Test
     fun aSituationIsToldThenLeftToTheChild() {
         val q = Question(QuizKind.REASON, "수달 요리사가 매운 걸 먹고 헥헥, 바람은 나오는데 안 시원하대. 차 버튼으로 수달 요리사를 도와줘!")
         assertEquals("", Lines.ask(ac, q))
@@ -419,7 +466,17 @@ class StoryTest {
         assertEquals("THREE = ?", Lines.card(Question(QuizKind.ENGLISH, "?", word = "three")))
         val four = Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 4)
         assertEquals("독서등 모두 4개 켜기 (STAR, 4글자)", Lines.answer(four, Question(QuizKind.ENGLISH, "?", word = "star")))
-        assertEquals("STAR 몇 글자?", Lines.card(Question(QuizKind.ENGLISH, "?", word = "star")))
+        // the child spells a letter count in their head: the card shows only its Korean meaning
+        val star = Question(QuizKind.ENGLISH, "star, 별을 영어로 쓰면 몇 글자일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!", word = "STAR")
+        assertEquals("별 → 영어 몇 글자?", Lines.card(star))
+        assertEquals("독서등 모두 4개 켜기 (STAR, 4글자)", Lines.answer(four, star))
+        assertEquals("영어로 몇 글자?", Lines.card(Question(QuizKind.ENGLISH, "?", word = "star")))
+        // a sum of number words may show its words
+        val two = Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 2)
+        val sum = Question(QuizKind.ENGLISH, "seven 빼기 five는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", word = "SEVEN-FIVE")
+        assertEquals("SEVEN - FIVE = ?", Lines.card(sum))
+        assertEquals("풍량 2단 (SEVEN - FIVE = 2)", Lines.answer(two, sum))
+        assertFalse(Lines.countsLetters(sum))
         val pattern = Puzzle.Quiz(QuizKind.PATTERN, Dial.FAN, 8)
         assertEquals("풍량 8단 (2, 4, 6 다음은 8)", Lines.answer(pattern, Question(QuizKind.PATTERN, "?", terms = listOf(2, 4, 6))))
         assertEquals("2, 4, 6, ?", Lines.card(Question(QuizKind.PATTERN, "?", terms = listOf(2, 4, 6))))

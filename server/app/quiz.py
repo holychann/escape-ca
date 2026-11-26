@@ -138,7 +138,7 @@ def action_words(text: str) -> list[str]:
             found.append(m.group(0))
     return found
 
-# a bank question is an instruction to the car with the amount as a little puzzle ("ONE만큼 온도를 내려 줘!"): the
+# a bank question is an instruction to the car with the amount as a little puzzle ("one은 숫자로 몇일까? 그 수만큼 온도를 내려 줘!"): the
 # child works out the amount and puts it in by doing it. It names the device and says what to do with it
 INSTRUCTION = {
     "FAN": (("바람",), ("맞춰 줘", "맞춰줘", "해 줘", "해줘")),
@@ -202,20 +202,25 @@ class Level:
     # the largest number either side of a × or ÷ may be (0: no × or ÷ at this age)
     max_factor: int
     english_max: int
-    english_letters: bool
+    # how long a letter-counting word may be at this age; the bank keeps each age to the whole range (bank.age_problems),
+    # a question picked for an older child may be shorter
+    letters: tuple[int, int]
     step_max: int
     step_down: bool
     ratio: bool
     max_term: int
+    # sums said with English number words ("seven 빼기 five"), for the oldest only
+    english_sums: bool = False
 
 
 LEVELS = {
     # counting down by one is allowed too: counting up from 0 can never end at 1 or 2
     # heard aloud in a car, one small step is plenty: the youngest add or take away once, the oldest at most twice
-    "LITTLE": Level("덧셈이나 뺄셈 한 번, 5 이하의 수", frozenset("+-"), 1, 5, 0, 10, False, 1, True, False, 10),
-    "CAPTAIN": Level("덧셈이나 뺄셈 한 번, 10 이하의 수", frozenset("+-"), 1, 10, 0, 10, False, 2, True, False, 10),
+    # number words: one~five for the youngest, up to ten after that; letter counts: 3 letters, 4~5, 6~8
+    "LITTLE": Level("덧셈이나 뺄셈 한 번, 5 이하의 수", frozenset("+-"), 1, 5, 0, 5, (3, 3), 1, True, False, 10),
+    "CAPTAIN": Level("덧셈이나 뺄셈 한 번, 10 이하의 수", frozenset("+-"), 1, 10, 0, 10, (4, 5), 2, True, False, 10),
     "DETECTIVE": Level("덧셈, 뺄셈, 곱셈 두 번까지, 12 이하의 수(곱하는 수는 5 이하)",
-                       frozenset("+-*"), 2, 12, 5, 10, True, 3, True, False, 20),
+                       frozenset("+-*"), 2, 12, 5, 10, (6, 8), 3, True, False, 20, english_sums=True),
 }
 
 PATTERN_RULE = {
@@ -246,11 +251,25 @@ NUMBER_WORDS = {
     "EIGHTEEN": 18, "NINETEEN": 19, "TWENTY": 20,
 }
 ENGLISH_OF = {v: k for k, v in NUMBER_WORDS.items()}
+# the topic particle after a number word as it sounds in Korean: one(원)은, two(투)는, seven(세븐)은, twelve(트웰브)는
+NUMBER_TOPIC = {w: "는" if w in ("TWO", "THREE", "FOUR", "FIVE", "SIX", "TWELVE", "TWENTY") else "은" for w in NUMBER_WORDS}
 
 # a word a child must not hear from the car, even as a letter-counting word
 ENGLISH_BLOCK = {
     "KILL", "DIE", "DEAD", "DEATH", "GUN", "BOMB", "BLOOD", "HATE", "STUPID", "IDIOT", "DUMB", "UGLY", "FAT", "SEX",
     "SEXY", "NAKED", "DRUG", "BEER", "WINE", "DAMN", "HELL", "SHIT", "FUCK", "POOP", "FIRE", "KNIFE", "WAR",
+}
+
+# a letter-counting word is heard, not seen: it is a thing a child pictures at once (CAT, APPLE, TRAIN), at least
+# this long, and never a little word that sounds like another or like a letter (ON, UP, SEA, YOU...) nor one of the
+# words with nothing to picture an earlier bank used (AIR, HOT, SPEED...)
+LETTER_WORD_MIN = 3
+LETTER_WORD_NEVER = {
+    "ON", "AN", "UN", "IN", "AT", "UP", "IT", "IS", "AS", "BE", "BY", "DO", "GO", "HE", "IF", "ME", "MY", "NO", "OF",
+    "OH", "OK", "OR", "SO", "TO", "US", "WE", "THE", "AND", "BUT", "FOR", "NOT", "YES", "OFF", "OUT", "TOO", "ARE",
+    "WAS", "HAS", "HIS", "HER", "ITS", "YOU", "WHO", "WHY", "HOW", "ALL", "ANY", "CAN", "WON", "ATE", "BEE", "SEA",
+    "SEE", "EYE", "TEA", "PEA", "OWE", "WAY", "FAR",
+    "AIR", "HOT", "COLD", "WARM", "WIND", "SPEED", "BREEZE", "COOLING", "LIGHT",
 }
 
 # counters that turn a number into "how many": 다섯 개, 세 칸, 두 단, 세 글자
@@ -379,9 +398,49 @@ def solve_english(word: str, level: Level) -> int:
         if NUMBER_WORDS[w] > level.english_max:
             raise Wrong(f"이 나이에 어려운 숫자 단어: {w}")
         return NUMBER_WORDS[w]
-    if not level.english_letters:
-        raise Wrong("이 나이는 숫자 영단어만")
+    if len(w) < LETTER_WORD_MIN or w in LETTER_WORD_NEVER:
+        raise Wrong(f"글자 수를 세기에 짧거나 헷갈리는 단어: {w}")
+    if len(w) > level.letters[1]:
+        raise Wrong(f"이 나이에 긴 단어: {w} (글자 수 {level.letters[1]}까지)")
     return len(w)
+
+
+ENGLISH_SUM = re.compile(r"[A-Za-z]+(\s*[-+*]\s*[A-Za-z]+)+")
+
+
+def solve_english_sum(expr: str, level: Level) -> tuple[int, list[str]]:
+    """A sum said with English number words ("SEVEN-FIVE" for "seven 빼기 five"): its value and its words."""
+    if not level.english_sums:
+        raise Wrong("이 나이는 영어 숫자 셈을 하지 않음")
+    if not ENGLISH_SUM.fullmatch(expr.strip()):
+        raise Wrong(f"영어 숫자 셈은 숫자 영단어와 + - *로만: {expr}")
+    words = [w.upper() for w in re.findall(r"[A-Za-z]+", expr)]
+    for w in words:
+        if w not in NUMBER_WORDS:
+            raise Wrong(f"숫자 영단어가 아님: {w}")
+        if NUMBER_WORDS[w] > level.english_max:
+            raise Wrong(f"이 나이에 어려운 숫자 단어: {w}")
+    digits = re.sub(r"[A-Za-z]+", lambda m: str(NUMBER_WORDS[m.group().upper()]), expr)
+    value, _ = solve_math(digits, level)
+    return value, words
+
+
+def english_reach(age: str) -> int:
+    """The largest answer an English question can have at this age: 4~6 say number words up to five and count
+    three-letter words, so a fan step of 6~8 has no English question for them."""
+    level = LEVELS[age]
+    return max(level.english_max, level.letters[1])
+
+
+def english_sum(question) -> bool:
+    """An English question that is a sum of number words (its expr), not one word."""
+    return bool(question.expr.strip())
+
+
+def letter_count(word: str) -> bool:
+    """An English question that counts its word's letters (any word but a number word)."""
+    w = word.strip().upper()
+    return bool(w) and w not in NUMBER_WORDS
 
 
 def check_question(q: QuizKey, question, age: str) -> list[str]:
@@ -410,6 +469,12 @@ def check_question(q: QuizKey, question, age: str) -> list[str]:
         elif q.kind == "PATTERN":
             value = solve_pattern(list(question.terms), level)
             problems += [f"수열의 수가 문제에 없음: {n}" for n in question.terms if not mentions(text, n)]
+        elif q.kind == "ENGLISH" and english_sum(question):
+            value, words = solve_english_sum(question.expr, level)
+            if ENGLISH_OF.get(q.value) in words:
+                problems.append("식에 정답 수가 들어 있음")
+            problems += [f"식의 영단어가 문제에 없음: {w}" for w in words
+                         if not re.search(rf"(?<![A-Za-z]){w}(?![A-Za-z])", text, re.IGNORECASE)]
         elif q.kind == "ENGLISH":
             value = solve_english(question.word, level)
             if question.word.strip().upper() not in text.upper():
@@ -425,12 +490,18 @@ def check_question(q: QuizKey, question, age: str) -> list[str]:
 
 
 def english_word(q: QuizKey, question) -> str | None:
-    """The one English word the question may say (only an English question has one)."""
-    return question.word.strip().upper() if q.kind == "ENGLISH" and question is not None else None
+    """The English the question may say (only an English question has any): its one word, or for a sum of number
+    words the sum ("SEVEN-FIVE")."""
+    if q.kind != "ENGLISH" or question is None:
+        return None
+    return (question.expr if english_sum(question) else question.word).strip().upper()
 
 
 def without_word(text: str, word: str | None) -> str:
-    return re.sub(re.escape(word), "", text, flags=re.IGNORECASE) if word else text
+    """The text without the question's English: its word, or every word of a sum of number words."""
+    for w in re.findall(r"[A-Za-z]+", word or ""):
+        text = re.sub(rf"(?<![A-Za-z]){w}(?![A-Za-z])", "", text, flags=re.IGNORECASE)
+    return text
 
 
 # a number word with no other letter next to it; a Korean particle may follow it directly ("ONE부터")

@@ -63,6 +63,14 @@ _TELL = {
     "LIGHTS": ("켜진 독서등이 모두 {}가 되게 해 줘!", "개", "다음 수"),
     "SEAT_HEAT": ("의자 열선을 {}으로 맞춰 줘!", "단", ""),
 }
+# a sum is asked first and the instruction says "그 수", so no number of it sounds like the answer (bank.wording_problems)
+_THAT_NUMBER = {
+    "FAN": "그 수만큼 바람 세기를 맞춰 줘!",
+    "TEMP_UP": "그 수만큼 온도를 올려 줘!",
+    "TEMP_DOWN": "그 수만큼 온도를 내려 줘!",
+    "LIGHTS": "켜진 독서등이 모두 그 수만큼 되게 해 줘!",
+    "SEAT_HEAT": "의자 열선을 그 수와 같은 단으로 맞춰 줘!",
+}
 
 
 def template_entry(dial: str, kind: str, v: int) -> Entry:
@@ -76,13 +84,15 @@ def template_entry(dial: str, kind: str, v: int) -> Entry:
 
     if kind == "MATH":
         # a sum of two small numbers, neither of them the answer; 1 is the only answer that needs taking away
-        if v == 1:
-            return Entry(**base, text=told(f"3 빼기 2{unit}"), expr="3-2")
-        a = v // 2
-        return Entry(**base, text=told(f"{a} 더하기 {v - a}{unit}"), expr=f"{a}+{v - a}")
+        a, b, op = (3, 2, "빼기") if v == 1 else (v // 2, v - v // 2, "더하기")
+        text = f"{_DEV} {a} {op} {b}{bank.topic_particle(b)} 얼마일까? {_THAT_NUMBER[dial]}"
+        return Entry(**base, text=text, expr=f"{a}{'-' if v == 1 else '+'}{b}")
     if kind == "ENGLISH":
+        # asked first like a sum: "two는 숫자로 몇일까? 그 수만큼 ..."; past five a number word is for 7~9
         word = quiz.ENGLISH_OF[v]
-        return Entry(**base, text=told(f"{word}{unit}"), word=word)
+        age = "LITTLE" if v <= quiz.english_reach("LITTLE") else "CAPTAIN"
+        text = f"{_DEV} {word.lower()}{quiz.NUMBER_TOPIC[word]} 숫자로 몇일까? {_THAT_NUMBER[dial]}"
+        return Entry(**{**base, "age": age}, text=text, word=word)
     # up by one whenever the run can start at 0 or more, else down by one
     terms = (v - 3, v - 2, v - 1) if v >= 3 else (v + 3, v + 2, v + 1)
     return Entry(**base, text=told(", ".join(f"{t}{unit}" for t in terms) + f" {after_run}"), terms=terms)

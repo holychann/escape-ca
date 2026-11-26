@@ -5,6 +5,7 @@ import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.WrongJudge
+import kr.escape.car.voice.Subtitles
 import kotlin.random.Random
 
 /**
@@ -112,16 +113,26 @@ object Lines {
         )
     }
 
-    /** One quiz scene from its words ([lead] is the story before the question) and its checked question. */
-    fun quizScene(p: Puzzle.Quiz, bubble: String, lead: String, hint: String, q: Question) = Scene(
-        bubble = bubble,
-        speech = spoken(lead, q, p),
-        hint = hint,
-        pictures = listOf(picture(p)),
-        buttons = listOf(button(p.dial)),
-        answer = answer(p, q),
-        question = q,
-    )
+    /**
+     * One quiz scene from its words ([lead] is the story before the question) and its checked question. A letter
+     * count's word is heard, never seen, so a bubble or a hint (shown as subtitles) that writes it is the app's own.
+     */
+    fun quizScene(p: Puzzle.Quiz, bubble: String, lead: String, hint: String, q: Question): Scene {
+        val word = q.word.trim()
+        val writes = { s: String ->
+            countsLetters(q) && word.isNotEmpty() &&
+                Regex("(?<![A-Za-z])${Regex.escape(word)}(?![A-Za-z])", RegexOption.IGNORE_CASE).containsMatchIn(s)
+        }
+        return Scene(
+            bubble = if (writes(bubble)) Lines.bubble(p) else bubble,
+            speech = spoken(lead, q, p),
+            hint = if (writes(hint)) Lines.hint(p, q) else hint,
+            pictures = listOf(picture(p)),
+            buttons = listOf(button(p.dial)),
+            answer = answer(p, q),
+            question = q,
+        )
+    }
 
     /** Lumi's words in order: the story, the question, then what to do with the answer (always the app's own words). */
     fun spoken(lead: String, q: Question, p: Puzzle.Quiz): String =
@@ -138,7 +149,8 @@ object Lines {
      */
     fun ask(p: Puzzle.Quiz, q: Question): String {
         if (p.kind == QuizKind.REASON) return ""
-        // the question itself is the instruction ("ONE만큼 온도를 내려 줘!"): the child works the amount out and says it
+        // the question ends in the instruction ("one은 숫자로 몇일까? 그 수만큼 온도를 내려 줘!"): the child works the
+        // amount out and says it
         return when (p.dial) {
             Dial.LIGHTS -> "손이 닿는 불은 직접 켜고, 나머지는 몇 개 켤지 안전 지킴이에게 부탁해!"
             else -> "어떻게 하면 되는지 안전 지킴이에게 말해 줘!"
@@ -166,9 +178,12 @@ object Lines {
         }
         val why = when (p.kind) {
             QuizKind.MATH -> q.expr.takeIf { it.isNotBlank() }?.let { "${pretty(it)} = ${p.value}" }
-            QuizKind.ENGLISH -> q.word.takeIf { it.isNotBlank() }?.uppercase()?.let {
-                if (it in NUMBER_WORDS) "$it = ${p.value}" else "$it, ${it.length}글자"
-            }
+            // the parent may see the word; only the child's screen never does
+            QuizKind.ENGLISH -> englishSum(q.expr)?.let { "$it = ${p.value}" }
+                ?: q.word.takeIf { it.isNotBlank() }?.trim()?.uppercase()?.let {
+                    englishSum(it)?.let { sum -> "$sum = ${p.value}" }
+                        ?: if (it in NUMBER_WORDS) "$it = ${p.value}" else "$it, ${it.length}글자"
+                }
             QuizKind.PATTERN -> q.terms.takeIf { it.isNotEmpty() }?.let { "${it.joinToString(", ")} 다음은 ${p.value}" }
             // nothing to work out: the child finds the function from the trouble
             QuizKind.REASON -> null
@@ -176,12 +191,40 @@ object Lines {
         return if (why == null) how else "$how ($why)"
     }
 
-    /** The big line on the child's screen ("3 + 2 = ?"), or null when the question has none (a situation is heard). */
+    /**
+     * The big line on the child's screen ("3 + 2 = ?", "TWO = ?"), or null when the question has none (a situation is
+     * heard). A letter count shows only the word's Korean meaning ("사과 → 영어 몇 글자?"): the child spells it in
+     * their head.
+     */
     fun card(q: Question): String? = when (q.kind) {
         QuizKind.MATH -> q.expr.takeIf { it.isNotBlank() }?.let { "${pretty(it)} = ?" }
-        QuizKind.ENGLISH -> q.word.takeIf { it.isNotBlank() }?.uppercase()?.let { if (it in NUMBER_WORDS) "$it = ?" else "$it 몇 글자?" }
+        QuizKind.ENGLISH -> when {
+            // a sum of number words ("EIGHT-FIVE") is written out for the child to work on
+            englishSum(q.expr) != null -> "${englishSum(q.expr)} = ?"
+            q.word.isBlank() -> null
+            countsLetters(q) -> Subtitles.spelled(q.text).firstOrNull()?.let { (_, meaning) -> "$meaning → 영어 몇 글자?" } ?: "영어로 몇 글자?"
+            else -> q.word.trim().uppercase().let { englishSum(it) ?: it }.let { "$it = ?" }
+        }
         QuizKind.PATTERN -> q.terms.takeIf { it.isNotEmpty() }?.let { "${it.joinToString(", ")}, ?" }
         QuizKind.REASON -> null
+    }
+
+    /** An English question that counts its word's letters (any word but a number word or a sum of them). */
+    fun countsLetters(q: Question): Boolean {
+        if (q.kind != QuizKind.ENGLISH) return false
+        val w = q.word.trim().uppercase()
+        return w.isNotEmpty() && w !in NUMBER_WORDS && englishSum(w) == null && englishSum(q.expr) == null
+    }
+
+    /**
+     * A sum of number words ("TWO*FOUR-FIVE", "seven 빼기 five") as the card writes it ("TWO × FOUR - FIVE"); null
+     * otherwise.
+     */
+    private fun englishSum(word: String): String? {
+        val w = word.uppercase().replace("빼기", "-").replace("더하기", "+").replace("곱하기", "*").replace("나누기", "/")
+        val parts = w.split('+', '-', '*', '/').map { it.trim().removePrefix("(").removeSuffix(")").trim() }
+        if (parts.size < 2 || parts.any { it !in NUMBER_WORDS }) return null
+        return pretty(w)
     }
 
     /** "(4*3)-7" as a child reads it: "(4 × 3) - 7". */
@@ -219,13 +262,17 @@ object Lines {
         val rnd = Random(StoryKeys.key(p).hashCode())
         val v = p.value
         return when (p.kind) {
+            // a sum is asked first and the instruction then says "그 수", so no number in it sounds like the answer
             QuizKind.MATH -> if (v >= 2) {
                 val a = rnd.nextInt(1, v)
-                Question(QuizKind.MATH, instruction(p.dial, "$a 더하기 ${v - a}"), expr = "$a+${v - a}")
+                val b = v - a
+                Question(QuizKind.MATH, "$a 더하기 $b${sinoTopic(b)} 얼마일까? ${thatMany(p.dial)}", expr = "$a+$b")
             } else {
-                Question(QuizKind.MATH, instruction(p.dial, "3 빼기 2"), expr = "3-2")
+                Question(QuizKind.MATH, "3 빼기 2${sinoTopic(2)} 얼마일까? ${thatMany(p.dial)}", expr = "3-2")
             }
-            QuizKind.ENGLISH -> NUMBER_WORDS[v - 1].let { Question(QuizKind.ENGLISH, instruction(p.dial, it), word = it) }
+            QuizKind.ENGLISH -> NUMBER_WORDS[v - 1].let {
+                Question(QuizKind.ENGLISH, "${it.lowercase()}${englishTopic(it)} 숫자로 몇일까? ${thatMany(p.dial)}", word = it)
+            }
             QuizKind.PATTERN -> {
                 val terms = if (v >= 3) listOf(v - 3, v - 2, v - 1) else listOf(v + 3, v + 2, v + 1)
                 Question(QuizKind.PATTERN, instruction(p.dial, "${terms.joinToString(", ")} 다음 수"), terms = terms)
@@ -255,7 +302,25 @@ object Lines {
         Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "차 버튼으로 나를 도와줘!"
     }
 
-    /** The car instruction with the amount as a little puzzle: "TWO만큼 온도를 내려 줘!". */
+    /** The car instruction after a question asked first, the amount as "그 수": "그 수만큼 온도를 내려 줘!". */
+    fun thatMany(d: Dial): String = when (d) {
+        Dial.FAN -> "그 수만큼 바람 세기를 맞춰 줘!"
+        Dial.TEMP_UP -> "그 수만큼 온도를 올려 줘!"
+        Dial.TEMP_DOWN -> "그 수만큼 온도를 내려 줘!"
+        Dial.LIGHTS -> "켜진 독서등이 모두 그 수만큼 되게 해 줘!"
+        Dial.SEAT_HEAT -> "의자 열선을 그 수와 같은 단으로 맞춰 줘!"
+        // a situation has no amount
+        else -> ""
+    }
+
+    /** The topic particle after a number read the Sino-Korean way (일, 삼, 육, 칠, 팔, 십 are closed): "8은", "2는". */
+    fun sinoTopic(n: Int): String = if (n % 10 in setOf(0, 1, 3, 6, 7, 8)) "은" else "는"
+
+    /** The topic particle after a number word as it sounds in Korean: one(원)은, two(투)는, seven(세븐)은. */
+    fun englishTopic(word: String): String =
+        if (word.uppercase() in setOf("TWO", "THREE", "FOUR", "FIVE", "SIX", "TWELVE", "TWENTY")) "는" else "은"
+
+    /** The car instruction with the amount as a little puzzle: "3, 4, 5 다음 수만큼 온도를 내려 줘!". */
     fun instruction(d: Dial, amount: String): String = when (d) {
         Dial.FAN -> "바람 세기를 ${amount}단으로 맞춰 줘!"
         Dial.TEMP_UP -> "${amount}만큼 온도를 올려 줘!"
@@ -306,7 +371,8 @@ object Lines {
 
     private fun hint(p: Puzzle.Quiz, q: Question): String = when (p.kind) {
         QuizKind.MATH -> "손가락을 하나씩 펴면서 세어 봐!"
-        QuizKind.ENGLISH -> "원, 투, 쓰리, 손가락으로 하나씩 세면서 영어로 말해 봐!"
+        QuizKind.ENGLISH -> if (countsLetters(q)) "영어 철자를 머릿속으로 떠올리며 알파벳마다 손가락을 하나씩 펴 봐!"
+            else "원, 투, 쓰리, 손가락으로 하나씩 세면서 영어로 말해 봐!"
         QuizKind.PATTERN -> if (q.terms.size >= 2 && q.terms[1] < q.terms[0]) "수가 얼마씩 작아지는지 손가락으로 세어 봐!"
             else "수가 얼마씩 커지는지 손가락으로 세어 봐!"
         QuizKind.REASON -> "어떤 차 버튼이 나를 도울 수 있을지 하나씩 떠올려 봐!"

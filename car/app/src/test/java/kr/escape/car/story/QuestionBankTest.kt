@@ -11,6 +11,8 @@ import kr.escape.car.engine.Questions
 import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
+import kr.escape.car.voice.Subtitles
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -156,6 +158,72 @@ class QuestionBankTest {
                 assertTrue("$q $age", shipped.has(q, age))
             }
         }
+    }
+
+    private val shippedJson by lazy { JSONObject(File("src/main/assets/${QuestionBank.FILE}").readText()).getJSONArray("questions") }
+
+    @Test
+    fun aShippedEnglishSumIsWrittenOnTheCard() {
+        val all = (0 until shippedJson.length()).map { shippedJson.getJSONObject(it) }
+        val o = all.first { it.getString("id") == "fan-d-088" }
+        val q = Question(QuizKind.ENGLISH, o.getString("text"), expr = o.optString("expr"), word = o.optString("word"))
+        assertEquals("seven 빼기 five는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", q.text)
+        assertEquals("SEVEN - FIVE = ?", Lines.card(q))
+        assertEquals("풍량 2단 (SEVEN - FIVE = 2)", Lines.answer(Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 2), q))
+        assertFalse(Lines.countsLetters(q))
+        // every English sum in the bank gets its card
+        val sums = all.filter { it.getString("kind") == "ENGLISH" && it.optString("expr").isNotBlank() }
+        assertTrue(sums.isNotEmpty())
+        for (e in sums) {
+            val card = Lines.card(Question(QuizKind.ENGLISH, e.getString("text"), expr = e.getString("expr"), word = e.optString("word")))
+            assertEquals(e.getString("id"), "${Lines.pretty(e.getString("expr").uppercase())} = ?", card)
+        }
+    }
+
+    @Test
+    fun theYoungestNeverGetAnEnglishNumberAboveFive() {
+        val fan6 = Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 6)
+        assertFalse(Planner.allowed(fan6, Age.LITTLE))
+        assertTrue(Planner.allowed(Puzzle.Quiz(QuizKind.ENGLISH, Dial.FAN, 5), Age.LITTLE))
+        assertTrue(Planner.allowed(fan6, Age.CAPTAIN))
+        assertFalse(shipped.has(fan6, Age.LITTLE))
+        // planned without the bank too, when the app asks its own questions
+        val r = Random(3)
+        val parked = CarState(gear = Gear.PARK, driverSeated = true, devices = Device.entries.toSet(), fanSpeed = 1)
+        var english = 0
+        repeat(800) { seed ->
+            val car = parked.copy(readingLights = Seat.entries.associateWith { r.nextBoolean() }, seatHeat = r.nextInt(0, 4))
+            val setup = Setup(ages = listOf(Age.LITTLE, Age.DETECTIVE), minutes = 15)
+            for (questions in listOf(Questions.ANY, shipped)) {
+                for (q in Planner.plan(setup, car, Random(seed), questions).filterIsInstance<Puzzle.Quiz>()) {
+                    if (q.kind != QuizKind.ENGLISH) continue
+                    english++
+                    assertTrue("$q", q.value <= Planner.LITTLE_ENGLISH_MAX)
+                }
+            }
+        }
+        assertTrue(english > 0)
+    }
+
+    @Test
+    fun noShippedLetterCountShowsItsWordToTheChild() {
+        val list = shippedJson
+        var counted = 0
+        for (i in 0 until list.length()) {
+            val o = list.getJSONObject(i)
+            if (o.optString("kind") != "ENGLISH") continue
+            val q = Question(QuizKind.ENGLISH, o.getString("text"), word = o.optString("word", ""))
+            if (!Lines.countsLetters(q)) continue
+            counted++
+            val p = Puzzle.Quiz(QuizKind.ENGLISH, Dial.valueOf(o.getString("dial")), o.getInt("answer"))
+            val scene = Lines.scene(p, q to o.getString("hint"))
+            val word = q.word.trim()
+            val seen = listOfNotNull(Lines.card(q), scene.bubble) + Subtitles.pieces(scene.speech) +
+                Subtitles.pieces(scene.hint)
+            for (s in seen) assertFalse("${o.getString("id")}: $s", Regex("(?<![A-Za-z])$word(?![A-Za-z])", RegexOption.IGNORE_CASE).containsMatchIn(s))
+            assertTrue(o.getString("id"), Lines.card(q)!!.endsWith("→ 영어 몇 글자?"))
+        }
+        assertTrue(counted > 0)
     }
 
     @Test

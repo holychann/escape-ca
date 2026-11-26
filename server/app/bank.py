@@ -1,7 +1,7 @@
 """The question bank: a few hundred quiz questions made once with the writer model (tools/make_bank.py).
 
 Every question belongs to one car device. A number question is an instruction to it with the amount as a little
-puzzle ("ONE만큼 온도를 내려 줘!"); a situation question (REASON) tells a trouble the child solves by finding the
+puzzle ("one은 숫자로 몇일까? 그 수만큼 온도를 내려 줘!"); a situation question (REASON) tells a trouble the child solves by finding the
 right car function ("앞 유리가 뿌예서 앞이 안 보여!"). Every question was worked out again, answered blind by a
 second model and checked when it was made, and is checked again when the server starts, so a hand edit that breaks
 one stops the server instead of reaching a child. An episode draws its questions from here at random; the model only
@@ -30,6 +30,95 @@ AMBIGUOUS_STEP = re.compile(r"단\s+(내렸|내리|올렸|올리|줄였|줄이|�
 DEVICE_NEVER = {"SEAT_HEAT": ("뜨거", "낮잠", "잠을 자", "오래 켜"), "SEAT_HEAT_ON": ("뜨거", "낮잠", "잠을 자", "오래 켜")}
 # a hint for a number-word question that tells the number's place ("ONE은 맨 처음 나오는 말") gives the answer away
 PLACE_WORDS = ("맨 처음", "가장 처음", "제일 처음", "바로 다음", "바로 앞", "다음에 오는", "앞에 오는", "손가락 모두", "한 손 전부")
+# Heard aloud, "바람 세기를 6 더하기 6 빼기 8단으로 맞춰 줘!" sounds as if 8단 were the answer, and "TWO단으로" or
+# "THREE만큼" puts the English word right before the unit. Every number question but a run (PATTERN) asks its puzzle
+# first and the instruction then says "그 수":
+#   계산: "6 더하기 6 빼기 8은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!"
+#   숫자 영단어: "two는 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!"
+#   영어 숫자 셈(10~12세): "seven 빼기 five는 얼마일까? 그 수와 같은 단으로 의자 열선을 맞춰 줘!"
+#   글자 수: "apple, 사과를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!" (heard, never seen)
+MATH_UNIT = re.compile(r"\d\s*(단|도|개|칸)")
+ENGLISH_UNIT = re.compile(r"[A-Za-z]\s*(단|도|개|칸|만큼)")
+MATH_FORM = re.compile(r"얼마일까\?\s.*그 수")
+NUMBER_FORM = re.compile(r"(?<![A-Za-z])(?P<word>[A-Za-z]+)(?P<particle>은|는) 숫자로 몇일까\?\s.*그 수")
+MATH_TOPIC = re.compile(r"(\d+)(은|는) 얼마일까")
+SUM_TOPIC = re.compile(r"(?<![A-Za-z])([A-Za-z]+)(은|는) 얼마일까")
+LETTER_FORM = re.compile(r"(?P<word>[A-Za-z]+), (?P<meaning>[가-힣 ]*[가-힣])(?P<particle>을|를) 영어로 쓰면 몇 글자일까\?\s.*그 수")
+# a number read the Sino-Korean way ends in a consonant (일, 삼, 육, 칠, 팔, 십) or not (이, 사, 오, 구)
+SINO_CLOSED = {0, 1, 3, 6, 7, 8}
+
+
+def topic_particle(n: int) -> str:
+    """The topic particle after a number read aloud in a sum: 8은, 2는, 10은."""
+    return "은" if n % 10 in SINO_CLOSED else "는"
+
+
+def object_particle(word: str) -> str:
+    """The object particle after a Korean word: 사과를, 얼음을."""
+    last = ord(word[-1]) - 0xAC00
+    return "을" if 0 <= last < 11172 and last % 28 else "를"
+
+
+def told_after(e: "Entry", m: re.Match | None, form: str) -> list[str]:
+    """The question asked at m is followed by the instruction, and no number of the puzzle comes after it."""
+    tail = e.text[m.start():] if m else ""
+    if not tail or not any(norm(v) in norm(tail) for v in quiz.INSTRUCTION[e.dial][1]):
+        return [form]
+    tail = tail[tail.index("?"):]
+    if re.search(r"\d", tail) or (e.expr and quiz.without_word(tail, e.expr) != tail):
+        return ["식의 수는 모두 묻는 말 앞에 있어야 함"]
+    return []
+
+
+def wording_problems(e: "Entry") -> list[str]:
+    """How a number question must be said so that no number in it sounds like the answer."""
+    out = []
+    if e.kind == "MATH":
+        if m := MATH_UNIT.search(e.text):
+            out.append(f"수 바로 뒤에 단위가 붙어 정답처럼 들림: {m.group()}")
+        out += told_after(e, MATH_FORM.search(e.text), "식을 먼저 '얼마일까?'로 묻고 '그 수'로 지시해야 함")
+        out += [f"숫자 뒤 조사가 틀림: {m.group(1)}{m.group(2)}" for m in MATH_TOPIC.finditer(e.text)
+                if m.group(2) != topic_particle(int(m.group(1)))]
+    if e.kind != "ENGLISH":
+        return out
+    if m := ENGLISH_UNIT.search(e.text):
+        out.append(f"영어 바로 뒤에 단위가 붙음: {m.group()}")
+    if re.search(r"[A-Z]", e.text):
+        out.append("문장 속 영어는 소문자로 써야 함")
+    if e.expr:
+        out += told_after(e, MATH_FORM.search(e.text), "영어 숫자 셈을 먼저 '얼마일까?'로 묻고 '그 수'로 지시해야 함")
+        out += [f"영단어 뒤 조사가 틀림: {m.group(1)}{m.group(2)}" for m in SUM_TOPIC.finditer(e.text)
+                if m.group(1).upper() in quiz.NUMBER_TOPIC and m.group(2) != quiz.NUMBER_TOPIC[m.group(1).upper()]]
+    elif e.word.strip().upper() in quiz.NUMBER_WORDS:
+        w = e.word.strip().upper()
+        m = NUMBER_FORM.search(e.text)
+        if not m or m.group("word").upper() != w:
+            out.append("숫자 영단어 문제는 '영단어는 숫자로 몇일까? 그 수...'로 말해야 함")
+        else:
+            out += told_after(e, m, "숫자 영단어 문제는 '영단어는 숫자로 몇일까? 그 수...'로 말해야 함")
+            if m.group("particle") != quiz.NUMBER_TOPIC[w]:
+                out.append(f"영단어 뒤 조사가 틀림: {m.group('word')}{m.group('particle')}")
+    else:
+        m = LETTER_FORM.match(e.text)
+        if not m or m.group("word").upper() != e.word.strip().upper():
+            out.append("글자 수 문제는 '영어 단어, 우리말 뜻을 영어로 쓰면 몇 글자일까? 그 수...'로 말해야 함")
+        elif m.group("particle") != object_particle(m.group("meaning")):
+            out.append(f"뜻 뒤 조사가 틀림: {m.group('meaning')}{m.group('particle')}")
+    return out
+
+
+def age_problems(e: "Entry") -> list[str]:
+    """What each age's English questions are, kept whole in the bank (a younger age's question may still be picked
+    for an older child, so quiz.check_question holds only the upper limits)."""
+    if e.kind != "ENGLISH" or e.expr:
+        return []
+    w = e.word.strip().upper()
+    if w in quiz.NUMBER_WORDS:
+        return ["10~12세는 숫자 영단어 하나 대신 영어 숫자 셈(seven 빼기 five)으로 냄"] if e.age == "DETECTIVE" else []
+    lo, hi = quiz.LEVELS[e.age].letters
+    return [f"이 나이의 글자 수 단어는 {lo}~{hi}글자: {w}"] if not lo <= len(w) <= hi else []
+
+
 # A situation (REASON) is the friend the child picked speaking as "나", whichever friend that is and wherever the
 # story is: it names nobody, no body part only some friends have, nothing tied to one place, and no cause (the story
 # before it tells why). It ends asking for the car's buttons ("차 버튼으로 나를 도와줘!", for the driver's seat "차 버튼으로
@@ -147,12 +236,16 @@ def problems(e: Entry) -> list[str]:
     out += [f"존댓말: {name}" for name, s in [("문제", e.text), ("힌트", e.hint)] if POLITE.search(s.strip())]
     if e.kind == "REASON":
         return out + reason_problems(e)
-    # the question is the car instruction itself ("ONE만큼 온도를 내려 줘!"), not a question answered first
+    # the question ends in the car instruction itself; the puzzle is asked just before it and the instruction says
+    # "그 수" (wording_problems)
     things, verbs = quiz.INSTRUCTION[e.dial]
     said = norm(e.text)
     if not any(norm(w) in said for w in things) or not any(norm(v) in said for v in verbs):
         out.append(f"차 조작 지시가 아님: {'/'.join(things)}와 {'/'.join(verbs)} 중 하나가 있어야 함")
-    if "몇" in e.text or e.text.strip().endswith("?"):
+    out += wording_problems(e) + age_problems(e)
+    # the only "몇" a number question says is the one it asks first ("몇 글자일까?", "숫자로 몇일까?")
+    asked = re.sub(r"몇 글자일까|숫자로 몇일까", "", e.text, count=1) if e.kind == "ENGLISH" else e.text
+    if "몇" in asked or e.text.strip().endswith("?"):
         out.append("묻는 문장이 아니라 지시하는 문장이어야 함")
     if not any(w in norm(e.text) for w in quiz.DEVICE_WORDS[e.dial]):
         out.append(f"장치 이야기가 아님: {', '.join(quiz.DEVICE_WORDS[e.dial])} 중 하나가 없음")

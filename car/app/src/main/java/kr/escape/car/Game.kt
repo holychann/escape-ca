@@ -471,7 +471,8 @@ class Game(
         val stop = Safety.pauseReason(s, ui.playedMs)
         if (stop != ui.stopped) {
             _ui.update { it.copy(stopped = stop) }
-            if (stop != null) lumi.say(Lines.PAUSED)
+            // said aside, so 다시 듣기 after the car is ready again repeats the puzzle, not this line
+            if (stop != null) lumi.aside(Lines.PAUSED)
             // 20 minutes: kept with a rest at once, so switching the car off on this screen still rests
             val store = progress
             if (stop == StopReason.TIME_UP && ui.restUntil == null && store != null) {

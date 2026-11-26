@@ -14,6 +14,21 @@ class SubtitlesTest {
     }
 
     @Test
+    fun aLetterCountShowsOnlyTheKoreanMeaning() {
+        val line = "새싹이 목말라. apple, 사과를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"
+        assertEquals("새싹이 목말라. 사과를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!", Subtitles.clean(line))
+        assertTrue(Subtitles.pieces(line).none { it.contains("apple", ignoreCase = true) })
+        // in capitals, a closed meaning (닭을), and the word said again elsewhere in the line
+        assertEquals("닭을 영어로 쓰면 몇 글자일까? 닭 친구도 기다려!",
+            Subtitles.clean("CHICKEN, 닭을 영어로 쓰면 몇 글자일까? chicken 친구도 기다려!"))
+        assertEquals(listOf("cat" to "고양이"), Subtitles.spelled("cat, 고양이를 영어로 쓰면 몇 글자일까?"))
+        // a number word or a sum is meant to be seen
+        assertEquals("two는 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!", Subtitles.clean("two는 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!"))
+        assertEquals("seven 빼기 five는 얼마일까?", Subtitles.clean("seven 빼기 five는 얼마일까?"))
+        assertEquals("와, 해냈어!", Subtitles.clean("와, 해냈어!"))
+    }
+
+    @Test
     fun aLongLineIsCutIntoShortPiecesInOrder() {
         val line = "휴, 기관실이 고쳐졌어! 그런데 이번엔 식당 칸에서 수달 요리사가 큰일이래. " +
             "밖에서 먼지 구름이 몰려와서 수프에 먼지가 들어가겠어. 어떻게 하면 되는지 안전 지킴이에게 말해 줘!"

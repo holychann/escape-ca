@@ -25,9 +25,9 @@ def question(kind: str, text: str, expr: str = "", word: str = "", terms=()) -> 
 # (bank.problems); made for the youngest, so they also serve the older ages (Bank.candidates falls back to a younger
 # age)
 SUM = Entry(id="fan-l-001", kind="MATH", dial="FAN", age="LITTLE", answer=5, expr="3+2",
-            text="바람 세기를 3 더하기 2단으로 맞춰 줘!", hint="손가락을 하나씩 펴면서 세어 봐.")
+            text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", hint="손가락을 하나씩 펴면서 세어 봐.")
 WORD = Entry(id="temp_up-l-001", kind="ENGLISH", dial="TEMP_UP", age="LITTLE", answer=2, word="TWO",
-             text="TWO만큼 온도를 올려 줘!", hint="영어로 수를 하나부터 차례로 세어 봐.")
+             text="two는 숫자로 몇일까? 그 수만큼 온도를 올려 줘!", hint="영어로 수를 하나부터 차례로 세어 봐.")
 RUN = Entry(id="lights-l-001", kind="PATTERN", dial="LIGHTS", age="LITTLE", answer=4, terms=(1, 2, 3),
             text="켜진 독서등이 모두 1개, 2개, 3개 다음 수가 되게 해 줘!", hint="수가 얼마씩 커지는지 봐.")
 # situations from the shipped bank (app/question_bank.json)
@@ -43,7 +43,7 @@ COLD = Entry(id="ac-off-l-r02", kind="REASON", dial="AC", age="LITTLE", answer=0
              hint="추운 나한테 더울 때 쓰는 버튼이 켜져 있어도 될까?")
 # the same answer as SUM with a times sign, for the oldest only
 TIMES = Entry(id="fan-d-001", kind="MATH", dial="FAN", age="DETECTIVE", answer=5, expr="4*3-7",
-              text="바람 세기를 4 곱하기 3 빼기 7단으로 맞춰 줘!", hint="먼저 곱하고 나서 빼 봐.")
+              text="4 곱하기 3 빼기 7은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", hint="먼저 곱하고 나서 빼 봐.")
 ENTRIES = [SUM, WORD, RUN, TIMES, FOG, COOL, COLD]
 BANK = Bank(ENTRIES)
 

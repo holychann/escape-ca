@@ -21,6 +21,11 @@ from tools.story_spec import DEVICES, random_request
 AGES = ("LITTLE", "CAPTAIN", "DETECTIVE")
 
 
+def beyond(q: quiz.QuizKey, age: str) -> bool:
+    """An English answer past what the age's number words and words reach (a fan step of 6~8 for the 4~6)."""
+    return q.kind == "ENGLISH" and q.value > quiz.english_reach(age)
+
+
 def never_told(q: quiz.QuizKey, age: str) -> bool:
     """A situation the youngest are never told (quiz.REASON_NOT_LITTLE): no bank has one for them."""
     return q.kind == "REASON" and age == "LITTLE" and q.dial in quiz.REASON_NOT_LITTLE
@@ -35,13 +40,14 @@ def test_the_built_in_dev_bank_has_a_question_of_the_right_device_for_every_key_
     dev = Bank(TEMPLATE_ENTRIES)
     # made for the youngest each is told to; the older ages get the same ones
     for e in TEMPLATE_ENTRIES:
-        youngest = "CAPTAIN" if never_told(quiz.QuizKey(e.kind, e.dial, e.answer), "LITTLE") else "LITTLE"
+        key = quiz.QuizKey(e.kind, e.dial, e.answer)
+        youngest = "CAPTAIN" if never_told(key, "LITTLE") or beyond(key, "LITTLE") else "LITTLE"
         assert e.age == youngest, e.id
     for key in every_key():
         q = quiz.parse(key)
         for age in AGES:
             found = dev.candidates(q, age)
-            if never_told(q, age):
+            if never_told(q, age) or beyond(q, age):
                 assert found == [], (key, age)
                 continue
             assert found and all((e.kind, e.dial, e.answer) == (q.kind, q.dial, q.value) for e in found), (key, age)
@@ -64,7 +70,7 @@ def test_dev_server_stories_pass_the_real_checker(age):
                              context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[key], ["BELT"]],
                              friend="KONYANG")
         picks = pick_questions(req, dev, random.Random(0))
-        if never_told(quiz.parse(key), age):
+        if never_told(quiz.parse(key), age) or beyond(quiz.parse(key), age):
             assert key not in picks, key
             continue
         assert key in picks, key

@@ -173,9 +173,19 @@ object Planner {
      */
     private val NOT_LITTLE = setOf(Dial.RECIRC, Dial.TEMP_DOWN)
 
-    /** Whether a quiz of this kind is ever asked at [age]. */
-    fun allowed(q: Puzzle.Quiz, age: Age): Boolean =
-        !(q.kind == QuizKind.REASON && age == Age.LITTLE && q.dial in NOT_LITTLE)
+    /** The youngest (4~6) know the English number words up to five (one..five), as the question bank does. */
+    const val LITTLE_ENGLISH_MAX = 5
+
+    /**
+     * Whether a quiz of this kind is ever asked at [age]. Checked for every plan, also without the question bank, when
+     * the app asks its own questions (story Lines.question).
+     */
+    fun allowed(q: Puzzle.Quiz, age: Age): Boolean = when {
+        age != Age.LITTLE -> true
+        q.kind == QuizKind.REASON -> q.dial !in NOT_LITTLE
+        q.kind == QuizKind.ENGLISH -> q.value <= LITTLE_ENGLISH_MAX
+        else -> true
+    }
 
     fun plan(setup: Setup, s: CarState, rnd: Random = Random.Default, questions: Questions = Questions.ANY): List<Puzzle> {
         // every quiz each device of this car could ask right now; a device with none sits this episode out

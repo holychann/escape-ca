@@ -17,10 +17,10 @@ from tools.make_bank import (DIAL_LABEL, PER_VALUE, REASON_DISTRACTORS, REASON_S
                              dedupe, entry_from, markdown, reason_choices, request_lines, targets)
 
 # one more of each number kind the fixture bank leaves out: a letter count and a run by three (both for the oldest only)
-LETTERS = Entry(id="fan-d-003", kind="ENGLISH", dial="FAN", age="DETECTIVE", answer=3, word="AIR",
-                text="AIR의 글자 수만큼 바람 세기를 맞춰 줘!",
+LETTERS = Entry(id="fan-d-003", kind="ENGLISH", dial="FAN", age="DETECTIVE", answer=6, word="BANANA",
+                text="banana, 바나나를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!",
                 # the question's own word may be in its hint
-                hint="AIR를 한 글자씩 짚으며 세어 봐.")
+                hint="BANANA를 한 글자씩 짚으며 세어 봐.")
 STEPS = Entry(id="fan-d-002", kind="PATTERN", dial="FAN", age="DETECTIVE", answer=8, terms=(17, 14, 11),
               text="바람 세기를 17, 14, 11 다음에 오는 수의 단으로 맞춰 줘!", hint="수가 얼마씩 작아지는지 봐.")
 # situations the 4~6 are never told (quiz.REASON_NOT_LITTLE), from the shipped bank
@@ -34,11 +34,11 @@ POLLEN = Entry(id="recirc-on-c-r02", kind="REASON", dial="RECIRC", age="CAPTAIN"
                hint="꽃가루는 밖에서 바람을 타고 들어와, 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.")
 # the same kind and answer on three devices
 FAN_3 = Entry(id="fan-l-003", kind="MATH", dial="FAN", age="LITTLE", answer=3, expr="1+2",
-              text="바람 세기를 1 더하기 2단으로 맞춰 줘!", hint="손가락으로 세어 봐.")
+              text="1 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", hint="손가락으로 세어 봐.")
 LIGHTS_3 = Entry(id="lights-l-002", kind="MATH", dial="LIGHTS", age="LITTLE", answer=3, expr="1+2",
-                 text="켜진 독서등이 모두 1 더하기 2개가 되게 해 줘!", hint="손가락으로 세어 봐.")
+                 text="1 더하기 2는 얼마일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!", hint="손가락으로 세어 봐.")
 SEAT_3 = Entry(id="seat_heat-l-002", kind="MATH", dial="SEAT_HEAT", age="LITTLE", answer=3, expr="2+1",
-               text="의자 열선을 2 더하기 1단으로 맞춰 줘!", hint="손가락으로 세어 봐.")
+               text="2 더하기 1은 얼마일까? 의자 열선을 그 수와 같은 단으로 맞춰 줘!", hint="손가락으로 세어 봐.")
 NO_DEVICE = "사과가 세 개 있었는데 두 개를 더 땄어. 사과는 모두 몇 개일까?"
 
 
@@ -55,9 +55,9 @@ def shipped() -> Bank:
     replace(WORD, id="temp_up-l-002", hint="ONE, TWO 하고 손가락을 펴며 세어 봐."),
     replace(WORD, id="temp_up-l-003", hint="ONE부터 차례로 세어 봐."),
     # the instruction's verb may be written without its space
-    replace(SUM, id="fan-l-004", text="바람 세기를 3 더하기 2단으로 맞춰줘!"),
+    replace(SUM, id="fan-l-004", text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰줘!"),
     replace(RUN, id="lights-l-003", text="켜진 독서등이 모두 1개, 2개, 3개 다음 수가 되게 해줘!"),
-    replace(WORD, id="temp_up-l-004", text="온도를 TWO만큼 올려줘."),
+    replace(WORD, id="temp_up-l-004", text="two는 숫자로 몇일까? 그 수만큼 온도를 올려줘."),
 ], ids=lambda e: e.id)
 def test_a_good_entry_of_every_kind_passes(e):
     assert bank.problems(e) == []
@@ -84,11 +84,11 @@ def test_a_good_entry_of_every_kind_passes(e):
     (replace(SUM, dial="LIGHTS"), "정답은 1~4: 5"),
     (replace(SUM, text=NO_DEVICE), "장치 이야기가 아님: 바람, 풍량, 송풍 중 하나가 없음"),
     (replace(WORD, dial="LIGHTS"), "장치 이야기가 아님: 독서등, 불빛, 불을, 불이, 불은, 전등, 빛 중 하나가 없음"),
-    (replace(SEAT_3, text="2 더하기 1단으로 맞춰 줘!"), "장치 이야기가 아님: 열선, 의자, 시트, 엉덩이 중 하나가 없음"),
+    (replace(SEAT_3, text="2 더하기 1은 얼마일까? 그 수와 같은 단으로 맞춰 줘!"), "장치 이야기가 아님: 열선, 의자, 시트, 엉덩이 중 하나가 없음"),
     # a times sign, counting letters and a run by three are for the oldest only
     (replace(TIMES, age="CAPTAIN"), "이 나이에 쓰지 않는 셈: *"),
-    (replace(LETTERS, age="LITTLE"), "이 나이는 숫자 영단어만"),
-    (replace(LETTERS, age="CAPTAIN"), "이 나이는 숫자 영단어만"),
+    (replace(LETTERS, age="LITTLE"), "이 나이에 긴 단어: BANANA (글자 수 3까지)"),
+    (replace(LETTERS, age="CAPTAIN"), "이 나이에 긴 단어: BANANA (글자 수 5까지)"),
     (replace(STEPS, age="CAPTAIN"), "수가 너무 큼"),
     (replace(STEPS, age="CAPTAIN", terms=(10, 7, 4), answer=1, text="바람 세기를 10, 7, 4 다음에 오는 수의 단으로 맞춰 줘!"),
      "이 나이에 맞지 않는 규칙: -3씩"),
@@ -98,7 +98,7 @@ def test_a_good_entry_of_every_kind_passes(e):
     (replace(SUM, hint="귀신이 같이 세어 줄 거야."), "무서운 말: 귀신"),
     (replace(FOG, hint="귀신이 입김을 불었나 봐."), "무서운 말: 귀신"),
     # English other than the question's word and number words, or in any other question's hint
-    (replace(LETTERS, hint="AIR와 CAR를 세어 봐."), "영어나 주소"),
+    (replace(LETTERS, hint="BANANA와 CAR를 세어 봐."), "영어나 주소"),
     (replace(SUM, hint="ONE부터 세어 봐."), "영어나 주소"),
     # stray quotes or control characters a model's output can end in
     (replace(SUM, hint="손가락을 하나씩 펴면서 세어 봐.','"), "이상한 글자: 힌트"),
@@ -168,7 +168,7 @@ def test_the_drivers_seat_situations_end_asking_for_the_guardian():
 
 def test_a_number_question_in_polite_speech_is_refused():
     assert "존댓말: 힌트" in bank.problems(replace(SUM, hint="손가락을 하나씩 펴면서 세어 봐요."))
-    assert "존댓말: 문제" in bank.problems(replace(SUM, text="바람 세기를 3 더하기 2단으로 맞춰 주세요."))
+    assert "존댓말: 문제" in bank.problems(replace(SUM, text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰 주세요."))
 
 
 @pytest.mark.parametrize("e", [replace(HOT, age="LITTLE"), replace(POLLEN, age="LITTLE"),
@@ -294,7 +294,7 @@ def test_pick_never_gives_a_question_of_another_device():
             assert same.pick(q, "CAPTAIN", random.Random(seed)) == (bank.question(e), e.hint)
     # the bank has no temperature question with this answer, so it gives none rather than another device's
     assert same.pick(quiz.QuizKey("MATH", "TEMP_UP", 3), "CAPTAIN", random.Random(0)) is None
-    one = replace(WORD, id="temp_up-l-009", answer=1, word="ONE", text="ONE만큼 온도를 올려 줘!")
+    one = replace(WORD, id="temp_up-l-009", answer=1, word="ONE", text="one은 숫자로 몇일까? 그 수만큼 온도를 올려 줘!")
     situations = Bank([FOG, COOL, COLD, HOT, one])
     for seed in range(30):
         rnd = random.Random(seed)
@@ -466,7 +466,7 @@ def test_situations_are_told_apart_by_their_words_only():
 
 def test_a_number_word_hint_must_not_tell_the_numbers_place():
     one = Entry(id="fan-c-900", kind="ENGLISH", dial="FAN", age="CAPTAIN", answer=1, word="ONE",
-                text="바람 세기를 ONE단으로 맞춰 줘!", hint="ONE은 영어로 셀 때 맨 처음 나오는 말이야.")
+                text="one은 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!", hint="ONE은 영어로 셀 때 맨 처음 나오는 말이야.")
     assert any("차례를 알려 줌" in p for p in bank.problems(one))
     counting = replace(one, hint="원, 투, 쓰리 하며 손가락을 하나씩 펴 봐.")
     assert bank.problems(counting) == []
@@ -481,8 +481,9 @@ def test_a_doubling_list_is_refused_and_has_to_say_so():
     assert said == ["규칙이 하나로 정해지지 않음"]
 
 
-@pytest.mark.parametrize("text", ["바람 세기를 2 더하기 1단으로 맞춰 줘(지금)!", "바람 세기를 2 더하기 1단으로 맞춰 줘! ",
-                                  "바람 세기를 2 더하기 1단으로 맞춰 줘!ㅤ"])
+@pytest.mark.parametrize("text", ["2 더하기 1은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘(지금)!",
+                                  "2 더하기 1은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘! ",
+                                  "2 더하기 1은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!ㅤ"])
 def test_brackets_and_hidden_characters_are_odd(text):
     e = Entry(id="fan-l-900", kind="MATH", dial="FAN", age="LITTLE", answer=3, expr="2+1", text=text, hint="손가락으로 세어 봐.")
     assert "이상한 글자: 문제" in bank.problems(e)
@@ -490,9 +491,9 @@ def test_brackets_and_hidden_characters_are_odd(text):
 
 def test_an_older_age_does_not_get_the_same_sum_as_a_younger_one():
     little = Entry(id="fan-l-901", kind="MATH", dial="FAN", age="LITTLE", answer=3, expr="2+1",
-                   text="바람 세기를 2 더하기 1단으로 맞춰 줘!", hint="손가락으로 세어 봐.")
-    captain = replace(little, id="fan-c-901", age="CAPTAIN", text="바람 세기를 2단에서 1단 더 올린 단으로 맞춰 줘!")
-    other = replace(captain, id="fan-c-902", expr="4-1", text="바람 세기를 4 빼기 1단으로 맞춰 줘!")
+                   text="2 더하기 1은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!", hint="손가락으로 세어 봐.")
+    captain = replace(little, id="fan-c-901", age="CAPTAIN", text="2에 1을 더하면 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!")
+    other = replace(captain, id="fan-c-902", expr="4-1", text="4 빼기 1은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!")
     assert [e.id for e in dedupe([captain, little, other])] == ["fan-l-901", "fan-c-902"]
 
 
@@ -502,15 +503,15 @@ ASKED = "묻는 문장이 아니라 지시하는 문장이어야 함"
 
 @pytest.mark.parametrize("e,expected", [
     # a question to answer first, not the instruction itself
-    (replace(SUM, text="바람 세기를 3 더하기 2단으로 맞추면 몇 단일까?"), ASKED),
-    (replace(SUM, text="바람 세기를 3 더하기 2단으로 맞춰 줘?"), ASKED),
-    (replace(WORD, text="TWO만큼 온도를 올려 줘. 몇 도 올라갔을까!"), ASKED),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞추면 몇 단일까?"), ASKED),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘?"), ASKED),
+    (replace(WORD, text="two는 숫자로 몇일까? 그 수만큼 온도를 올려 줘. 몇 도 올라갔을까!"), ASKED),
     # the device without what to do with it, or another word for the device than the instruction's
-    (replace(SUM, text="바람이 3 더하기 2단이면 좋겠어!"), INSTRUCTION),
-    (replace(SUM, text="송풍을 3 더하기 2단으로 맞춰 줘!"), INSTRUCTION),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 바람이 그 수면 좋겠어!"), INSTRUCTION),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 그 수만큼 송풍을 맞춰 줘!"), INSTRUCTION),
     # the other way round: warming on a cooling key, cooling the seat heat
     (replace(WORD, dial="TEMP_DOWN"), INSTRUCTION),
-    (replace(SEAT_3, text="의자 열선을 2 더하기 1단만큼 내려 줘!"), INSTRUCTION),
+    (replace(SEAT_3, text="2 더하기 1은 얼마일까? 그 수만큼 의자 열선을 내려 줘!"), INSTRUCTION),
     # the reading lights are set by how many are on in all, not switched on by an amount
     (replace(RUN, text="독서등을 1개, 2개, 3개 다음 수만큼 켜 줘!"), INSTRUCTION),
 ])
@@ -523,3 +524,161 @@ def test_the_instruction_rule_names_what_is_missing():
     assert "차 조작 지시가 아님: 독서등와 되게 해 줘/되게 해줘 중 하나가 있어야 함" in bank.problems(lights)
     cooling = replace(WORD, dial="TEMP_DOWN")
     assert "차 조작 지시가 아님: 온도와 내려 줘/내려줘 중 하나가 있어야 함" in bank.problems(cooling)
+
+
+# ---------------------------------------------------------------- how a sum and a letter count are said
+
+
+@pytest.mark.parametrize("e", [
+    replace(SUM, id="temp_up-l-900", dial="TEMP_UP", answer=3, expr="2+1",
+            text="2 더하기 1은 얼마일까? 추우니까 그 수만큼 온도를 올려 줘!"),
+    replace(TIMES, id="fan-d-900", answer=6, expr="(8-5)*2", text="8 빼기 5에 2를 곱하면 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+    replace(LETTERS, id="lights-c-900", age="CAPTAIN", dial="LIGHTS", answer=4, word="FISH", hint="알파벳을 하나씩 손가락으로 세어 봐.",
+            text="fish, 물고기를 영어로 쓰면 몇 글자일까? 켜진 독서등이 모두 그 수만큼 되게 해 줘!"),
+    replace(LETTERS, id="temp_down-l-900", age="LITTLE", dial="TEMP_DOWN", answer=3, word="ICE", hint="ICE를 한 글자씩 짚어 봐.",
+            text="ice, 얼음을 영어로 쓰면 몇 글자일까? 그 수만큼 온도를 내려 줘!"),
+], ids=lambda e: e.id)
+def test_a_sum_or_a_letter_count_asked_first_then_told_as_that_number_passes(e):
+    assert bank.problems(e) == []
+
+
+UNIT = "수 바로 뒤에 단위가 붙어 정답처럼 들림"
+FORM = "식을 먼저 '얼마일까?'로 묻고 '그 수'로 지시해야 함"
+
+
+@pytest.mark.parametrize("e,expected", [
+    # heard aloud, the last number with its unit sounds like the answer (8단, 2도)
+    (replace(TIMES, text="바람 세기를 4 곱하기 3 빼기 7단으로 맞춰 줘!"), UNIT),
+    (replace(SUM, dial="TEMP_UP", answer=3, expr="2+1", text="2 더하기 1도만큼 온도를 올려 줘!"), UNIT),
+    (replace(LIGHTS_3, text="켜진 독서등이 모두 1 더하기 2개가 되게 해 줘!"), UNIT),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 그 수만큼 바람 세기를 5단으로 맞춰 줘!"), UNIT),
+    # without the question first, or without "그 수" after it
+    (replace(SUM, dial="TEMP_UP", answer=3, expr="2+1", text="2 더하기 1만큼 온도를 올려 줘!"), FORM),
+    (replace(SUM, text="3 더하기 2는 얼마일까? 바람 세기를 맞춰 줘!"), FORM),
+    (replace(SUM, text="3 더하기 2를 바람 세기로 맞춰 줘! 얼마일까? 그 수야!"), FORM),
+    # every number of the sum is in the question before "얼마일까?"
+    (replace(TIMES, text="4 곱하기 3은 얼마일까? 그 수에서 7을 뺀 만큼 바람 세기를 맞춰 줘!"),
+     "식의 수는 모두 묻는 말 앞에 있어야 함"),
+    # 8은, 2는: the particle follows the number as it is read
+    (replace(SUM, text="3 더하기 2은 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!"), "숫자 뒤 조사가 틀림: 2은"),
+    (replace(TIMES, text="4 곱하기 3 빼기 7는 얼마일까? 그 수만큼 바람 세기를 맞춰 줘!"), "숫자 뒤 조사가 틀림: 7는"),
+], ids=["unit-dan", "unit-do", "unit-gae", "unit-after", "no-question", "no-that-number", "question-last",
+        "number-after", "particle-2", "particle-7"])
+def test_a_sum_said_so_a_number_sounds_like_the_answer_is_refused(e, expected):
+    assert any(p.startswith(expected) for p in bank.problems(e)), bank.problems(e)
+
+
+LETTER_FORM = "글자 수 문제는 '영어 단어, 우리말 뜻을 영어로 쓰면 몇 글자일까? 그 수...'로 말해야 함"
+
+
+@pytest.mark.parametrize("e,expected", [
+    # the screen does not show the spelling: the word and its meaning are said before the count
+    (replace(LETTERS, text="banana의 글자 수만큼 바람 세기를 맞춰 줘!"), LETTER_FORM),
+    (replace(LETTERS, text="바나나를 영어로 쓰면 몇 글자일까? banana, 그 수만큼 바람 세기를 맞춰 줘!"), LETTER_FORM),
+    (replace(LETTERS, text="rabbit, 바나나를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘! banana"), LETTER_FORM),
+    (replace(LETTERS, text="banana, 바나나을 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"), "뜻 뒤 조사가 틀림: 바나나을"),
+    (replace(LETTERS, text="BANANA, 바나나를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"), "문장 속 영어는 소문자로 써야 함"),
+    # a short word or one that sounds like another, which a child cannot picture or spell by ear
+    (replace(LETTERS, answer=2, word="ON", text="on, 켜짐을 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+     "글자 수를 세기에 짧거나 헷갈리는 단어: ON"),
+    (replace(LETTERS, word="SEA", text="sea, 바다를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+     "글자 수를 세기에 짧거나 헷갈리는 단어: SEA"),
+    (replace(LETTERS, word="AIR", text="air, 공기를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+     "글자 수를 세기에 짧거나 헷갈리는 단어: AIR"),
+], ids=["old-form", "word-last", "other-word", "particle", "capitals", "two-letters", "sound-alike", "nothing-to-picture"])
+def test_a_letter_count_said_wrong_or_on_a_poor_word_is_refused(e, expected):
+    assert any(p.startswith(expected) for p in bank.problems(e)), bank.problems(e)
+
+
+NUMBER_FORM = "숫자 영단어 문제는 '영단어는 숫자로 몇일까? 그 수...'로 말해야 함"
+SEVEN_FIVE = Entry(id="seat_heat-d-900", kind="ENGLISH", dial="SEAT_HEAT", age="DETECTIVE", answer=2, expr="SEVEN-FIVE",
+                   text="seven 빼기 five는 얼마일까? 의자 열선을 그 수와 같은 단으로 맞춰 줘!",
+                   hint="영어 숫자를 하나씩 우리말 숫자로 바꾼 다음 빼 봐.")
+
+
+@pytest.mark.parametrize("e,expected", [
+    # the word right before the unit, the old way
+    (replace(WORD, dial="FAN", text="바람 세기를 two단으로 맞춰 줘!"), "영어 바로 뒤에 단위가 붙음: o단"),
+    (replace(WORD, text="two만큼 온도를 올려 줘!"), "영어 바로 뒤에 단위가 붙음: o만큼"),
+    (replace(WORD, text="two만큼 온도를 올려 줘!"), NUMBER_FORM),
+    (replace(WORD, text="TWO는 숫자로 몇일까? 그 수만큼 온도를 올려 줘!"), "문장 속 영어는 소문자로 써야 함"),
+    # the particle as the word sounds: two(투)는, seven(세븐)은
+    (replace(WORD, text="two은 숫자로 몇일까? 그 수만큼 온도를 올려 줘!"), "영단어 뒤 조사가 틀림: two은"),
+    (replace(WORD, text="one은 숫자로 몇일까? 그 수만큼 온도를 올려 줘!"), NUMBER_FORM),
+    # a plain number word is too easy for the 10~12
+    (replace(WORD, id="temp_up-d-900", age="DETECTIVE"), "10~12세는 숫자 영단어 하나 대신 영어 숫자 셈(seven 빼기 five)으로 냄"),
+    # a sum said in English number words is asked like a sum
+    (replace(SEVEN_FIVE, text="의자 열선을 seven 빼기 five단으로 맞춰 줘!"), "영어 바로 뒤에 단위가 붙음: e단"),
+    (replace(SEVEN_FIVE, text="seven 빼기 five은 얼마일까? 의자 열선을 그 수와 같은 단으로 맞춰 줘!"), "영단어 뒤 조사가 틀림: five은"),
+    (replace(SEVEN_FIVE, text="seven은 얼마일까? 의자 열선을 그 수에서 five를 뺀 단으로 맞춰 줘!"), "식의 수는 모두 묻는 말 앞에 있어야 함"),
+    (replace(SEVEN_FIVE, age="CAPTAIN"), "이 나이는 영어 숫자 셈을 하지 않음"),
+    # its own number words may be in its hint, other English may not
+    (replace(SEVEN_FIVE, hint="seven에서 five를 빼고 cat도 세어 봐."), "영어나 주소"),
+], ids=["unit-dan", "unit-mankeum", "old-form", "capitals", "particle", "other-word", "detective",
+        "sum-unit", "sum-particle", "sum-after", "sum-captain", "sum-hint-english"])
+def test_an_english_question_is_asked_first_and_said_by_its_age(e, expected):
+    assert any(p.startswith(expected) for p in bank.problems(e)), bank.problems(e)
+
+
+@pytest.mark.parametrize("e", [
+    SEVEN_FIVE,
+    replace(WORD, id="fan-c-901", dial="FAN", age="CAPTAIN", answer=7, word="SEVEN",
+            text="seven은 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+    replace(LETTERS, id="fan-l-902", age="LITTLE", answer=3, word="CAT", hint="알파벳을 하나씩 손가락으로 세어 봐.",
+            text="cat, 고양이를 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!"),
+], ids=lambda e: e.id)
+def test_an_english_question_of_every_form_passes(e):
+    assert bank.problems(e) == []
+
+
+@pytest.mark.parametrize("age,word,expected", [
+    ("LITTLE", "SIX", "이 나이에 어려운 숫자 단어: SIX"),
+    ("LITTLE", "FISH", "이 나이에 긴 단어: FISH (글자 수 3까지)"),
+    ("CAPTAIN", "CAT", "이 나이의 글자 수 단어는 4~5글자: CAT"),
+    ("CAPTAIN", "BANANA", "이 나이에 긴 단어: BANANA (글자 수 5까지)"),
+    ("DETECTIVE", "APPLE", "이 나이의 글자 수 단어는 6~8글자: APPLE"),
+])
+def test_each_age_keeps_to_its_own_english(age, word, expected):
+    number = word in quiz.NUMBER_WORDS
+    text = (f"{word.lower()}{quiz.NUMBER_TOPIC[word]} 숫자로 몇일까? 그 수만큼 바람 세기를 맞춰 줘!" if number
+            else f"{word.lower()}, 물건을 영어로 쓰면 몇 글자일까? 그 수만큼 바람 세기를 맞춰 줘!")
+    e = Entry(id="fan-x-900", kind="ENGLISH", dial="FAN", age=age, answer=quiz.NUMBER_WORDS.get(word, len(word)),
+              word=word, text=text, hint="알파벳을 하나씩 손가락으로 세어 봐.")
+    assert expected in bank.problems(e)
+
+
+def test_the_shipped_bank_says_every_number_question_the_new_way(shipped):
+    sums = [e for e in shipped.entries if e.kind == "MATH"]
+    english = [e for e in shipped.entries if e.kind == "ENGLISH"]
+    letters = [e for e in english if quiz.letter_count(e.word)]
+    numbers = [e for e in english if e.word in quiz.NUMBER_WORDS]
+    english_sums = [e for e in english if e.expr]
+    assert sums and letters and numbers and english_sums
+    assert len(letters) + len(numbers) + len(english_sums) == len(english)
+    assert all(bank.MATH_FORM.search(e.text) and not bank.MATH_UNIT.search(e.text) for e in sums + english_sums)
+    assert all(bank.NUMBER_FORM.search(e.text) for e in numbers)
+    assert all(not bank.ENGLISH_UNIT.search(e.text) and e.text == e.text.replace(e.word, e.word.lower()) for e in english)
+    assert all(e.answer == len(e.word) and e.text.startswith(e.word.lower() + ", ") for e in letters)
+    # each age's English: one~five and 3 letters, number words and 4~5 letters, sums and 6~8 letters
+    assert all(quiz.NUMBER_WORDS[e.word] <= 5 for e in numbers if e.age == "LITTLE")
+    assert all(e.age != "DETECTIVE" for e in numbers) and all(e.age == "DETECTIVE" for e in english_sums)
+    for e in letters:
+        lo, hi = quiz.LEVELS[e.age].letters
+        assert lo <= len(e.word) <= hi, e.id
+
+
+def test_the_shipped_bank_has_a_question_for_every_key_an_age_can_be_asked(shipped):
+    for dial in quiz.DIALS:
+        for kind in quiz.KINDS_FOR[dial]:
+            lo, hi = quiz.values(kind, dial)
+            for v in range(lo, hi + 1):
+                q = quiz.QuizKey(kind, dial, v)
+                for age in bank.AGES:
+                    never = kind == "REASON" and age == "LITTLE" and dial in quiz.REASON_NOT_LITTLE
+                    beyond = kind == "ENGLISH" and v > quiz.english_reach(age)
+                    assert bool(shipped.candidates(q, age)) != (never or beyond), (q.key, age)
+    # the 10~12 never fall back to a plain number word
+    for e in shipped.entries:
+        if e.kind == "ENGLISH":
+            picked = shipped.candidates(quiz.QuizKey("ENGLISH", e.dial, e.answer), "DETECTIVE")
+            assert all(x.word not in quiz.NUMBER_WORDS for x in picked), (e.dial, e.answer)
