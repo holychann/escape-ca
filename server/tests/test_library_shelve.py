@@ -127,3 +127,45 @@ def test_a_shelf_that_cannot_queue_does_not_reach_the_family(tmp_path):
     lib = Library(FolderStorage(tmp_path / "shelf"), run=broken)
     r = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY)
     assert r.status_code == 200 and r.json()["scenes"] and lib.size(CELL) == 0
+
+
+def long_result():
+    d = draft(KEYS)
+    d.scenes[1].result = "유리가 맑아지고 있어! " * 30
+    return d
+
+
+def checked(bank=BANK):
+    from app.library import recheck
+    return lambda s, d, r: recheck(s, d, r, bank)
+
+
+def test_a_story_the_restart_check_would_drop_is_not_shelved(tmp_path):
+    lib = shelf(tmp_path)
+    lib.check = checked()
+    ep = client(tmp_path, FakeWriter(long_result()), lib).post("/v1/episode", json=BODY).json()
+    assert ep["scenes"][REASON]["result"] == "" and lib.size(CELL) == 0
+    assert not (tmp_path / "shelf" / CELL.path() / ep["storyId"]).exists()
+
+
+def test_a_story_that_passes_the_check_is_shelved_and_survives_a_restart(tmp_path):
+    lib = shelf(tmp_path)
+    lib.check = checked()
+    ep = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY).json()
+    assert lib.size(CELL) == 1
+    again = Library(FolderStorage(tmp_path / "shelf"))
+    again.load(checked())
+    assert again.size(CELL) == 1 and again.get(ep["storyId"]) is not None
+
+
+def test_the_shelf_made_by_make_library_checks_before_shelving(monkeypatch, tmp_path):
+    from app.library import make_library
+    monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path / "shelf"))
+    monkeypatch.setenv("STORY_LIBRARY_MODELS", "")
+    lib = make_library(checked())
+    ep = client(tmp_path, FakeWriter(long_result()), lib).post("/v1/episode", json=BODY).json()
+    lib.drain(5)
+    assert lib.size(CELL) == 0 and ep["scenes"]
+    ok = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY).json()
+    lib.drain(5)
+    assert lib.size(CELL) == 1 and lib.get(ok["storyId"]) is not None

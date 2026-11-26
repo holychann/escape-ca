@@ -3,7 +3,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from app.library import (SHELF_CONTEXT, SHELF_INSTALL, Cell, FolderStorage, Library, S3Storage, Shelved, ShelfMeta, make_library)
-from app.models import Episode, EpisodeRequest, SceneText
+from app.models import Episode, EpisodeRequest, LibraryRequest, SceneText
 from tests.fakes import BANK, FRIEND, MATH, REASON, filled
 
 KEYS = [MATH, REASON, "BELT"]
@@ -15,7 +15,7 @@ INSTALL = "0123456789abcdef0123"
 def clean_env(monkeypatch):
     for name in ("STORY_LIBRARY_BUCKET", "STORY_LIBRARY_PREFIX", "STORY_LIBRARY_DIR", "STORY_LIBRARY_MODELS",
                  "STORY_LIBRARY_CAP", "STORY_LIBRARY_MIN", "STORY_LIBRARY_FRESH", "STORY_LIBRARY_CANDIDATES",
-                 "STORY_LIBRARY_PER_IP", "STORY_LIBRARY_BLOCKS_PER_IP"):
+                 "STORY_LIBRARY_PER_IP", "STORY_LIBRARY_BLOCKS_PER_IP", "STORY_LIBRARY_LOAD_SECONDS"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -207,3 +207,65 @@ def test_the_app_turns_the_library_on_from_the_environment(monkeypatch, tmp_path
     ask = {"ages": ["CAPTAIN"], "minutes": 10, "friend": FRIEND, "playable": [MATH, REASON], "allowFresh": False}
     got = TestClient(second).post("/v1/library", json=ask).json()["stories"]
     assert [s["episode"]["storyId"] for s in got] == [story_id]
+
+
+def many(tmp_path, n, blocked=()):
+    base = shelved()
+    storage = FolderStorage(tmp_path)
+    lib = Library(storage)
+    for i in range(n):
+        sid = f"{i:032x}"
+        s = base.model_copy(update={"episode": base.episode.model_copy(update={"storyId": sid})})
+        lib.add(s, filled(KEYS), request())
+    for sid in blocked:
+        storage.put(f"blocked/{sid}.json", b"{}", "application/json")
+    return storage
+
+
+def test_many_stories_load_the_same(tmp_path):
+    many(tmp_path, 60)
+    again = Library(FolderStorage(tmp_path))
+    again.load(lambda sh, d, r: [])
+    assert again.size(CELL) == 60 and len(again.stories) == 60
+
+
+def test_one_check_that_raises_skips_only_its_story(tmp_path):
+    many(tmp_path, 5)
+    again = Library(FolderStorage(tmp_path))
+
+    def check(sh, d, r):
+        if sh.episode.storyId == f"{2:032x}":
+            raise RuntimeError("boom")
+        return []
+
+    again.load(check)
+    assert again.size(CELL) == 4 and again.get(f"{2:032x}") is None
+
+
+def test_a_slow_storage_stops_the_load_at_the_deadline(tmp_path):
+    import time
+
+    class Slow(FolderStorage):
+        def get(self, path):
+            time.sleep(0.2)
+            return super().get(path)
+
+    blocked = [f"{i:032x}" for i in range(0, 40, 2)]
+    many(tmp_path, 40, blocked)
+    again = Library(Slow(tmp_path), load_seconds=0.5)
+    start = time.monotonic()
+    again.load()
+    assert time.monotonic() - start < 1.5
+    assert 0 < len(again.stories) < 40
+    offered = again.candidates(LibraryRequest(ages=["CAPTAIN"], minutes=10, friend=FRIEND,
+                                              playable=[MATH, REASON], allowFresh=False))
+    assert all(s.episode.storyId not in blocked for s in offered)
+    assert again.blocked == set(blocked)
+
+
+def test_the_load_deadline_comes_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path))
+    monkeypatch.setenv("STORY_LIBRARY_LOAD_SECONDS", "7")
+    assert make_library().load_seconds == 7
+    monkeypatch.delenv("STORY_LIBRARY_LOAD_SECONDS")
+    assert make_library().load_seconds == 60

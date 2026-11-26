@@ -14,7 +14,7 @@ import logging
 import os
 import random
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import date, datetime, timezone
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -37,6 +37,8 @@ SHELF_INSTALL = "0" * 16
 # a placeholder only, put back where the request needs a context: the checks never read it
 SHELF_CONTEXT = {"timeOfDay": "AFTERNOON", "season": "SPRING"}
 DEFAULT_MODELS = "claude"
+LOAD_WORKERS = 16
+DEFAULT_LOAD_SECONDS = 60.0
 
 
 class Storage(Protocol):
@@ -144,15 +146,19 @@ Check = Callable[[Shelved, Draft, EpisodeRequest], list[str]]
 
 class Library:
     def __init__(self, storage: Storage, models: tuple[str, ...] = (), cap: int = 200, min_fresh: int = 30,
-                 fresh: float = 0.3, offer: int = 10, blocks_per_ip: int = 5,
+                 fresh: float = 0.3, offer: int = 10, blocks_per_ip: int = 5, load_seconds: float = DEFAULT_LOAD_SECONDS,
                  run: Callable[[Callable[[], None]], object] | None = None):
         self.storage = storage
         self.models = models
+        self.load_seconds = load_seconds
         self.cap, self.min_fresh, self.fresh, self.offer, self.blocks_per_ip = cap, min_fresh, fresh, offer, blocks_per_ip
         self._pool = None if run else ThreadPoolExecutor(max_workers=1)
         self.run = run or self._pool.submit
         # request threads and the shelving job both touch the index
         self.lock = threading.Lock()
+        # the check ``load`` was given: a story is held to it before it is shelved too, so none is shelved that the
+        # next start would drop
+        self.check: Check | None = None
         self.stories: dict[str, Shelved] = {}
         self.cells: dict[Cell, list[str]] = {}
         # stories nobody is offered any more (filled in when a story is blocked)
@@ -206,6 +212,13 @@ class Library:
 
             def job() -> None:
                 try:
+                    if self.check is not None:
+                        # the request as ``load`` will rebuild it from what is stored
+                        stored = EpisodeRequest(installId=SHELF_INSTALL, context=SHELF_CONTEXT,
+                                                **req.model_dump(exclude={"installId", "wish", "context"}))
+                        if problems := self.check(shelved, draft, stored):
+                            log.warning("shelf: %s fails its check, not shelved: %s", ep.storyId, problems)
+                            return
                     self.add(shelved, draft, req)
                 except Exception:
                     log.exception("shelf: %s could not be shelved", ep.storyId)
@@ -268,34 +281,57 @@ class Library:
         return True
 
     def load(self, check: Check | None = None) -> None:
-        """Index every complete story in the storage; a broken, half-written, unallowed or failing one is skipped."""
-        for path in self.storage.list(BLOCKED):
-            if path.endswith(".json"):
-                self.blocked.add(path.removeprefix(BLOCKED).removesuffix(".json"))
-        for path in self.storage.list(ROOT):
-            if not path.endswith("/story.json"):
-                continue
-            try:
-                shelved = Shelved.model_validate_json(self.storage.get(path) or b"")
-                raw = self.storage.get(path.removesuffix("story.json") + "draft.json")
-                if raw is None:
-                    log.warning("shelf: %s has no draft.json, skipped", path)
-                    continue
-                body = json.loads(raw)
-                draft = Draft.model_validate(body["draft"])
-                request = EpisodeRequest(installId=SHELF_INSTALL, context=SHELF_CONTEXT, **body["request"])
-            except Exception as e:
-                log.warning("shelf: %s cannot be read, skipped: %s", path, e)
-                continue
-            if shelved.episode.storyId in self.blocked:
+        """Index every complete story in the storage; a broken, half-written, unallowed or failing one is skipped.
+
+        The blocked marks are read first, then the stories are fetched by a pool of workers. When ``load_seconds``
+        have passed the server stops waiting and starts with the stories indexed so far; the blocked ids are known
+        by then, so a reported story is never offered either way."""
+        self.check = check
+        blocked = [p.removeprefix(BLOCKED).removesuffix(".json") for p in self.storage.list(BLOCKED) if p.endswith(".json")]
+        with self.lock:
+            self.blocked.update(blocked)
+        paths = [p for p in self.storage.list(ROOT) if p.endswith("/story.json")]
+        stop = threading.Event()
+        pool = ThreadPoolExecutor(max_workers=LOAD_WORKERS)
+        try:
+            futures = [pool.submit(self._load_one, p, check, stop) for p in paths]
+            done, pending = wait(futures, timeout=self.load_seconds)
+            if pending:
+                stop.set()
+                with self.lock:
+                    indexed = len(self.stories)
+                log.warning("shelf: loading took more than %s s, starting with %d of %d stories", self.load_seconds,
+                            indexed, len(paths))
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    def _load_one(self, path: str, check: Check | None, stop: threading.Event) -> None:
+        if stop.is_set():
+            return
+        try:
+            shelved = Shelved.model_validate_json(self.storage.get(path) or b"")
+            raw = self.storage.get(path.removesuffix("story.json") + "draft.json")
+            if raw is None:
+                log.warning("shelf: %s has no draft.json, skipped", path)
+                return
+            body = json.loads(raw)
+            draft = Draft.model_validate(body["draft"])
+            request = EpisodeRequest(installId=SHELF_INSTALL, context=SHELF_CONTEXT, **body["request"])
+            with self.lock:
+                reported = shelved.episode.storyId in self.blocked
+            if reported:
                 log.info("shelf: %s was reported, skipped", path)
-                continue
+                return
             if not self.allows(shelved.meta.writer) or not self.allows(shelved.episode.model):
                 log.info("shelf: %s was written by %s, skipped", path, shelved.meta.writer)
-                continue
+                return
             if check and (problems := check(shelved, draft, request)):
                 log.warning("shelf: %s fails its check, skipped: %s", path, problems)
-                continue
+                return
+        except Exception as e:
+            log.warning("shelf: %s cannot be read or checked, skipped: %s", path, e)
+            return
+        if not stop.is_set():
             self._index(shelved)
 
 
@@ -329,7 +365,8 @@ def make_library(check: Check | None = None) -> Library | None:
         models = tuple(m.strip() for m in os.environ.get("STORY_LIBRARY_MODELS", DEFAULT_MODELS).split(",") if m.strip())
         lib = Library(storage, models=models, cap=_int("STORY_LIBRARY_CAP", 200), min_fresh=_int("STORY_LIBRARY_MIN", 30),
                       fresh=float(os.environ.get("STORY_LIBRARY_FRESH") or 0.3),
-                      offer=_int("STORY_LIBRARY_CANDIDATES", 10), blocks_per_ip=_int("STORY_LIBRARY_BLOCKS_PER_IP", 5))
+                      offer=_int("STORY_LIBRARY_CANDIDATES", 10), blocks_per_ip=_int("STORY_LIBRARY_BLOCKS_PER_IP", 5),
+                      load_seconds=float(os.environ.get("STORY_LIBRARY_LOAD_SECONDS") or DEFAULT_LOAD_SECONDS))
         lib.load(check)
         return lib
     except Exception:
