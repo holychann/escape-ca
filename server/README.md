@@ -83,6 +83,8 @@ adb reverse tcp:8787 tcp:8787
 
 클라우드(Cloud Run, Fly.io, Render 등)에는 `server/Dockerfile`로 바로 배포할 수 있습니다(`STORY_TRUST_PROXY=1` 기본 포함). 배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
 
+AWS Lightsail 같은 서버 한 대에 올릴 때는 `compose.yaml`(이야기 서버 + HTTPS를 맡는 Caddy)을 씁니다. 인스턴스 만들기부터 앱 연결, 운영 명령까지 [배포_방법.md](배포_방법.md)에 있습니다.
+
 ## 시험
 
 ```powershell

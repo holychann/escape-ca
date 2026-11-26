@@ -1,0 +1,18 @@
+# HTTPS 앞단. STORY_DOMAIN(.env)으로 Let's Encrypt 인증서를 자동으로 받고, 80번으로 온 요청은 443으로 넘깁니다.
+{$STORY_DOMAIN} {
+	# 차가 보내는 요청은 작습니다. 큰 본문은 서버까지 가지 않게
+	request_body {
+		max_size 64KB
+	}
+
+	encode gzip
+
+	reverse_proxy story:8787 {
+		transport http {
+			# 그림까지 그리는 이야기는 오래 걸립니다. 앱은 5분까지 기다리니(StoryClient.kt) 그보다 조금 길게
+			response_header_timeout 6m
+		}
+	}
+
+	# 접속 기록(log)은 켜지 않습니다. 켜면 차마다 IP 주소가 남습니다
+}
