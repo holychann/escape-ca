@@ -19,14 +19,6 @@ when {
 // For a build that talks to a deployed server: ./gradlew assembleRelease -PstoryUrl=https://...
 val storyUrl = (findProperty("storyUrl") as String?) ?: "http://127.0.0.1:8787"
 
-// The user rulebook lives in docs/ (one place to edit). The build copies it into the app's assets under an ASCII name,
-// since aapt2 cannot open the Korean file name on Windows; the app reads it as rulebook/rulebook.md (guide/GuideText).
-val rulebookAssets = layout.buildDirectory.dir("generated/rulebook")
-val copyRulebook by tasks.registering(Copy::class) {
-    from(rootProject.file("../docs/차근차근탐험단_룰북.md")) { rename { "rulebook.md" } }
-    into(rulebookAssets.map { it.dir("rulebook") })
-}
-
 android {
     namespace = "kr.escape.car"
     compileSdk = 35
@@ -57,21 +49,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-    sourceSets["main"].assets.srcDir(rulebookAssets)
-
-    testOptions {
-        unitTests {
-            // Robolectric draws the Compose screens for the screenshot tests (ScreenshotTest) with the app's own assets
-            isIncludeAndroidResources = true
-            all {
-                it.systemProperty("roborazzi.test.record", "true")
-                it.systemProperty("screenshots.dir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
-                it.systemProperty("rulebook.file", rootProject.file("../docs/차근차근탐험단_룰북.md").absolutePath)
-                it.maxHeapSize = "3g"
-            }
-        }
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -100,14 +77,4 @@ dependencies {
     // the real org.json for JVM tests (android.jar only has stubs)
     testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
-    // screenshots without an emulator: Robolectric draws the screens on the JVM and Roborazzi saves them as PNG
-    testImplementation("org.robolectric:robolectric:4.14.1")
-    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.43.0")
-    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.43.0")
-    testImplementation("androidx.test.ext:junit:1.2.1")
-    testImplementation(platform("androidx.compose:compose-bom:2024.09.03"))
-    testImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
-
-tasks.named("preBuild") { dependsOn(copyRulebook) }

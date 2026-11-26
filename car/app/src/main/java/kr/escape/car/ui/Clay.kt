@@ -114,17 +114,6 @@ fun BodyText(
     textAlign: TextAlign? = null,
 ) = Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, lineHeight = size * 1.45f, textAlign = textAlign)
 
-/** The same body text with spans in it (the rulebook's **bold**). */
-@Composable
-fun BodyText(
-    text: androidx.compose.ui.text.AnnotatedString,
-    modifier: Modifier = Modifier,
-    size: TextUnit = 22.sp,
-    color: Color = Clay.Sub,
-    weight: FontWeight = FontWeight.Normal,
-    textAlign: TextAlign? = null,
-) = Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, lineHeight = size * 1.45f, textAlign = textAlign)
-
 // ---------- images ----------
 
 /** A picture by name: an asset in assets/img, or "file:/…" for a picture the story server drew for this episode. */
@@ -287,7 +276,7 @@ fun CheckLabel(label: String, ok: Boolean) {
 
 // ---------- line icons ----------
 
-enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART, FORBID, BOOK }
+enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART }
 
 /** Simple rounded line icons drawn in code, so they take any color and need no resources. */
 @Composable
@@ -332,20 +321,6 @@ fun ClayGlyph(icon: ClayIcon, color: Color, modifier: Modifier = Modifier) {
             }
             ClayIcon.WAVE -> wave(color, w)
             ClayIcon.HEART -> drawPath(heartPath(w), color)
-            // 쓰지 않아요: a ring with a slash through it
-            ClayIcon.FORBID -> {
-                drawCircle(color, w * 0.4f, Offset(w / 2, w / 2), style = Stroke(w * 0.12f))
-                drawLine(color, Offset(w * 0.22f, w * 0.22f), Offset(w * 0.78f, w * 0.78f), w * 0.12f, StrokeCap.Round)
-            }
-            // 사용법: an open book
-            ClayIcon.BOOK -> {
-                drawPath(Path().apply {
-                    moveTo(w / 2, w * 0.3f); quadraticTo(w * 0.32f, w * 0.2f, w * 0.1f, w * 0.26f); lineTo(w * 0.1f, w * 0.78f)
-                    quadraticTo(w * 0.32f, w * 0.72f, w / 2, w * 0.82f); quadraticTo(w * 0.68f, w * 0.72f, w * 0.9f, w * 0.78f)
-                    lineTo(w * 0.9f, w * 0.26f); quadraticTo(w * 0.68f, w * 0.2f, w / 2, w * 0.3f); close()
-                }, color, style = s)
-                drawLine(color, Offset(w / 2, w * 0.3f), Offset(w / 2, w * 0.82f), w * 0.09f, StrokeCap.Round)
-            }
         }
     }
 }

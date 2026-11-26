@@ -108,18 +108,7 @@ import kr.escape.car.ui.KidText
 import kr.escape.car.ui.Portrait
 import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
-import kr.escape.car.guide.GuideText
-import kr.escape.car.guide.Rulebook
-import kr.escape.car.ui.GuideButton
-import kr.escape.car.ui.GuideKid
-import kr.escape.car.ui.GuideParent
-import kr.escape.car.ui.ParkedOnly
-import kr.escape.car.ui.PromiseKid
-import kr.escape.car.ui.PromiseParent
 import kr.escape.car.voice.Lumi
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     /** The car, Lumi and the game live here, so a rebuilt screen goes on with the same episode. */
@@ -171,124 +160,25 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
         if (ui.setup.wish != askedWish) askedWish = ui.setup.wish else delay(1500)
         stories.prepare(ui.setup, source.state.value)
     }
-    val reading by lumi.reading.collectAsState()
-    // the rulebook (docs/차근차근탐험단_룰북.md, in the assets); without it the app plays as before, with no 사용법
-    val context = LocalContext.current
-    val rulebook = remember { runCatching { Rulebook.parse(context.assets.open(GuideText.ASSET).bufferedReader().use { it.readText() }) }.getOrNull() }
-    var sheet by remember { mutableStateOf(Sheet.NONE) }
-    // 오늘은 다시 안 보기: the day the parent chose it, on this device
-    val today = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA).format(Date())
-    var skipDate by remember { mutableStateOf(prefs.getString(GuideText.PREF_SKIP_DATE, null)) }
-    Screen(
-        game, ui, car, friends, speaking, reading, shown, view, subs, lumi, rulebook, sheet, { sheet = it },
-        skippedToday = skipDate == today,
-        onSkipToday = { skipDate = today; prefs.edit().putString(GuideText.PREF_SKIP_DATE, today).apply() },
-    )
-}
-
-/** What covers the two panes: nothing, 「놀이 전 약속」 or the rulebook ([사용법]). */
-internal enum class Sheet { NONE, PROMISE, GUIDE }
-
-/**
- * The whole screen from its state: the header, the parent's panel and the child's stage side by side (or the child's
- * on top in portrait), or 「놀이 전 약속」 / [사용법] in their place. Kept apart from [App] so it can be drawn without a
- * car (the screenshot tests).
- */
-@Composable
-internal fun Screen(
-    game: Game,
-    ui: GameUi,
-    car: CarState,
-    friends: Book,
-    speaking: Boolean,
-    reading: Boolean,
-    subtitle: String?,
-    view: StoryView,
-    subs: Subs,
-    lumi: Lumi,
-    rulebook: Rulebook?,
-    sheet: Sheet,
-    onSheet: (Sheet) -> Unit,
-    skippedToday: Boolean,
-    onSkipToday: () -> Unit,
-) {
-    val promise = rulebook?.promise
-    // the start button goes through 「놀이 전 약속」 first, unless the parent chose not to see it again today
-    val start = { if (promise != null && !skippedToday) onSheet(Sheet.PROMISE) else game.begin() }
-    val openGuide = {
-        // the game waits while the rulebook is open, the same as the parent's 멈춤
-        if (ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED) && !ui.held) game.hold()
-        onSheet(Sheet.GUIDE)
-    }
-    val closeSheet = {
-        lumi.stop()
-        onSheet(Sheet.NONE)
-    }
-    // the rulebook is covered while the car is not parked, like every other screen
-    val parked = StopReason.DRIVING !in Safety.startBlockers(car)
-    val sheetSubtitle = subtitle?.takeIf { parked }
     BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Clay.NightTop, Clay.NightBottom)))) {
         val portrait = maxWidth < maxHeight
-        val parentPane: @Composable (Modifier) -> Unit = { m ->
-            when {
-                sheet != Sheet.NONE && !parked -> ParkedOnly(m)
-                sheet == Sheet.PROMISE && promise != null -> {
-                    // ticked again for every episode: a fresh set each time the promise opens
-                    var checked by remember { mutableStateOf(List(promise.checks.size) { false }) }
-                    var skip by remember { mutableStateOf(false) }
-                    val blockers = Safety.startBlockers(car)
-                    PromiseParent(
-                        promise, checked, { i -> checked = checked.toMutableList().also { it[i] = !it[i] } },
-                        skip, { skip = !skip },
-                        notices = blockers.map { it.message },
-                        canGo = checked.all { it } && blockers.isEmpty() && game.playable(car),
-                        onBack = closeSheet,
-                        onGo = {
-                            if (skip) onSkipToday()
-                            onSheet(Sheet.NONE)
-                            game.begin()
-                        },
-                        modifier = m,
-                    )
-                }
-                sheet == Sheet.GUIDE && rulebook != null -> GuideParent(rulebook, ui.held && ui.phase != Phase.SETUP, closeSheet, m)
-                else -> Column(m, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (rulebook != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { GuideButton(openGuide) }
-                    ParentPanel(game, ui, car, speaking, lumi, view, subs, start, if (portrait) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().weight(1f))
-                }
-            }
-        }
-        val kidPane: @Composable (Modifier) -> Unit = { m ->
-            when {
-                sheet != Sheet.NONE && !parked -> ParkedOnly(m)
-                sheet == Sheet.PROMISE && promise != null -> PromiseKid(promise, reading, lumi::sayAll, lumi::stop, sheetSubtitle, m)
-                sheet == Sheet.GUIDE && rulebook != null -> GuideKid(rulebook, reading, lumi::sayAll, lumi::stop, sheetSubtitle, m)
-                else -> KidStage(game, ui, friends, speaking, subtitle, view, m)
-            }
-        }
-        val wide = if (sheet != Sheet.NONE) 860.dp else if (ui.phase == Phase.SETUP) 680.dp else 500.dp
         Column(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 28.dp, bottom = 36.dp)) {
             Header(ui, car)
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    if (sheet == Sheet.NONE) {
-                        kidPane(Modifier.weight(1f).fillMaxWidth())
-                        parentPane(Modifier.fillMaxWidth())
-                    } else {
-                        kidPane(Modifier.weight(0.42f).fillMaxWidth())
-                        parentPane(Modifier.weight(0.58f).fillMaxWidth())
-                    }
+                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxWidth())
+                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    parentPane(Modifier.width(wide).fillMaxHeight())
-                    kidPane(Modifier.weight(1f).fillMaxHeight())
+                    val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
+                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.width(panelWidth).fillMaxHeight())
+                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
-        // while the rulebook is open the game is held behind it; closing it shows the pause card with 이어 하기
-        if (sheet == Sheet.NONE && ui.paused && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED)) PauseOverlay(game, ui)
+        if (ui.paused && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED)) PauseOverlay(game, ui)
     }
 }
 
@@ -384,7 +274,6 @@ private fun ParentPanel(
     lumi: Lumi,
     view: StoryView,
     subs: Subs,
-    onStart: () -> Unit,
     modifier: Modifier,
 ) {
     when (ui.phase) {
@@ -392,7 +281,7 @@ private fun ParentPanel(
             // the episode the car was switched off in comes first: the parent goes on with it or starts anew
             val saved by game.saved.collectAsState()
             val resume = saved
-            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, onStart, modifier)
+            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, modifier)
         }
         Phase.INTRO -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
@@ -462,7 +351,7 @@ private fun ParentPanel(
 }
 
 @Composable
-private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, subs: Subs, onStart: () -> Unit, modifier: Modifier) {
+private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, subs: Subs, modifier: Modifier) {
     val blockers = Safety.startBlockers(car)
     // with no puzzle this car can play, game.begin() would return without a word
     val playable = game.playable(car)
@@ -497,7 +386,7 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, s
             else -> "기본 이야기로 시작하기"
         }
         ClayButton(start, ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp, enabled = blockers.isEmpty() && playable) {
-            onStart()
+            game.begin()
         }
     }
 }
@@ -539,7 +428,7 @@ private fun ResumePanel(game: Game, saved: Progress, car: CarState, modifier: Mo
 }
 
 /** What the story server is doing for the setup screen: its status, the story it has ready, why it refused a wish. */
-internal data class StoryView(val status: StoryRepo.Status, val preview: Story?, val rejection: List<String>, val waited: Int = 0)
+private data class StoryView(val status: StoryRepo.Status, val preview: Story?, val rejection: List<String>, val waited: Int = 0)
 
 /** Whole seconds since [running] turned on (and since [key] last changed while it was on); 0 while it is off. */
 @Composable
@@ -958,7 +847,7 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subt
 }
 
 /** 아이 화면 자막 switch, and its setter (remembered on the device). */
-internal data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
+private data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
 
 /**
  * The child's subtitles: what the friend is saying now, one or two lines, in the round kid font, dark on a light see-
