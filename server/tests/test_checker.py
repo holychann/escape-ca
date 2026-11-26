@@ -285,6 +285,21 @@ def test_a_rare_friend_gets_no_made_up_catchphrase():
     assert "고른 친구('나'): 캐스핀. 상어 친구이고, 말버릇은 정해져 있지 않다" in user_message(req)
 
 
+def test_a_catchphrase_comes_with_the_moment_it_fits():
+    req = request([[MATH]]).model_copy(update={"friend": "KONYANG"})
+    assert '말버릇은 "자세히 보면 보여"(무언가를 자세히 살펴서 단서나 달라진 점을 찾아냈을 때 쓴다)' in user_message(req)
+    # never tacked onto the greeting
+    assert "intro나 treasureBadge 끝에 인사처럼 따로 붙이지 않고" in SYSTEM
+
+
+def test_the_greeting_never_announces_the_lesson():
+    assert "intro에서는 교훈을 말로 다짐하거나 예고하지 않는다" in SYSTEM and "intro에서 살짝 비춘다" not in SYSTEM
+
+
+def test_a_named_thing_takes_its_title_after_the_name():
+    assert "'참나무 할아버지'" in SYSTEM and "'할아버지 참나무'처럼 호칭을 앞에 두지 않는다" in SYSTEM
+
+
 def test_the_result_line_may_name_the_answer_the_child_just_put_in():
     req = request([[AC], [MATH]])
     d = filled(req.keys)
