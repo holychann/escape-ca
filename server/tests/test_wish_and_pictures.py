@@ -50,10 +50,12 @@ def client(tmp_path, writer, painter=None, bank=BANK):
 
 def test_a_scary_or_personal_wish_is_refused_before_any_model(tmp_path):
     w = FakeWriter()
-    r = client(tmp_path, w).post("/v1/episode", json={**BODY, "wish": "귀신 나오는 집 탐험"})
-    assert r.status_code == 422 and r.json()["detail"]["error"] == "wish_rejected"
+    for bad_wish in ("귀신 나오는 집 탐험", "귀.신 나오는 집", "창 문 열 어 서 별 보기", "전 화 번 호 맞히기"):
+        r = client(tmp_path, w).post("/v1/episode", json={**BODY, "wish": bad_wish})
+        assert r.status_code == 422 and r.json()["detail"]["error"] == "wish_rejected"
     assert w.calls == 0
     assert wish_problems("우리 집 주소 알려 줘")
+    assert wish_problems("귀\u200b신 놀이")
     assert not wish_problems("T-rex 공룡 섬에서 보물찾기")  # English words are fine in a wish
 
 
@@ -145,3 +147,22 @@ def test_no_scene_pictures_unless_asked(tmp_path):
     assert ep["images"] == {} and painter.calls == []
     record = json.loads((tmp_path / "episodes.jsonl").read_text(encoding="utf-8"))
     assert record["wish"] is False
+
+
+def test_expired_episode_pictures_are_pruned(tmp_path):
+    import os
+    from app.store import prune_images
+
+    images_dir = tmp_path / "images"
+    old_dir = images_dir / ("a" * 32)
+    fresh_dir = images_dir / ("b" * 32)
+    old_dir.mkdir(parents=True)
+    fresh_dir.mkdir(parents=True)
+    (old_dir / "cover.webp").write_bytes(b"x")
+    (fresh_dir / "cover.webp").write_bytes(b"x")
+    os.utime(old_dir, (1000, 1000))
+    os.utime(fresh_dir, (95000, 95000))
+
+    assert prune_images(images_dir, max_age_hours=24, now=100000) == 1
+    assert not old_dir.exists() and fresh_dir.exists()
+

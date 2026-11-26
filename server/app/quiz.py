@@ -8,9 +8,10 @@ A quiz key is ``Q:<KIND>:<DIAL>:<VALUE>``, e.g. ``Q:MATH:FAN:5`` (a sum whose an
 """
 import ast
 import re
+import unicodedata
 from dataclasses import dataclass
 
-from textgate import norm
+from .text_guard import norm
 
 KINDS = ("MATH", "ENGLISH", "PATTERN", "REASON")
 KIND_LABEL = {"MATH": "계산", "ENGLISH": "영어", "PATTERN": "규칙 찾기", "REASON": "추론"}
@@ -251,17 +252,19 @@ def native(n: int) -> list[str]:
 
 def mentions(text: str, n: int) -> bool:
     """The number is written in the text, as digits or in Korean words (세 개, 다섯)."""
-    if re.search(rf"(?<!\d){n}(?!\d)", text):
+    clean = unicodedata.normalize("NFKC", text)
+    if re.search(rf"(?<!\d){n}(?!\d)", clean):
         return True
-    t = norm(text)
+    t = norm(clean)
     return any(w in t for w in native(n))
 
 
 def leaks(text: str, n: int) -> bool:
     """The answer itself is in the text: as digits, or as Korean words counting something (다섯 개, 세 칸)."""
-    if re.search(rf"(?<!\d){n}(?!\d)", text):
+    clean = unicodedata.normalize("NFKC", text)
+    if re.search(rf"(?<!\d){n}(?!\d)", clean):
         return True
-    return any(re.search(r"(?<![가-힣])" + re.escape(w) + _COUNTERS, text) or re.search(_SAID + re.escape(w), text) for w in native(n))
+    return any(re.search(r"(?<![가-힣])" + re.escape(w) + _COUNTERS, clean) or re.search(_SAID + re.escape(w), clean) for w in native(n))
 
 
 # ---------------------------------------------------------------- working the answer out

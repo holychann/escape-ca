@@ -89,3 +89,48 @@ def test_the_blind_check_sees_only_the_question_and_numbered_choices():
     prompt = solver_prompt("앞 유리가 뿌예서 앞이 안 보여!", ["에어컨 켜기", "앞 유리 성에 제거 켜기"])
     assert prompt.splitlines() == ["문제: 앞 유리가 뿌예서 앞이 안 보여!", "보기:", "1. 에어컨 켜기", "2. 앞 유리 성에 제거 켜기",
                                    "정답 번호만 숫자로 답해."]
+
+
+def test_claude_and_gemini_writers_both_report_token_counts_to_story_spec(monkeypatch):
+    from app.models import EpisodeRequest
+    from tests.fakes import BANK
+    from tools import story_spec
+
+    usage = SimpleNamespace(input_tokens=1200, cache_creation_input_tokens=100, cache_read_input_tokens=50, output_tokens=400)
+    message = SimpleNamespace(
+        stop_reason="end_turn",
+        content=[SimpleNamespace(type="text", text=draft([MATH, "BELT"]).model_dump_json())],
+        model="claude-opus-5-5-20260701",
+        usage=usage,
+    )
+    fake_client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=lambda **_: message)))
+    claude = ClaudeWriter(model="claude-opus-5-5", client=fake_client)
+
+    monkeypatch.setattr(story_spec, "_writer", claude)
+    monkeypatch.setattr(story_spec, "_bank", BANK)
+    req = EpisodeRequest(installId="00000000-0000-0000-0000-000000000000", ages=["CAPTAIN"], minutes=5,
+                         context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[MATH], ["BELT"]],
+                         friend="BANTE")
+    written = story_spec.write(req)
+    assert claude.last_tokens == (1350, 400)
+    assert (written.tokens_in, written.tokens_out) == (1350, 400)
+    assert written.model == "claude-opus-5-5-20260701"
+
+    gem, _ = gemini()
+    gem.last_usage = SimpleNamespace(prompt_token_count=900, candidates_token_count=300, thoughts_token_count=80)
+    assert gem.last_tokens == (900, 380)
+
+
+def test_story_spec_configured_price_follows_provider(monkeypatch):
+    from tools import story_spec
+
+    monkeypatch.setattr(story_spec, "load_dotenv", lambda: False)
+    for name in ("STORY_PROVIDER", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "STORY_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "g")
+    assert story_spec.configured_price() == (story_spec.PRICE_IN, story_spec.PRICE_OUT)
+
+    monkeypatch.setenv("STORY_PROVIDER", "claude")
+    monkeypatch.setenv("STORY_MODEL", "claude-sonnet-5-5")
+    assert story_spec.configured_price() == (3.00, 15.00)
+

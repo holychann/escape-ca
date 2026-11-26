@@ -38,8 +38,9 @@
 - **규칙 파일** (`app/story_rules.toml`): 길이 제한, 금지 패턴, 벨트 미션의 장면 설명이 여기 있습니다. 서버가 시작할 때 파일을 검사해서, 모르는 항목 이름, 깨진 정규식, 빈 단어 묶음이 있으면 서버가 뜨지 않습니다(오타가 검사를 몰래 약하게 만들지 않도록).
 - 검사 부품(금지 패턴, 길이, 꼭 넣을 말, 판정 범위)과 표본 측정 명령은 [textgate](https://github.com/leekwangeun/textgate) 라이브러리를 씁니다. 나이별 말 길이와 안전 지킴이 규칙처럼 차량탈출에만 있는 규칙은 `app/checker.py`에 있습니다.
 - 판 전체 문장(제목, 첫인사, 끝 인사)에 문제가 있으면 그 초안은 버립니다. 장면 하나만 문제면 그 장면만 빼고, 차는 그 장면을 기본 문장으로 진행합니다. 한 번 더 써 보고 더 깨끗한 초안을 고릅니다.
-- **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고). 설치 ID는 기록하지 않습니다.
-- **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편 (환경 변수로 조정)
+- **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고, 같은 사유 중복 신고 제외·IP별 횟수 제한). 설치 ID와 IP 원문은 기록하지 않습니다.
+- **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편, 서버 전체 하루 300편 (`data/daily_limit.json`에 해시 카운터로 저장되어 재시작 뒤에도 유지, 환경 변수로 조정)
+- **그림 자동 정리**: 생성된 `data/images/{storyId}/` 폴더는 기본 24시간(`STORY_IMAGE_TTL_HOURS`)이 지나면 자동으로 지워집니다.
 
 ## 이야기 소원과 그림 (맞춤 이야기)
 
@@ -80,7 +81,7 @@ copy .env.example .env      # ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 입력 (�
 adb reverse tcp:8787 tcp:8787
 ```
 
-배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
+클라우드(Cloud Run, Fly.io, Render 등)에는 `server/Dockerfile`로 바로 배포할 수 있습니다(`STORY_TRUST_PROXY=1` 기본 포함). 배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
 
 ## 시험
 

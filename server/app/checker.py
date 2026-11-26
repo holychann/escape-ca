@@ -5,11 +5,12 @@ personal, foreign), and the answer (each scene says its own answer and never the
 episode-wide lines rejects the whole draft; a problem in one scene drops only that scene, and the car plays its
 own reviewed lines there instead.
 """
-from textgate import Verdict, find_forbidden, missing, norm, present, too_long
+from textgate import Verdict, too_long
 
 from . import quiz
 from .models import FRIEND_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, Question, SceneText
 from .rules import BUBBLE_NEVER, EVERYWHERE_NEVER, FORBID, LIMITS, Rule, rule_for
+from .text_guard import find_forbidden, missing, norm, present
 
 
 def bad_words(text: str) -> list[str]:

@@ -26,6 +26,7 @@ class ClaudeWriter:
     def __init__(self, model: str | None = None, client: anthropic.Anthropic | None = None):
         self.model = model or os.environ.get("STORY_MODEL", DEFAULT_MODEL)
         self._client = client
+        self.last_usage: anthropic.types.beta.BetaUsage | None = None
 
     @property
     def client(self) -> anthropic.Anthropic:
@@ -33,6 +34,14 @@ class ClaudeWriter:
         if self._client is None:
             self._client = anthropic.Anthropic(timeout=90.0, max_retries=1)
         return self._client
+
+    @property
+    def last_tokens(self) -> tuple[int, int] | None:
+        u = self.last_usage
+        if u is None:
+            return None
+        tokens_in = (u.input_tokens or 0) + (u.cache_creation_input_tokens or 0) + (u.cache_read_input_tokens or 0)
+        return tokens_in, (u.output_tokens or 0)
 
     def write(self, system: str, user: str) -> tuple[Draft, str]:
         extra = {}
@@ -48,6 +57,7 @@ class ClaudeWriter:
             output_config={"effort": "low", "format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
             **extra,
         )
+        self.last_usage = getattr(response, "usage", None)
         if response.stop_reason != "end_turn":
             raise WriterError(f"stop_reason={response.stop_reason}")
         text = next((b.text for b in response.content if b.type == "text"), None)
@@ -62,6 +72,13 @@ class GeminiWriter:
         self._client = client
         # token counts of the last call, read by tools/story_spec.py to work out the cost
         self.last_usage: types.GenerateContentResponseUsageMetadata | None = None
+
+    @property
+    def last_tokens(self) -> tuple[int, int] | None:
+        u = self.last_usage
+        if u is None:
+            return None
+        return (u.prompt_token_count or 0), (u.candidates_token_count or 0) + (u.thoughts_token_count or 0)
 
     @property
     def client(self) -> genai.Client:
