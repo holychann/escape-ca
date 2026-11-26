@@ -12,6 +12,7 @@ read back from the storage when the server starts.
 import json
 import logging
 import os
+import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from .checker import timeless_problems
-from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, Theme
+from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, LibraryRequest, Theme
 
 log = logging.getLogger("story")
 ROOT = "library/"
@@ -149,6 +150,8 @@ class Library:
         self.lock = threading.Lock()
         self.stories: dict[str, Shelved] = {}
         self.cells: dict[Cell, list[str]] = {}
+        # stories nobody is offered any more (filled in when a story is blocked)
+        self.blocked: set[str] = set()
 
     def allows(self, model: str) -> bool:
         return not self.models or model.startswith(self.models)
@@ -206,7 +209,24 @@ class Library:
 
     def size(self, cell: Cell) -> int:
         with self.lock:
-            return len(self.cells.get(cell, ()))
+            return sum(1 for sid in self.cells.get(cell, ()) if sid not in self.blocked)
+
+    def candidates(self, req: LibraryRequest, rnd: random.Random | None = None) -> list[Shelved]:
+        """Up to ``offer`` shelved stories this car can play, chosen at random; none at all when a small cell asks the
+        car to have a new story written."""
+        rnd = rnd or random.Random()
+        cell = Cell(req.friend, req.youngest, req.minutes)
+        playable = set(req.playable) | {"BELT"}
+        ages = sorted(req.ages)
+        with self.lock:
+            fits = [s for sid in self.cells.get(cell, ()) if sid not in self.blocked
+                    for s in [self.stories[sid]]
+                    if sorted(s.meta.ages) == ages and self.allows(s.meta.writer)
+                    and all(playable.intersection(slot) for slot in s.puzzles)]
+            size = sum(1 for sid in self.cells.get(cell, ()) if sid not in self.blocked)
+        if req.allowFresh and size < self.min_fresh and rnd.random() < self.fresh:
+            return []
+        return rnd.sample(fits, min(self.offer, len(fits)))
 
     def load(self, check: Check | None = None) -> None:
         """Index every complete story in the storage; a broken, half-written, unallowed or failing one is skipped."""
