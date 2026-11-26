@@ -39,6 +39,6 @@ services:
       - caddy-config:/config
 
 volumes:
-  story-data:   # 이야기 기록, 부모 신고, 하루 생성 횟수, 그림(24시간 뒤 자동 삭제)
+  story-data:   # 이야기 기록, 부모 신고, 하루 생성 횟수, 그림(24시간 뒤 자동 삭제). 창고 이야기는 S3(볼륨 아님)
   caddy-data:   # HTTPS 인증서. 지우면 다시 받아야 해서 발급 횟수 제한에 걸릴 수 있습니다
   caddy-config:

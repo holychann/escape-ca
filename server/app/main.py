@@ -3,6 +3,7 @@
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
 GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
+POST /v1/library                    the car asks the shelf for stories it can play (no pictures); it picks among them
 POST /v1/speak                      one of Lumi's lines read aloud (WAV), made once and kept
 POST /v1/report                     a parent reports a story (이야기 신고)
 GET  /health
@@ -17,10 +18,11 @@ from fastapi.responses import FileResponse
 
 from .bank import Bank, load as load_bank
 from .checker import speak_problems, wish_problems
-from .models import Episode, EpisodeRequest, Report, SpeakRequest
+from .library import Library, make_library, recheck
+from .models import Episode, EpisodeRequest, LibraryAnswer, LibraryRequest, Report, Shelf, SpeakRequest
 from .painter import Painter, make_painter
-from .service import make_episode, paint_pictures, speak_line
-from .store import DailyLimit, ReportLimit, Store, prune_audio, prune_images
+from .service import make_episode, paint_pictures, speak_line, timeless_request
+from .store import DailyLimit, IpLimit, ReportLimit, Store, prune_audio, prune_images
 from .voice import Voice, make_voice
 from .writer import Writer, make_writer
 
@@ -50,6 +52,7 @@ def create_app(
     painter: Painter | None = _UNSET,
     bank: Bank | None = None,
     voice: Voice | None = _UNSET,
+    library: Library | None = _UNSET,
 ) -> FastAPI:
     app = FastAPI(title="차량탈출 이야기 서버", docs_url=None, redoc_url=None)
     writer = writer or make_writer()
@@ -57,6 +60,10 @@ def create_app(
     # the questions made once and checked (tools/make_bank.py); a broken bank stops the server here
     bank = bank or load_bank()
     voice = make_voice() if voice is _UNSET else voice
+    if library is _UNSET:
+        # the environment decides: no STORY_LIBRARY_BUCKET or STORY_LIBRARY_DIR means no shelf
+        library = make_library(lambda s, d, r: recheck(s, d, r, bank))
+    app.state.library = library
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
     images = folder / "images"
@@ -83,6 +90,7 @@ def create_app(
         per_ip=int(os.environ.get("STORY_REPORT_PER_IP", "30")),
         per_day=int(os.environ.get("STORY_REPORT_DAILY_TOTAL", "500")),
     )
+    library_limit = IpLimit(per_ip=int(os.environ.get("STORY_LIBRARY_PER_IP", "500")))
     prune_images(images, image_ttl_hours)
     prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
     log.info("writer=%s painter=%s voice=%s trust_proxy=%s", type(writer).__name__,
@@ -100,7 +108,11 @@ def create_app(
         ip = client_ip(request, trust_proxy)
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        made = make_episode(req, writer, bank)
+        # a story for the shelf is written without the season, and only when no wish shapes it
+        timeless = library is not None and req.wish is None
+        if timeless:
+            req = timeless_request(req)
+        made = make_episode(req, writer, bank, timeless=timeless)
         if made is None:
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
@@ -109,7 +121,18 @@ def create_app(
             prune_images(images, image_ttl_hours)
             ep = paint_pictures(ep, draft, req, painter, images)
         store.episode(ep, req)
+        if timeless:
+            library.shelve_later(ep, draft, req, bank.digest())
         return ep
+
+    @app.post("/v1/library", response_model=LibraryAnswer)
+    def shelf_candidates(req: LibraryRequest, request: Request) -> LibraryAnswer:
+        # no record, no story limit and no log of the request: it carries only a cell and the playable keys
+        if not library_limit.take(client_ip(request, trust_proxy)):
+            raise HTTPException(status_code=429, detail="library_limit")
+        if library is None:
+            return LibraryAnswer(stories=[])
+        return LibraryAnswer(stories=[Shelf(puzzles=s.puzzles, episode=s.episode) for s in library.candidates(req)])
 
     @app.get("/v1/images/{story_id}/{name}.webp")
     def image(story_id: str, name: str) -> FileResponse:
@@ -142,6 +165,8 @@ def create_app(
             raise HTTPException(status_code=429, detail="report_limit")
         if should_write:
             store.report(r)
+        if library is not None:
+            library.block(r.storyId, r.reason, ip)
         return Response(status_code=204)
 
     return app

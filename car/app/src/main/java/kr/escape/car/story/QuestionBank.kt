@@ -42,6 +42,16 @@ class QuestionBank(private val entries: List<Entry>) : Questions {
     /** Whether [pick] finds a question for this quiz at this age. */
     override fun has(q: Puzzle.Quiz, age: Age): Boolean = entries.any { matches(it, q) && it.age.ordinal <= age.ordinal }
 
+    /**
+     * Whether [question] with its [hint] is this bank's own for [p] at [age] or a younger age (same text, parts and
+     * hint: Lumi speaks the hint, so a story's own hint is not played).
+     */
+    fun asks(p: Puzzle.Quiz, age: Age, question: Question, hint: String): Boolean = entries.any {
+        matches(it, p) && it.age.ordinal <= age.ordinal && it.kind == question.kind && it.text == question.text &&
+            it.hint == hint &&
+            it.expr == question.expr && it.word == question.word && it.terms == question.terms
+    }
+
     /** A random question for this quiz at this age (an easier age's when this one has none) and its hint. */
     fun pick(p: Puzzle.Quiz, age: Age, rnd: Random): Pair<Question, String>? {
         for (a in Age.entries.take(age.ordinal + 1).reversed()) {

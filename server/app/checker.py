@@ -11,7 +11,7 @@ from textgate import Verdict, too_long
 
 from . import quiz
 from .models import FRIEND_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, Question, SceneText
-from .rules import BUBBLE_NEVER, EVERYWHERE_NEVER, FORBID, LIMITS, Rule, rule_for
+from .rules import BUBBLE_NEVER, EVERYWHERE_NEVER, FORBID, LIBRARY_NEVER, LIMITS, Rule, rule_for
 from .text_guard import clean_text, find_forbidden, missing, norm, polite, present
 
 
@@ -176,6 +176,17 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
         text = art.puzzles[i - 1] if i <= len(art.puzzles) else ""
         look(f"p{i}", text, answer_words(slot))
     return out
+
+
+def timeless_problems(ep: Episode) -> list[str]:
+    """Season and time-of-day words anywhere in the episode, which keep it off the shelf."""
+    texts = [ep.title, ep.intro, ep.treasureBadge, ep.world]
+    for s in ep.scenes.values():
+        texts += [s.bubble, s.speech, s.hint, s.result]
+        if s.question is not None:
+            texts.append(s.question.text)
+    found = present(" ".join(texts), LIBRARY_NEVER)
+    return [f"계절·시간대 말: {w}" for w in found]
 
 
 def check(draft: Draft, req: EpisodeRequest) -> Verdict:

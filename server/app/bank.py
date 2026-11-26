@@ -7,6 +7,7 @@ second model and checked when it was made, and is checked again when the server 
 one stops the server instead of reaching a child. An episode draws its questions from here at random; the model only
 writes the story around them. The car app ships a copy of the same file for when the server cannot be reached.
 """
+import hashlib
 import json
 import logging
 import random
@@ -328,6 +329,14 @@ class Bank:
     def fits(e: Entry, q: quiz.QuizKey) -> bool:
         return e.kind == q.kind and e.dial == q.dial and e.answer == q.value
 
+    def digest(self) -> str:
+        """A short fingerprint of the questions (sha256 over the sorted ids and texts): a shelved story keeps the one
+        it was made with."""
+        h = hashlib.sha256()
+        for e in sorted(self.entries, key=lambda e: e.id):
+            h.update(json.dumps([e.id, e.text], ensure_ascii=False).encode("utf-8"))
+        return h.hexdigest()[:16]
+
     def candidates(self, q: quiz.QuizKey, age: str) -> list[Entry]:
         """Questions for this key at this age; when there are none, the ones made for a younger age (easier is fine)."""
         for a in reversed(AGES[: AGES.index(age) + 1]):
@@ -335,6 +344,11 @@ class Bank:
             if found:
                 return found
         return []
+
+    def has_text(self, q: quiz.QuizKey, age: str, text: str, hint: str) -> bool:
+        """Whether the bank still has this question with this hint for the key at this age or a younger one (the car
+        speaks the hint, so it must be the bank's)."""
+        return any(e.text == text and e.hint == hint for e in self.candidates(q, age))
 
     def pick(self, q: quiz.QuizKey, age: str, rnd: random.Random) -> tuple[DraftQuestion, str] | None:
         """A random question for this key and its hint, or None when the bank has none (the car asks its own)."""

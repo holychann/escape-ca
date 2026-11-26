@@ -115,6 +115,32 @@ class EpisodeRequest(BaseModel):
         return min(self.ages, key=["LITTLE", "CAPTAIN", "DETECTIVE"].index)
 
 
+class LibraryRequest(BaseModel):
+    """What a car asks the shelf: its cell and the answer keys its car can play. Nothing personal."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ages: list[Age] = Field(min_length=1, max_length=3)
+    minutes: int = Field(ge=3, le=30)
+    friend: FriendCode
+    # the quiz keys this car can play right now (the belt mission is always playable and is not listed)
+    playable: list[str] = Field(max_length=80)
+    # may the answer be empty on purpose, so the car asks for a new story
+    allowFresh: bool = True
+
+    @field_validator("playable")
+    @classmethod
+    def quiz_keys(cls, keys: list[str]) -> list[str]:
+        for k in keys:
+            if quiz.parse(k) is None:
+                raise ValueError(f"not a quiz key: {k}")
+        return keys
+
+    @property
+    def youngest(self) -> Age:
+        return min(self.ages, key=["LITTLE", "CAPTAIN", "DETECTIVE"].index)
+
+
 class Question(BaseModel):
     """A checked quiz question as the car plays it. The friend reads ``text``; the app says what to do with the answer."""
 
@@ -259,3 +285,14 @@ class Report(BaseModel):
 
     storyId: str = Field(pattern=r"^[0-9a-f]{32}$")
     reason: Literal["SCARY", "WRONG_ANSWER", "HARD_WORDS", "OTHER"]
+
+
+class Shelf(BaseModel):
+    """One shelved story as the car gets it: its slots (alternates included) and the episode, without pictures."""
+
+    puzzles: list[list[str]]
+    episode: Episode
+
+
+class LibraryAnswer(BaseModel):
+    stories: list[Shelf]

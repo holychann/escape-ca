@@ -76,6 +76,28 @@ class DailyLimit:
             return True
 
 
+class IpLimit:
+    """Calls per IP address per day, hashed like DailyLimit and kept in memory only."""
+
+    def __init__(self, per_ip: int):
+        self.per_ip = per_ip
+        self._day = date.today()
+        self._counts: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def take(self, ip: str, today: date | None = None) -> bool:
+        today = today or date.today()
+        with self._lock:
+            if today != self._day:
+                self._day = today
+                self._counts.clear()
+            key = _digest(ip)
+            if self._counts.get(key, 0) >= self.per_ip:
+                return False
+            self._counts[key] = self._counts.get(key, 0) + 1
+            return True
+
+
 class ReportLimit:
     """Bounds /v1/report spam per IP and per day, and ignores duplicate (storyId, reason) pairs."""
 

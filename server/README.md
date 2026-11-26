@@ -40,7 +40,18 @@
 - 판 전체 문장(제목, 첫인사, 끝 인사)에 문제가 있으면 그 초안은 버립니다. 장면 하나만 문제면 그 장면만 빼고, 차는 그 장면을 기본 문장으로 진행합니다. 한 번 더 써 보고 더 깨끗한 초안을 고릅니다.
 - **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고, 같은 사유 중복 신고 제외·IP별 횟수 제한). 설치 ID와 IP 원문은 기록하지 않습니다.
 - **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편, 서버 전체 하루 300편 (`data/daily_limit.json`에 해시 카운터로 저장되어 재시작 뒤에도 유지, 환경 변수로 조정)
-- **그림·음성 자동 정리**: 생성된 `data/images/{storyId}/` 폴더는 기본 24시간(`STORY_IMAGE_TTL_HOURS`), `data/audio_cache/*.wav` 음성 캐시는 기본 72시간(`STORY_AUDIO_TTL_HOURS`, 최대 `STORY_AUDIO_MAX_FILES`개)이 지나면 자동으로 지워집니다. `/v1/speak`도 합성 전에 금칙어와 주소를 먼저 걸러 냅니다.
+- **그림·음성 자동 정리**: 생성된 `data/images/{storyId}/` 폴더는 기본 24시간(`STORY_IMAGE_TTL_HOURS`), `data/audio_cache/*.wav` 음성 캐시는 기본 72시간(`STORY_AUDIO_TTL_HOURS`, 최대 `STORY_AUDIO_MAX_FILES`개)이 지나면 자동으로 지워집니다. `/v1/speak`도 합성 전에 금칙어와 주소를 먼저 걸러 냅니다. 이야기 창고의 이야기에는 그림이 없어 그림 정리와 상관없습니다.
+
+## 이야기 창고 (재사용)
+
+검사를 통과한 이야기를 쌓아 두었다가 다른 차가 다시 쓰게 하는 기능입니다. `STORY_LIBRARY_BUCKET`(S3)이나 `STORY_LIBRARY_DIR`(개발용 로컬 폴더)이 없으면 꺼져 있고, 서버는 위에서 설명한 대로만 동작합니다.
+
+- **무엇을 쌓나**: 소원 없이 만든, **Claude가 쓴 이야기의 글만** 쌓습니다. 그림은 그리지 않고, 계절과 시간대도 이야기에 넣지 않습니다. Gemini가 쓴 이야기는 쌓지도 내보내지도 않습니다(`STORY_LIBRARY_MODELS`, 기본 `claude`: 글 모델 이름이 이 접두어로 시작할 때만, 빈 값이면 모두). 창고는 친구, 가장 어린 나이, 기다릴 시간(분) 칸으로 나뉘고, 칸마다 `STORY_LIBRARY_CAP`편까지 둡니다.
+- **저장 위치**: `library/{친구}/{나이}/{분}m/{storyId}/story.json`(차가 받는 이야기)과 `draft.json`(작가 초안과 요청). 신고된 이야기는 `blocked/{storyId}.json`으로 표시합니다. 모두 `STORY_LIBRARY_PREFIX` 아래에 있습니다. 설치 ID, IP, 소원, 계절, 시간대는 저장하지 않습니다.
+- **`POST /v1/library`**: 차가 같은 칸의 이야기 후보를 달라고 합니다(`STORY_LIBRARY_CANDIDATES`편까지, 그림 없음). 서버는 후보만 주고, 어느 것을 쓸지와 퍼즐 정답은 앱의 규칙 엔진이 정합니다. 맞는 것이 없으면 앱이 `/v1/episode`로 새 이야기를 씁니다. 칸의 이야기가 `STORY_LIBRARY_MIN`편보다 적으면 가끔(`STORY_LIBRARY_FRESH` 확률) 후보 없이 돌려보내 새 이야기를 쓰게 합니다. 주소 하나당 하루 `STORY_LIBRARY_PER_IP`번까지 부를 수 있습니다.
+- **신고**: 부모가 신고하면 그 이야기는 창고에서 빠지고 더 이상 후보로 나가지 않습니다. 주소 하나가 하루에 빼 낼 수 있는 이야기는 `STORY_LIBRARY_BLOCKS_PER_IP`편입니다.
+- **다시 검사**: 서버가 켜질 때 창고의 이야기를 모두 지금 규칙으로 다시 검사하고, 읽을 수 없거나 허용되지 않은 모델이 쓴 이야기, 신고된 이야기, 검사에 걸리는 이야기는 건너뜁니다. 창고를 읽다가 실패하면 서버는 창고 없이 뜹니다. 이야기는 16개씩 한꺼번에 읽고, `STORY_LIBRARY_LOAD_SECONDS`(기본 60초)가 지나면 그때까지 읽은 이야기만으로 서버를 띄웁니다(신고된 이야기는 먼저 읽으므로 그래도 나가지 않습니다). 창고에 새로 쌓는 이야기도 같은 검사를 통과해야 쌓이므로, 쌓인 이야기가 다음 시작에 조용히 빠지는 일이 없습니다.
+- **환경 변수**: `STORY_LIBRARY_BUCKET`, `STORY_LIBRARY_PREFIX`(기본 빈 값), `STORY_LIBRARY_DIR`, `STORY_LIBRARY_MODELS`, `STORY_LIBRARY_CAP`(200), `STORY_LIBRARY_MIN`(30), `STORY_LIBRARY_FRESH`(0.3), `STORY_LIBRARY_CANDIDATES`(10), `STORY_LIBRARY_PER_IP`(500), `STORY_LIBRARY_BLOCKS_PER_IP`(5), `STORY_LIBRARY_LOAD_SECONDS`(60). `.env.example`에 있습니다. S3를 쓸 때 AWS 리전(`AWS_DEFAULT_REGION`)과 키는 boto3 표준 환경 변수를 따릅니다([배포_방법.md](배포_방법.md)).
 
 ## 이야기 소원과 그림 (맞춤 이야기)
 
@@ -124,5 +135,6 @@ AWS Lightsail 같은 서버 한 대에 올릴 때는 `compose.yaml`(이야기 �
 - 시제품 모델: 대본은 Claude `claude-opus-5-5`(`ANTHROPIC_API_KEY`), 그림은 Gemini `gemini-nano-banana-2.1`(`GEMINI_API_KEY_PAID`), 대사 읽기는 Gemini `gemini-3.8-flash-tts`(무료 키 먼저, 그다음 유료 키). 정해진 JSON 틀(`json_schema`)로 받고 대본 추론 강도는 기본 `STORY_EFFORT=medium`(그림 생성 `IMAGE_EFFORT=minimal`, 지금 그림 모델은 `low`를 받지 않음)으로 품질과 대기 시간의 균형을 맞춥니다. Google 쪽이 붐비거나 분당 횟수 제한에 걸리면 몇 초 뒤 최대 두 번 다시 요청합니다.
 - 작성기(`app/writer.py`)는 바꿔 끼울 수 있게 나뉘어 있습니다. `STORY_PROVIDER=gemini`로 Gemini `gemini-3.6-flash`(무료 키)로 바꿀 수 있고, 모델 이름은 `STORY_MODEL`로 바꿉니다. 어떤 모델이 쓰든 같은 검사기를 거칩니다.
 - 출시 전 교체: Gemini API 약관은 18세 미만을 대상으로 하거나 18세 미만이 이용할 가능성이 높은 서비스에 API를 쓰는 것을 허용하지 않습니다. 그래서 실제 출시 때는 Pleos 차량 인앱 LLM(앱용 SDK가 공개되면) 또는 미성년자 서비스를 허용하는 제공사(예: Anthropic, 안전장치를 갖추는 조건)로 작성기를 바꿉니다.
-- 그림은 결제를 켠 유료 키로 부르므로 보낸 입력과 출력이 Google의 제품 개선에 쓰이지 않습니다. 대사 읽기는 무료 키를 먼저 쓰는데, Gemini 무료 등급에서는 보낸 입력과 출력이 Google의 제품 개선에 쓰일 수 있습니다. 그래서 TTS에는 검사를 통과한 대사 문장만 보냅니다. 서버는 어느 모델에도 정답 키, 나이 단계, 시간대, 계절, 가족이 적은 장소와 이야기 종류만 보내고 아이에 대한 정보는 보내지 않습니다.
+- 그림은 결제를 켠 유료 키로 부르므로 보낸 입력과 출력이 Google의 제품 개선에 쓰이지 않습니다. 대사 읽기는 무료 키를 먼저 쓰는데, Gemini 무료 등급에서는 보낸 입력과 출력이 Google의 제품 개선에 쓰일 수 있습니다. 그래서 TTS에는 검사를 통과한 대사 문장만 보냅니다. 서버는 어느 모델에도 정답 키, 나이 단계, 시간대, 계절, 가족이 적은 장소와 이야기 종류만 보내고 아이에 대한 정보는 보내지 않습니다. 창고에 쌓는 이야기를 쓸 때는 시간대와 계절도 모델에 알려 주지 않습니다.
+- 이야기 창고에는 Claude가 쓴 이야기만 쌓고 내보냅니다. Gemini가 쓴 이야기는 창고에 들어가지 않습니다(`STORY_LIBRARY_MODELS`).
 - 아이는 AI와 직접 대화하지 않고 검사를 통과한 문장만 듣습니다. 앱은 시작 화면에 AI가 만든 이야기임을 알리고, 부모 화면에 이야기 신고 버튼을 둡니다.

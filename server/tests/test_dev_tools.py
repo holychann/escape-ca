@@ -11,7 +11,7 @@ from app.main import create_app
 from app.models import EpisodeRequest
 from app.prompt import SYSTEM, user_message
 from app.service import pick_questions, put_questions
-from tests.fakes import BANK, COOL, MATH, SUM, draft
+from tests.fakes import BANK, COOL, MATH, REASON, SUM, draft
 from tests.test_quiz import every_key
 from tools import story_spec
 from tools.dev_server import TEMPLATE_ENTRIES, CardPainter, TemplateWriter, dev_bank
@@ -150,3 +150,26 @@ def test_the_sampler_writes_around_bank_questions_and_keeps_them_with_the_draft(
     # saved with its questions, a recheck later holds the same questions to the rules of the day
     assert written.draft.scenes[0].question.text == SUM.text and written.draft.scenes[0].hint == SUM.hint
     assert story_spec.SPEC.judge(req, written.draft).clean
+
+
+def test_the_dev_writer_uses_the_theme_the_prompt_names():
+    user = "- 오늘의 장소: 바닷속 잠수함 (theme에 SEA_SUB, world에도 그대로)\n[key=BELT]\n('나'): 반테."
+    assert TemplateWriter().write("", user)[0].theme == "SEA_SUB"
+    assert TemplateWriter().write("", "[key=BELT]")[0].theme == "STAR_TRAIN"
+
+
+def test_the_dev_server_shelves_into_a_local_folder(tmp_path, monkeypatch):
+    from tools.dev_server import dev_app
+    monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path / "shelf"))
+    monkeypatch.delenv("STORY_LIBRARY_MODELS", raising=False)
+    app = dev_app()
+    body = {"installId": "0123456789abcdef0123", "ages": ["CAPTAIN"], "minutes": 10, "theme": "SEA_SUB",
+            "context": {"timeOfDay": "EVENING", "season": "WINTER"}, "puzzles": [[REASON], [MATH], ["BELT"]],
+            "friend": "BANTE"}
+    c = TestClient(app)
+    r = c.post("/v1/episode", json=body)
+    assert r.status_code == 200 and r.json()["model"] == "dev-template" and r.json()["theme"] == "SEA_SUB"
+    app.state.library.drain(10)
+    ask = {"ages": ["CAPTAIN"], "minutes": 10, "friend": "BANTE", "playable": [REASON, MATH], "allowFresh": False}
+    assert len(c.post("/v1/library", json=ask).json()["stories"]) == 1
+    assert list((tmp_path / "shelf").rglob("story.json"))

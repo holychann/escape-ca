@@ -133,3 +133,10 @@ class FakeWriter:
         if isinstance(d, Exception):
             raise d
         return d, "fake-model"
+
+
+def leaky():
+    """A draft whose story says the sum's answer before the child has worked it out."""
+    d = draft([MATH, REASON, "BELT"])
+    d.scenes[0].speech = "사과 다섯 개만 있으면 된대! 이 문제를 풀어 볼까?"
+    return d
