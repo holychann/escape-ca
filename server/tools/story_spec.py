@@ -138,8 +138,8 @@ def random_request(r: random.Random) -> EpisodeRequest:
     minutes = r.choice(list(PUZZLES))
     age = r.choice(["LITTLE", "CAPTAIN", "DETECTIVE"])
     picks = random_quizzes(r, PUZZLES[minutes], age)
-    if len(picks) >= 3:
-        picks.insert(2, ["BELT"])
+    # like the app: every course ends with the belt mission once
+    picks.append(["BELT"])
     wish = f"{r.choice(SAMPLE_PLACES)}에서 펼쳐지는 {r.choice(STORY_KINDS)} 이야기" if r.random() < 0.5 else None
     return EpisodeRequest(
         installId="00000000-0000-0000-0000-000000000000",

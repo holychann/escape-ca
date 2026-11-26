@@ -113,7 +113,7 @@ def test_sampled_requests_look_like_the_cars_plan():
             lessons.add(req.lesson)
         dual_slots += sum(1 for slot in req.puzzles if len(slot) == 2)
         assert len(quizzes) == {5: 2, 10: 3, 15: 4}[req.minutes]
-        assert (["BELT"] in req.puzzles) == (len(quizzes) >= 3) and (len(quizzes) < 3 or req.puzzles[2] == ["BELT"])
+        assert req.puzzles[-1] == ["BELT"] and req.puzzles.count(["BELT"]) == 1
         # one quiz per car device, every key one the car can send to this age (quiz.parse refuses the rest)
         devices = [device_of[q.dial] for q in quizzes]
         assert len(set(devices)) == len(devices)

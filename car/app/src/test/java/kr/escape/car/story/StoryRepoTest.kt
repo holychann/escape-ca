@@ -263,11 +263,11 @@ class StoryRepoTest {
     private val shelfBank = QuestionBank(shelfBankEntries)
 
     private val goodSlots = listOf(
-        listOf("Q:MATH:FAN:5"), listOf("Q:ENGLISH:LIGHTS:2"), listOf("BELT"), listOf("Q:REASON:AC:1"),
+        listOf("Q:MATH:FAN:5"), listOf("Q:ENGLISH:LIGHTS:2"), listOf("Q:REASON:AC:1"), listOf("BELT"),
     )
     private val goodPuzzles = listOf(
         Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5), Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 2),
-        Puzzle.BeltMission, Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1),
+        Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1), Puzzle.BeltMission,
     )
 
     private fun storyOf(id: String): Story = Story.parse(JSONObject(stored).getJSONObject("story")).copy(storyId = id)
@@ -353,7 +353,7 @@ class StoryRepoTest {
 
     @Test
     fun aQuestionOfAnAlternateKeyIsCheckedToo() = runTest {
-        val slots = listOf(goodSlots[0], goodSlots[1], goodSlots[2], listOf("Q:REASON:AC:1", "Q:REASON:AC:0"))
+        val slots = listOf(goodSlots[0], goodSlots[1], listOf("Q:REASON:AC:1", "Q:REASON:AC:0"), goodSlots[3])
         val base = storyOf("a".repeat(32))
         val off = base.scenes.getValue("BELT").copy(question = Question(QuizKind.REASON, "끄는 이야기, 차 버튼으로 도와줘!"))
         val story = base.copy(scenes = base.scenes + ("Q:REASON:AC:0" to off))

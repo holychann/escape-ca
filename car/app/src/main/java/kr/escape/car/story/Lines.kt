@@ -106,7 +106,7 @@ object Lines {
         is Puzzle.Quiz -> (own?.first ?: question(p)).let { q -> quizScene(p, bubble(p), lead(p), own?.second ?: hint(p, q), q) }
         Puzzle.BeltMission -> Scene(
             bubble = "탐험대장, 벨트를 딸깍!",
-            speech = "다음 곳으로 가기 전에 준비! 탐험대장, 벨트를 딸깍! 이미 매고 있다면 버클을 짚고 딸깍 확인!",
+            speech = "드디어 마지막 미션이야! 보물을 받기 전에 탐험 준비! 탐험대장, 벨트를 딸깍! 이미 매고 있다면 버클을 짚고 딸깍 확인!",
             hint = "벨트를 버클에 끝까지 넣으면 딸깍 소리가 나!",
             pictures = listOf("scene_belt"),
             buttons = emptyList(),

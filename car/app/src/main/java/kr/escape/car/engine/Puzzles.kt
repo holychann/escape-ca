@@ -213,8 +213,9 @@ object Planner {
         }
         val quizzes = devices.map { d -> if (d in told) situations(d).random(rnd) else counted.getValue(d) }
         val picks = order(quizzes, s, setup).toMutableList<Puzzle>()
-        // the belt mission sits after the second puzzle, as a short break between car puzzles
-        if (picks.size >= 2) picks.add(2, Puzzle.BeltMission)
+        // every course ends with the belt mission once, as the last mission before the badge (puzzleCount counts
+        // it); with no car puzzle to play there is no game at all
+        if (picks.isNotEmpty()) picks.add(Puzzle.BeltMission)
         return picks
     }
 
@@ -237,7 +238,7 @@ object Planner {
      * The puzzles a shelved story plays on this car now, or null when it cannot be played. Slot by slot in the
      * story's order, a slot takes its first answer that fits once the slots before it are solved and that [questions]
      * can ask (this is not the choice [plan] would make). The story is accepted only when its quizzes are on distinct
-     * devices, its belt mission sits where [plan] puts it (third, when there are two quizzes or more), and it has as
+     * devices, its belt mission sits where [plan] puts it (once, last, whenever there is a quiz), and it has as
      * many quizzes as [plan] would ask of this car.
      */
     fun accepts(slots: List<List<Puzzle>>, setup: Setup, s: CarState, questions: Questions = Questions.ANY): List<Puzzle>? {
@@ -257,7 +258,7 @@ object Planner {
         val quizzes = picked.filterIsInstance<Puzzle.Quiz>()
         if (quizzes.map { it.dial.device }.toSet().size != quizzes.size) return null
         val belt = picked.indices.filter { picked[it] is Puzzle.BeltMission }
-        if (belt != if (quizzes.size >= 2) listOf(2) else emptyList<Int>()) return null
+        if (belt != if (quizzes.isNotEmpty()) listOf(picked.lastIndex) else emptyList<Int>()) return null
         if (quizzes.size != minOf(puzzleCount(setup.minutes) - 1, devicesWithOptions(s, setup, questions))) return null
         return picked
     }
