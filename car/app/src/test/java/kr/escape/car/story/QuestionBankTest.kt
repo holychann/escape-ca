@@ -84,18 +84,20 @@ class QuestionBankTest {
         val little = Question(QuizKind.MATH, "조개 3개에 2개를 더 주우면 몇 개일까?", expr = "3+2")
         val captain = Question(QuizKind.MATH, "사과 9개 중 4개를 먹으면 몇 개 남을까?", expr = "9-4")
         // the same words
-        assertTrue(bank.asks(five, Age.LITTLE, little))
+        assertTrue(bank.asks(five, Age.LITTLE, little, "손가락으로 세어 봐"))
         // other words, or the same words with other parts
-        assertFalse(bank.asks(five, Age.LITTLE, little.copy(text = "다른 글")))
-        assertFalse(bank.asks(five, Age.LITTLE, little.copy(expr = "4+1")))
+        assertFalse(bank.asks(five, Age.LITTLE, little.copy(text = "다른 글"), "손가락으로 세어 봐"))
+        assertFalse(bank.asks(five, Age.LITTLE, little.copy(expr = "4+1"), "손가락으로 세어 봐"))
+        // the hint is the bank's too: Lumi speaks it
+        assertFalse(bank.asks(five, Age.LITTLE, little, "다른 힌트"))
         // a question made for an older child is not asked of a younger one
-        assertFalse(bank.asks(five, Age.LITTLE, captain))
+        assertFalse(bank.asks(five, Age.LITTLE, captain, "하나씩 빼 봐"))
         // a question made for a younger child is fine for an older one
-        assertTrue(bank.asks(five, Age.CAPTAIN, little))
-        assertTrue(bank.asks(five, Age.CAPTAIN, captain))
+        assertTrue(bank.asks(five, Age.CAPTAIN, little, "손가락으로 세어 봐"))
+        assertTrue(bank.asks(five, Age.CAPTAIN, captain, "하나씩 빼 봐"))
         // and not for another answer or device
-        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 6), Age.CAPTAIN, little))
-        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.LIGHTS, 5), Age.CAPTAIN, little))
+        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 6), Age.CAPTAIN, little, "손가락으로 세어 봐"))
+        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.LIGHTS, 5), Age.CAPTAIN, little, "손가락으로 세어 봐"))
     }
 
     @Test

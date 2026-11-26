@@ -117,3 +117,11 @@ def test_a_clean_story_passes_the_recheck(tmp_path):
     assert recheck(s, d, r, BANK) == []
     started = edited_start(tmp_path, lambda d: None)
     assert started.get(STORY_ID) is not None
+
+
+def test_a_hint_that_is_not_the_banks_leaves_the_story_out(tmp_path):
+    s = story()
+    key = next(k for k, sc in s.episode.scenes.items() if sc.question is not None)
+    s.episode.scenes[key].hint = "다른 힌트를 쓰는 이야기."
+    d, r = request_for(s)
+    assert any("문제" in p for p in recheck(s, d, r, BANK))

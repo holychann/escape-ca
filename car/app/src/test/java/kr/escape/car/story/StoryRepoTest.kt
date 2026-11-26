@@ -256,7 +256,7 @@ class StoryRepoTest {
 
     /** The questions the app ships here: the stored story's own, and one each for the lights and the air conditioner. */
     private val shelfBankEntries = listOf(
-        QuestionBank.Entry(QuizKind.MATH, Dial.FAN, Age.CAPTAIN, "조개 2개에 3개를 더하면?", "세어 봐", 5, expr = "2+3"),
+        QuestionBank.Entry(QuizKind.MATH, Dial.FAN, Age.CAPTAIN, "조개 2개에 3개를 더하면?", "세어 봐!", 5, expr = "2+3"),
         QuestionBank.Entry(QuizKind.ENGLISH, Dial.LIGHTS, Age.CAPTAIN, "TWO는 우리말로 몇일까?", "세어 봐", 2, word = "TWO"),
         QuestionBank.Entry(QuizKind.REASON, Dial.AC, Age.CAPTAIN, "더워서 헥헥! 차 버튼으로 도와줘!", "버튼을 찾아봐", 1),
     )
@@ -326,6 +326,19 @@ class StoryRepoTest {
     }
 
     @Test
+    fun aShelfStoryWhoseHintIsNotTheAppsIsPassedOver() = runTest {
+        val base = storyOf("a".repeat(32))
+        val other = base.copy(scenes = base.scenes + ("Q:MATH:FAN:5" to base.scenes.getValue("Q:MATH:FAN:5")
+            .copy(hint = "정답은 5야!")))
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32), story = other), shelved("b".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals("b".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
     fun aShelfStoryThatDoesNotFitIsPassedOver() = runTest {
         // the car already shows wind 2, so a story asking for it cannot be played
         val showing = listOf(listOf("Q:MATH:FAN:2")) + goodSlots.drop(1)
@@ -345,7 +358,7 @@ class StoryRepoTest {
         val off = base.scenes.getValue("BELT").copy(question = Question(QuizKind.REASON, "끄는 이야기, 차 버튼으로 도와줘!"))
         val story = base.copy(scenes = base.scenes + ("Q:REASON:AC:0" to off))
         val withOff = QuestionBank(shelfBankEntries + QuestionBank.Entry(
-            QuizKind.REASON, Dial.AC, Age.CAPTAIN, "끄는 이야기, 차 버튼으로 도와줘!", "버튼을 찾아봐", 0))
+            QuizKind.REASON, Dial.AC, Age.CAPTAIN, "끄는 이야기, 차 버튼으로 도와줘!", "딸깍 소리!", 0))
         for ((bank, picked) in listOf(shelfBank to false, withOff to true)) {
             val client = FakeClient { throw IOException("no new story") }
             client.shelf = { listOf(shelved("a".repeat(32), slots, story)) }

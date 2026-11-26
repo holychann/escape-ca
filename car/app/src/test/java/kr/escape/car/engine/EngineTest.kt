@@ -754,6 +754,20 @@ class EngineTest {
     }
 
     @Test
+    fun playableLeavesOutValuesTheCarCannotSet() {
+        val lights = Planner.playable(setup, shelfCar)
+        assertTrue(math(Dial.LIGHTS, 1) in lights && math(Dial.LIGHTS, 2) in lights)
+        assertTrue(lights.none { it.dial == Dial.LIGHTS && it.value > 2 })
+        val capped = Planner.playable(setup, shelfCar.copy(fanSpeedRange = 1..6, seatHeatMax = 2))
+        assertTrue(capped.none { it.dial == Dial.FAN && it.value > 6 })
+        assertTrue(capped.none { it.dial == Dial.SEAT_HEAT && it.value > 2 })
+        assertTrue(math(Dial.FAN, 5) in capped)
+        // what the car shows now stays listed, so the list does not tell it
+        val showing = Planner.playable(setup, shelfCar.copy(fanSpeedRange = 1..6, fanSpeed = 8))
+        assertTrue(math(Dial.FAN, 8) in showing && math(Dial.FAN, 7) !in showing)
+    }
+
+    @Test
     fun playableLeavesOutWhatTheYoungestAreNeverToldAndWhatHasNoQuestion() {
         assertTrue(Planner.playable(little, shelfCar).none { it.kind == QuizKind.REASON && it.dial in listOf(Dial.RECIRC, Dial.TEMP_DOWN) })
         val none = Planner.playable(setup, shelfCar, Questions { q, _ -> q.dial != Dial.FAN })

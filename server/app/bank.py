@@ -252,9 +252,10 @@ class Bank:
                 return found
         return []
 
-    def has_text(self, q: quiz.QuizKey, age: str, text: str) -> bool:
-        """Whether the bank still has this question for the key at this age or a younger one."""
-        return any(e.text == text for e in self.candidates(q, age))
+    def has_text(self, q: quiz.QuizKey, age: str, text: str, hint: str) -> bool:
+        """Whether the bank still has this question with this hint for the key at this age or a younger one (the car
+        speaks the hint, so it must be the bank's)."""
+        return any(e.text == text and e.hint == hint for e in self.candidates(q, age))
 
     def pick(self, q: quiz.QuizKey, age: str, rnd: random.Random) -> tuple[DraftQuestion, str] | None:
         """A random question for this key and its hint, or None when the bank has none (the car asks its own)."""

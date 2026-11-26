@@ -219,14 +219,17 @@ object Planner {
         return Dial.entries.filter { it.device in s.devices }.flatMap { dial ->
             dial.kinds.flatMap { kind -> dial.values(kind).map { Puzzle.Quiz(kind, dial, it) } }
         }.filter { q ->
-            allowed(q, age) && questions.has(q, age) && (q.kind != QuizKind.REASON || fits(q, s, setup))
+            allowed(q, age) && questions.has(q, age) && (q.kind != QuizKind.REASON || fits(q, s, setup)) &&
+                (q.kind == QuizKind.REASON || settable(q, s))
         }.distinct()
     }
 
     /**
-     * The puzzles a shelved story plays on this car now, slot by slot in the story's order (the first answer of a slot
-     * that fits once the slots before it are solved), or null when the story does not fit as [plan] would have planned
-     * it: one puzzle per device, the belt mission after the second quiz, and as many quizzes as the car can ask.
+     * The puzzles a shelved story plays on this car now, or null when it cannot be played. Slot by slot in the
+     * story's order, a slot takes its first answer that fits once the slots before it are solved and that [questions]
+     * can ask (this is not the choice [plan] would make). The story is accepted only when its quizzes are on distinct
+     * devices, its belt mission sits where [plan] puts it (third, when there are two quizzes or more), and it has as
+     * many quizzes as [plan] would ask of this car.
      */
     fun accepts(slots: List<List<Puzzle>>, setup: Setup, s: CarState, questions: Questions = Questions.ANY): List<Puzzle>? {
         val age = youngest(setup)
@@ -298,23 +301,31 @@ object Planner {
     /** Down when the cabin is warm, up when it is cool, so the answer stays a comfortable temperature. */
     fun tempDial(s: CarState): Dial = if ((s.tempLeft ?: 22f) >= 22f) Dial.TEMP_DOWN else Dial.TEMP_UP
 
-    /** The answers a number dial can take on this car: within what it can set, and not what it already shows. */
-    fun answers(dial: Dial, s: CarState): List<Int> {
-        val range = when (dial) {
-            Dial.FAN -> maxOf(dial.range.first, s.fanSpeedRange.first)..minOf(dial.range.last, s.fanSpeedRange.last)
-            Dial.SEAT_HEAT -> dial.range.first..minOf(dial.range.last, s.seatHeatMax)
-            // only as many lights as the car told us about
-            Dial.LIGHTS -> dial.range.first..minOf(dial.range.last, maxOf(1, s.readingLights.size))
-            else -> dial.range
-        }.takeUnless { it.isEmpty() } ?: dial.range
-        val now = when (dial) {
-            Dial.FAN -> s.fanSpeed
-            Dial.LIGHTS -> s.readingLights.count { it.value }
-            Dial.SEAT_HEAT -> s.seatHeat
-            else -> null
-        }
-        return range.filter { it != now }
+    /** The values a number dial can be set to on this car (the other dials take their whole range). */
+    private fun capability(dial: Dial, s: CarState): IntRange = when (dial) {
+        Dial.FAN -> maxOf(dial.range.first, s.fanSpeedRange.first)..minOf(dial.range.last, s.fanSpeedRange.last)
+        Dial.SEAT_HEAT -> dial.range.first..minOf(dial.range.last, s.seatHeatMax)
+        // only as many lights as the car told us about
+        Dial.LIGHTS -> dial.range.first..minOf(dial.range.last, maxOf(1, s.readingLights.size))
+        else -> dial.range
+    }.takeUnless { it.isEmpty() } ?: dial.range
+
+    /** What a number dial shows now, or null when the car does not tell (or the dial has no such reading). */
+    private fun showing(dial: Dial, s: CarState): Int? = when (dial) {
+        Dial.FAN -> s.fanSpeed
+        Dial.LIGHTS -> s.readingLights.count { it.value }
+        Dial.SEAT_HEAT -> s.seatHeat
+        else -> null
     }
+
+    /** The answers a number dial can take on this car: within what it can set, and not what it already shows. */
+    fun answers(dial: Dial, s: CarState): List<Int> = capability(dial, s).filter { it != showing(dial, s) }
+
+    /**
+     * Whether the car can be set to [q]'s value. What the dial shows now is kept even when it lies outside what the
+     * car can set, so the list does not tell what the cabin looks like.
+     */
+    private fun settable(q: Puzzle.Quiz, s: CarState): Boolean = q.value in capability(q.dial, s) || q.value == showing(q.dial, s)
 
     /**
      * The car once [q] is solved, as far as another puzzle's condition can tell: a temperature or a fan moved the

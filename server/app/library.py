@@ -344,7 +344,7 @@ def recheck(shelved: Shelved, draft: Draft, request: EpisodeRequest, bank: Bank)
         problems += result_problems(scene, request)
     for key, scene in shelved.episode.scenes.items():
         q = quiz.parse(key)
-        if q is not None and scene.question is not None and not bank.has_text(q, request.youngest, scene.question.text):
+        if q is not None and scene.question is not None and not bank.has_text(q, request.youngest, scene.question.text, scene.hint):
             problems.append(f"문제가 문제 은행에 없음: {key}")
     return problems + timeless_problems(shelved.episode)
 
