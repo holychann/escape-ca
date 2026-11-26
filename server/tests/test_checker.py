@@ -294,7 +294,19 @@ def test_the_result_line_may_name_the_answer_the_child_just_put_in():
     assert ep.scenes[AC].result.startswith("에어컨 바람") and "바람" in ep.scenes[MATH].result
 
 
-@pytest.mark.parametrize("line", ["기차가 출발해서 다음 곳으로 가자!", "루미도 박수를 쳐!", "와" * 100])
+@pytest.mark.parametrize("line", ["기차 안이 따뜻해졌어! 이제 다음 칸으로 가자!", "마차에서 시원한 바람이 솔솔 불어!",
+                                  "차가운 물방울이 멈췄어! 단서가 하나 남았어!"])
+def test_a_result_line_may_tell_the_story_vehicle_or_the_feeling(line):
+    req = request([[MATH], ["BELT"]])
+    d = filled(req.keys)
+    d.scenes[0].result = line
+    v = check(d, req)
+    ep = to_episode(d, v, req, "0" * 32, "m")
+    assert ep.scenes[MATH].result == line
+
+
+@pytest.mark.parametrize("line", ["기차가 출발해서 다음 곳으로 가자!", "루미도 박수를 쳐!", "와" * 100,
+                                  "차 안이 따뜻해져서 손이 녹았어!", "우리 차에서 시원한 바람이 나와!"])
 def test_a_bad_result_line_is_left_out_not_the_scene(line):
     req = request([[MATH], ["BELT"]])
     d = filled(req.keys)

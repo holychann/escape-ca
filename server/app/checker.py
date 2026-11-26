@@ -48,11 +48,18 @@ def other_names(text: str, req: EpisodeRequest) -> list[str]:
     return [f"다른 인물: {n}" for n in names if n in text]
 
 
+# the result tells the change as part of the story's place, never the real car ("차 안이 따뜻해졌어"); a story vehicle
+# ("기차 안", "마차에서") is fine, so 차 must start a word
+REAL_CAR = re.compile(r"(?<![가-힣])차\s?(안|속)|(?<![가-힣])차에서|우리\s?차(?![가-힣])")
+
+
 def result_problems(scene: DraftScene, req: EpisodeRequest) -> list[str]:
     """The line said once the answer is in may name the answer, since the child has just put it in. A bad one is
     left out on its own (the car says its own praise there) instead of losing the scene."""
     text = scene.result
     problems = too_long("result", text, getattr(LIMITS.result, req.youngest)) + bad_words(text)
+    if REAL_CAR.search(text):
+        problems.append("진짜 차를 말함")
     if polite(text):
         problems.append("존댓말")
     problems += [f"쓰지 말 말: {w}" for w in present(text, EVERYWHERE_NEVER)]
