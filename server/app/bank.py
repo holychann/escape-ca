@@ -7,6 +7,7 @@ second model and checked when it was made, and is checked again when the server 
 one stops the server instead of reaching a child. An episode draws its questions from here at random; the model only
 writes the story around them. The car app ships a copy of the same file for when the server cannot be reached.
 """
+import hashlib
 import json
 import logging
 import random
@@ -234,6 +235,14 @@ class Bank:
     @staticmethod
     def fits(e: Entry, q: quiz.QuizKey) -> bool:
         return e.kind == q.kind and e.dial == q.dial and e.answer == q.value
+
+    def digest(self) -> str:
+        """A short fingerprint of the questions (sha256 over the sorted ids and texts): a shelved story keeps the one
+        it was made with."""
+        h = hashlib.sha256()
+        for e in sorted(self.entries, key=lambda e: e.id):
+            h.update(json.dumps([e.id, e.text], ensure_ascii=False).encode("utf-8"))
+        return h.hexdigest()[:16]
 
     def candidates(self, q: quiz.QuizKey, age: str) -> list[Entry]:
         """Questions for this key at this age; when there are none, the ones made for a younger age (easier is fine)."""
