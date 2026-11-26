@@ -9,7 +9,7 @@ from pathlib import Path
 from . import quiz
 from .bank import Bank
 from .checker import Verdict, art_problems, check, scene_text, to_episode
-from .models import Draft, DraftQuestion, Episode, EpisodeRequest
+from .models import THEME_LABEL, Draft, DraftQuestion, Episode, EpisodeRequest
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
@@ -39,12 +39,20 @@ def put_questions(draft: Draft, picks: Picks) -> None:
             s.question, s.hint = picks[s.key]
 
 
+def timeless_request(req: EpisodeRequest, rnd: random.Random | None = None) -> EpisodeRequest:
+    """A copy with a random theme when none is chosen: a shelf story is told without the season, which is what the
+    writer would otherwise pick the theme by (the checker drops a draft whose theme differs from the request's)."""
+    if req.theme:
+        return req
+    return req.model_copy(update={"theme": (rnd or random).choice(sorted(THEME_LABEL))})
+
+
 def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int = 2,
-                 rnd: random.Random | None = None) -> tuple[Episode, Draft] | None:
+                 rnd: random.Random | None = None, timeless: bool = False) -> tuple[Episode, Draft] | None:
     """The cleanest usable draft and its episode, or None when every draft failed the episode-wide checks."""
     picks = pick_questions(req, bank, rnd)
     best: tuple[Verdict, Episode, Draft] | None = None
-    user = user_message(req, picks)
+    user = user_message(req, picks, timeless)
     for attempt in range(1, attempts + 1):
         try:
             draft, model = writer.write(SYSTEM, user)
@@ -68,11 +76,11 @@ def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int 
     # a quiz the bank had no question for can never pass, so it is not written again
     bad = {k for k in verdict.items if quiz.parse(k) is None or k in picks}
     if bad:
-        episode = repair(req, writer, episode, bad, picks)
+        episode = repair(req, writer, episode, bad, picks, timeless)
     return episode, draft
 
 
-def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks) -> Episode:
+def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks, timeless: bool = False) -> Episode:
     """Asks once more for only the scenes that failed, told the story so far so they still belong to it, around the
     same questions; a scene that passes this time joins the episode, one that fails again stays with the app's own."""
     slots = [[k for k in slot if k in bad] for slot in req.puzzles]
@@ -83,7 +91,7 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], pick
         "- scenes 말고 다른 항목도 형식에 맞게 채우되, 쓰이는 것은 scenes뿐이다."
     )
     try:
-        draft, _ = writer.write(SYSTEM, user_message(sub, picks) + told)
+        draft, _ = writer.write(SYSTEM, user_message(sub, picks, timeless) + told)
     except Exception as e:
         log.warning("repair: writer failed: %r", e)
         return ep

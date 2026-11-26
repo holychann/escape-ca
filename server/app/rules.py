@@ -54,11 +54,17 @@ class Rule(_Strict):
     art_never: list[Word] = []
 
 
+class LibraryRules(_Strict):
+    # season and time-of-day words a story for the shelf may not hold (it is told in any season, at any hour)
+    never: Annotated[list[Word], Field(min_length=1)]
+
+
 class StoryRules(_Strict):
     limits: Limits
     forbid: Annotated[list[Forbid], Field(min_length=1)]
     prompt: Prompt
     scene: Annotated[dict[str, Rule], Field(min_length=1)]
+    library: LibraryRules
 
 
 def load(path: Path = RULES_FILE) -> StoryRules:
@@ -71,6 +77,7 @@ LIMITS = RULES.limits
 FORBID = RULES.forbid
 EVERYWHERE_NEVER = RULES.prompt.everywhere_never
 BUBBLE_NEVER = RULES.prompt.bubble_never
+LIBRARY_NEVER = RULES.library.never
 
 
 def rule_for(key: str) -> Rule:

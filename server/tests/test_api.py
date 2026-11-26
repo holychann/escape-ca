@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.writer import WriterError
-from tests.fakes import AC, BANK, COOL, FOG, MATH, REASON, SUM, UNCOVERED, FakeWriter, draft
+from tests.fakes import AC, BANK, COOL, FOG, MATH, REASON, SUM, UNCOVERED, FakeWriter, draft, leaky
 
 BODY = {
     "installId": "0123456789abcdef0123",
@@ -20,13 +20,6 @@ KEYS = [MATH, REASON, "BELT"]
 
 def client(writer, tmp_path, bank=BANK):
     return TestClient(create_app(writer=writer, data_dir=tmp_path, painter=None, bank=bank))
-
-
-def leaky():
-    """A draft whose story says the sum's answer before the child has worked it out."""
-    d = draft(KEYS)
-    d.scenes[0].speech = "사과 다섯 개만 있으면 된대! 이 문제를 풀어 볼까?"
-    return d
 
 
 def test_clean_draft_comes_back_whole_and_is_recorded(tmp_path):

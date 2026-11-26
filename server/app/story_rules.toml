@@ -103,6 +103,11 @@ patterns = [
 ]
 
 # The car is parked: the writer is told up front to avoid these in every line.
+# A story written for the shared shelf is told in any season and at any hour, so none of these may appear in it.
+# "눈" is left out on purpose: it also means the eye.
+[library]
+never = ["봄", "여름", "가을", "겨울", "눈사람", "눈송이", "함박눈", "단풍", "낙엽", "벚꽃", "아침", "저녁", "밤", "새벽", "노을"]
+
 [prompt]
 everywhere_never = ["출발", "시동", "운전해", "운전하", "운전을", "기어", "핸들", "브레이크", "차 문", "창문을 열"]
 # The bubble sits next to the picture before the child has looked: it shows the trouble, never the button.

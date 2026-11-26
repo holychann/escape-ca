@@ -120,8 +120,9 @@ def _scene(key: str, picks: dict) -> list[str]:
     return lines
 
 
-def user_message(req: EpisodeRequest, picks: dict | None = None) -> str:
-    """``picks`` maps each quiz key to the bank question (and hint) its scene asks (service.pick_questions)."""
+def user_message(req: EpisodeRequest, picks: dict | None = None, timeless: bool = False) -> str:
+    """``picks`` maps each quiz key to the bank question (and hint) its scene asks (service.pick_questions).
+    ``timeless`` leaves out the season, time and weather line, for a story written for the shelf."""
     picks = picks or {}
     ctx = req.context
     now = f"{SEASON[ctx.season]} {TIME[ctx.timeOfDay]}"
@@ -139,7 +140,7 @@ def user_message(req: EpisodeRequest, picks: dict | None = None) -> str:
         friend_line(req.friend),
         f"- 함께 타는 아이: {', '.join(AGE_LABEL[a] for a in req.ages)}",
         f"- 기다리는 시간: 약 {req.minutes}분",
-        f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)",
+        *([] if timeless else [f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)"]),
         f"- 세계: {world}",
         *([f"- 가족이 바란 이야기: «{req.wish}» (위 '가족이 바란 이야기' 규칙대로 반영한다)"] if req.wish else []),
         *([f"- 오늘의 교훈: {LESSON_LABEL[req.lesson][0]} (풀어 쓴 말: {LESSON_LABEL[req.lesson][1]}, "
