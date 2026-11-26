@@ -139,7 +139,7 @@ class TemplateWriter:
             intro=f"[개발용] 나는 {friend}야. 서버에서 받은 이야기야.",
             treasureBadge="[개발용] 배지 받았어!",
             scenes=scenes,
-            art=Art(cover=f"{world} 표지", puzzles=[f"{world} 퍼즐 {_SLOT_NAMES[i]}" for i in range(slots)], ending=f"{world} 마지막"),
+            art=Art(cover=f"{world} 표지", puzzles=[f"{world} 퍼즐 {_SLOT_NAMES[i]}" for i in range(slots)]),
         )
         return draft, "dev-template"
 
@@ -154,7 +154,7 @@ class CardPainter:
         time.sleep(float(os.environ.get("DEV_PAINT_SECONDS", "1.5")))
         found = re.search(f"퍼즐 ([{_SLOT_NAMES}])", description)
         n = _SLOT_NAMES.index(found.group(1)) + 1 if found else 0
-        return self._card((1536, 1024), self.COLORS[n % len(self.COLORS)], f"DEV PICTURE {'cover/ending' if n == 0 else n}")
+        return self._card((1536, 1024), self.COLORS[n % len(self.COLORS)], f"DEV PICTURE {'cover' if n == 0 else n}")
 
     @staticmethod
     def _card(size: tuple[int, int], color, label: str) -> bytes:

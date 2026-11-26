@@ -6,7 +6,10 @@ enum class Gear { PARK, REVERSE, NEUTRAL, DRIVE, UNKNOWN }
 enum class FanDir { FACE, FLOOR, FACE_AND_FLOOR, DEFROST, OTHER, UNKNOWN }
 
 enum class Seat(val label: String) {
-    DRIVER("운전석"), PASSENGER("조수석"), REAR_LEFT("뒷좌석 왼쪽"), REAR_RIGHT("뒷좌석 오른쪽")
+    DRIVER("운전석"), PASSENGER("조수석"), REAR_LEFT("뒷좌석 왼쪽"), REAR_RIGHT("뒷좌석 오른쪽");
+
+    /** A back seat, where the child sits (either side). */
+    val rear: Boolean get() = this == REAR_LEFT || this == REAR_RIGHT
 }
 
 /** Car devices a quiz answer can go into. A car that lacks one gets a different puzzle. */
@@ -56,6 +59,15 @@ enum class StopReason(val message: String) {
 object Safety {
     const val MAX_PLAY_MS = 20 * 60 * 1000L
     const val RECIRCULATION_LIMIT_MS = 3 * 60 * 1000L
+    /** The most one tick adds to the time played (ticks come every 200 ms). */
+    const val STEP_MAX_MS = 1_000L
+    /** Ticks this far apart mean the app was not running: the car was switched off and on with the app in memory. */
+    const val RESTART_GAP_MS = 60_000L
+
+    /** What a gap between two ticks adds to the 20 minutes: a car asleep, or a screen being rebuilt, does not play. */
+    fun countedMs(gapMs: Long): Long = gapMs.coerceIn(0, STEP_MAX_MS)
+
+    fun restarted(gapMs: Long): Boolean = gapMs >= RESTART_GAP_MS
     private const val STILL_MPS = 0.1f
 
     private fun driving(s: CarState) = s.gear != Gear.PARK || s.speedMps > STILL_MPS || s.uxRestricted

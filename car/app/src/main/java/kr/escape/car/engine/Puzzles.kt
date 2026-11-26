@@ -61,7 +61,7 @@ enum class Dial(val label: String, val device: Device, val range: IntRange, val 
         FAN_DOWN -> "바람 약하게 하기"
         SEAT_HEAT_ON -> "운전석 열선 켜기"
         SEAT_HEAT_OFF -> "운전석 열선 끄기"
-        LIGHT_CHILD -> "아이 자리 독서등 켜기"
+        LIGHT_CHILD -> "뒷자리 독서등 켜기"
         LIGHTS_OFF -> "독서등 모두 끄기"
         FAN, LIGHTS, SEAT_HEAT -> label
     }
@@ -77,9 +77,9 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
 
         /**
          * [start] is the car when the puzzle began: a temperature or a fan that has to go up or down counts from
-         * there. [childSeat] is where the child sits, for the light over their seat.
+         * there.
          */
-        fun solvedBy(s: CarState, start: CarState, childSeat: Seat = Seat.REAR_RIGHT): Boolean = when (dial) {
+        fun solvedBy(s: CarState, start: CarState): Boolean = when (dial) {
             Dial.FAN -> s.fanSpeed == value
             Dial.LIGHTS -> s.readingLights.count { it.value } == value
             Dial.SEAT_HEAT -> s.seatHeat == value
@@ -113,8 +113,8 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
             }
             Dial.SEAT_HEAT_ON -> (s.seatHeat ?: 0) >= 1
             Dial.SEAT_HEAT_OFF -> s.seatHeat == 0
-            // the other lights do not matter
-            Dial.LIGHT_CHILD -> s.readingLights[childSeat] == true
+            // either back seat's light, wherever the child sits; the front lights do not matter
+            Dial.LIGHT_CHILD -> s.readingLights.any { (seat, on) -> seat.rear && on }
             Dial.LIGHTS_OFF -> s.readingLights.isNotEmpty() && s.readingLights.values.none { it }
         }
 
@@ -136,7 +136,6 @@ sealed class Puzzle(val title: String, val devices: Set<Device>) {
 data class Setup(
     val ages: List<Age> = listOf(Age.CAPTAIN),
     val minutes: Int = 10,
-    val childSeat: Seat = Seat.REAR_RIGHT,
     /** The friend going through every puzzle of the episode, picked in the friend book. */
     val friend: Friend = Friend.BANTE,
     /** The story the family asked for ("공룡 섬에서 보물찾기"); blank lets the story server choose. Puzzles ignore it. */
@@ -245,7 +244,7 @@ object Planner {
             Dial.FAN_DOWN -> fan != null && fan >= 6
             Dial.SEAT_HEAT_ON -> s.seatHeat == 0
             Dial.SEAT_HEAT_OFF -> (s.seatHeat ?: 0) >= 1
-            Dial.LIGHT_CHILD -> s.readingLights[setup.childSeat] == false
+            Dial.LIGHT_CHILD -> s.readingLights.filterKeys { it.rear }.let { it.isNotEmpty() && it.values.none { on -> on } }
             Dial.LIGHTS_OFF -> s.readingLights.values.any { it }
             Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> false
         }
@@ -276,7 +275,7 @@ object Planner {
      * The car once [q] is solved, as far as another puzzle's condition can tell: a temperature or a fan moved the
      * least it can, which lights a light count turns on left as they are.
      */
-    fun after(q: Puzzle.Quiz, s: CarState, childSeat: Seat): CarState = when (q.dial) {
+    fun after(q: Puzzle.Quiz, s: CarState): CarState = when (q.dial) {
         Dial.FAN -> s.copy(fanSpeed = q.value)
         Dial.FAN_UP -> s.copy(fanSpeed = s.fanSpeed?.plus(1))
         Dial.FAN_DOWN -> s.copy(fanSpeed = s.fanSpeed?.minus(1))
@@ -289,7 +288,8 @@ object Planner {
         Dial.SEAT_HEAT_ON -> s.copy(seatHeat = maxOf(1, s.seatHeat ?: 0))
         Dial.SEAT_HEAT_OFF -> s.copy(seatHeat = 0)
         Dial.LIGHTS -> s
-        Dial.LIGHT_CHILD -> s.copy(readingLights = s.readingLights + (childSeat to true))
+        // one back light on is enough; which one cannot be told, so the first the car reports
+        Dial.LIGHT_CHILD -> s.copy(readingLights = s.readingLights + ((s.readingLights.keys.firstOrNull { it.rear } ?: Seat.REAR_RIGHT) to true))
         Dial.LIGHTS_OFF -> s.copy(readingLights = s.readingLights.mapValues { false })
     }
 
@@ -302,7 +302,7 @@ object Planner {
             var now = s
             for (q in order) {
                 if (!fits(q, now, setup)) return false
-                now = after(q, now, setup.childSeat)
+                now = after(q, now)
             }
             return true
         }
@@ -332,7 +332,7 @@ object Planner {
 
     /**
      * Another quiz for [q] when the car no longer allows it as its puzzle starts (the parent changed something during
-     * an earlier one): the same function the other way first ("독서등 모두 끄기" for "아이 자리 독서등 켜기"), then
+     * an earlier one): the same function the other way first ("독서등 모두 끄기" for "뒷자리 독서등 켜기"), then
      * anything else on the same device, then a device no other puzzle of the episode uses. [later] are the devices of
      * the puzzles still to come, never taken; [earlier] those of the puzzles already played, taken only when nothing
      * else fits. Null when the car allows nothing at all.

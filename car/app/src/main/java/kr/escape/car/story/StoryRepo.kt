@@ -62,9 +62,12 @@ class StoryRepo(
     /** The story being played; its pictures must stay while the next one is prepared. */
     private var playing: String? = null
 
-    /** Called while the parent is choosing, and when an episode starts (for the next one). */
-    fun prepare(setup: Setup, car: CarState) {
-        val ready = fits(setup, car)
+    /**
+     * Writes the episode for [setup]. With [planned] (소원 빌기: the puzzles the game is about to play) it is always
+     * written anew around exactly those; without, a story kept for the same setup is used if the car can play it.
+     */
+    fun prepare(setup: Setup, car: CarState, planned: List<Puzzle>? = null) {
+        val ready = if (planned == null) fits(setup, car) else null
         if (ready != null) {
             // a fetch started a moment ago, before the car had reported every device, must not overwrite this
             job?.cancel()
@@ -74,10 +77,11 @@ class StoryRepo(
             return
         }
         val wanted = setup.forStory()
-        if (job?.isActive == true && writingFor == wanted) return
+        // a story being written for the same choices is waited for, unless new puzzles were planned
+        if (planned == null && job?.isActive == true && writingFor == wanted) return
         job?.cancel()
         _preview.value = null
-        val puzzles = Planner.plan(setup, car, questions = questions)
+        val puzzles = planned ?: Planner.plan(setup, car, questions = questions)
         if (puzzles.isEmpty()) return
         writingFor = wanted
         _status.value = Status.WRITING
@@ -105,6 +109,21 @@ class StoryRepo(
             _status.value = Status.READY
             _preview.value = story
         }
+    }
+
+    /**
+     * The story [prepare] just wrote around the puzzles it was given, once it is ready; it is used up. Unlike [take] it
+     * does not ask the car again: those puzzles were checked when the game planned them.
+     */
+    fun takeWritten(): Story? {
+        if (_status.value != Status.READY) return null
+        val s = saved ?: return null
+        saved = null
+        file.delete()
+        playing = s.story.storyId
+        _status.value = Status.NONE
+        _preview.value = null
+        return s.story
     }
 
     /** The ready episode if it was written for this setup and this car can play it; it is used up. */
@@ -135,6 +154,18 @@ class StoryRepo(
             runCatching { if (!to.isFile) client.download(path, to) }.map { name to to.absolutePath }.getOrNull()
         }.toMap()
         return story.copy(images = local)
+    }
+
+    /** The story a saved episode plays, read back after a restart: its pictures stay while the next one is prepared. */
+    fun keepPlaying(storyId: String?) {
+        playing = storyId
+    }
+
+    /** The saved episode was dropped (새로 시작): its pictures go, unless they are the ready next story's. */
+    fun letGo(storyId: String) {
+        if (playing == storyId) playing = null
+        if (saved?.story?.storyId == storyId) return
+        scope.launch(io) { File(pictures, storyId).deleteRecursively() }
     }
 
     private fun forgetPicturesExcept(keep: Set<String>) {
@@ -208,28 +239,33 @@ class StoryRepo(
             return body
         }
 
+        /** The parent's choices as kept on disk, for the next episode here and for the one in progress ([ProgressStore]). */
+        fun setupJson(s: Setup): JSONObject = JSONObject()
+            .put("ages", JSONArray(s.ages.map { it.name }))
+            .put("minutes", s.minutes)
+            .put("friend", s.friend.name)
+            .put("wish", s.wish)
+
+        /** Back from [setupJson]; throws on a value this app does not know. A friend it does not know is 반테. */
+        fun setupOf(o: JSONObject): Setup {
+            val ages = o.getJSONArray("ages")
+            return Setup(
+                ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
+                minutes = o.getInt("minutes"),
+                friend = Friend.entries.firstOrNull { it.name == o.optString("friend") } ?: Friend.BANTE,
+                wish = o.optString("wish", ""),
+            )
+        }
+
         private fun save(s: Saved): JSONObject = JSONObject()
-            .put("setup", JSONObject()
-                .put("ages", JSONArray(s.setup.ages.map { it.name }))
-                .put("minutes", s.setup.minutes)
-                .put("childSeat", s.setup.childSeat.name)
-                .put("friend", s.setup.friend.name)
-                .put("wish", s.setup.wish))
+            .put("setup", setupJson(s.setup))
             .put("keys", JSONArray(s.keys))
             .put("story", s.story.toJson())
 
         private fun load(o: JSONObject): Saved {
-            val st = o.getJSONObject("setup")
-            val ages = st.getJSONArray("ages")
             val keys = o.getJSONArray("keys")
             return Saved(
-                Setup(
-                    ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
-                    minutes = st.getInt("minutes"),
-                    childSeat = Seat.valueOf(st.getString("childSeat")),
-                    friend = Friend.entries.firstOrNull { it.name == st.optString("friend") } ?: Friend.BANTE,
-                    wish = st.optString("wish", ""),
-                ),
+                setupOf(o.getJSONObject("setup")),
                 List(keys.length()) { keys.getString(it) },
                 Story.parse(o.getJSONObject("story")),
             )

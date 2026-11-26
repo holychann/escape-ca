@@ -1,4 +1,4 @@
-"""Draws an episode's pictures with Gemini's image model, in the app's soft felt-doll look.
+"""Draws an episode's pictures with Gemini's image model, in the app's soft 3D animated storybook look.
 
 The writer only describes each picture (Draft.art) and the checker has already removed any description that
 would show an answer, so a picture can set the scene but never tell the child which button to press.
@@ -13,31 +13,46 @@ from typing import Protocol
 
 from PIL import Image
 
+from .pacing import Pace
+
 log = logging.getLogger("painter")
 
 IMAGE_MODEL = "gemini-nano-banana-2.1"
+# gemini-nano-banana-2.1 refuses "low" (400 INVALID_ARGUMENT, measured 2026-11-27); "minimal" draws in about 13 s
+IMAGE_EFFORT = "minimal"
+IMAGE_EFFORTS = ("minimal", "low", "medium", "high", "off")
 ART_DIR = Path(__file__).with_name("art")
 
-# The app's own pictures are soft needle-felted dolls in warm light; a polished CGI render with glow, bokeh and props
-# everywhere reads as "AI picture" next to them.
+
+def _image_effort(effort: str | None = None) -> str:
+    chosen = (effort or os.environ.get("IMAGE_EFFORT") or IMAGE_EFFORT).strip().lower()
+    if chosen not in IMAGE_EFFORTS:
+        raise ValueError(f"unknown IMAGE_EFFORT: {chosen}")
+    return chosen
+
+# The app's own pictures look like a children's 3D animated film: plush-toy friends with glossy eyes in a rounded
+# toy-like world, lit as the scene needs (a hot day, a cold night, fog), never dark or gloomy.
 LOOK = (
-    "Soft 3D felt-doll look, like needle-felted wool figures on a small cosy tabletop set. Fuzzy wool texture on the "
-    "characters and on the world around them, with a faint soft fuzz at the edges; rounded chunky shapes with few "
-    "details, not smooth clay and not shiny plastic. Warm golden light like a cosy lamp-lit room or a late afternoon, "
-    "gentle soft shadows, almost everything in focus. Rich warm colours, calm, not neon, not oversaturated. "
-    "A simple, uncluttered background with only a few props and some empty space. Cute but not babyish, for children "
-    "aged 4 to 12. "
+    "Soft 3D animated storybook look, like a cosy children's animated film. Characters look like soft plush toys "
+    "with a fine velvety fur surface and slightly fuzzy edges, round chunky shapes, and big glossy eyes with small "
+    "highlights. The world is made of rounded, toy-like props: smooth painted wood, soft fabric, rounded furniture "
+    "and plants, tidy with only a few clear props. Soft, gentle light with soft shadows; everything clear and in "
+    "focus. Light and colours follow the scene: its place, time of day, weather and temperature (a hot sunny day is "
+    "bright, a cold night is deep blue outside with warm lamp light inside, fog is a soft misty blue, underwater is "
+    "clear aqua). Colours are rich and cheerful but harmonious, never neon, never dark or gloomy. Cute but not "
+    "babyish, for children aged 4 to 12. "
 )
 # what makes a picture look machine-made; said every time, because the model falls back to it unasked
 NOT_AI = (
-    "Avoid the typical AI-image look: no glossy CGI render, no cinematic or dramatic lighting, no glow, no sparkles, "
-    "no light rays, no lens flare, no bokeh, no HDR, no hyper-detailed textures, no ornament on every surface, "
-    "no perfectly symmetrical staging, no extra limbs or melted shapes. Nothing scary or dangerous. "
-    "No text, no letters, no numbers, no signs. "
+    "Avoid the typical AI-image look: no lens flare, no bokeh or blurred background, no harsh HDR contrast, no "
+    "dramatic spotlight or dark moody lighting, no ornament on every surface, no perfectly symmetrical staging, no "
+    "extra limbs or melted shapes. Glow only on real light sources in the scene (lamps, windows, the sun, stars) and "
+    "sparkle only on things like frost or stars; simple curved swirl lines may show moving air. Nothing scary or "
+    "dangerous. No text, no letters, no numbers, no signs. "
 )
 STYLE = LOOK + (
     "Landscape picture, main subjects centered with margin on the left and right. "
-    "The first reference picture is the model sheet of the nine friends, read row by row: Bante (puppy, light brown and white, left ear folded, red scarf), Konyang (gray "
+    "The first reference picture is the model sheet of the nine friends, read row by row: Bante (puppy, light brown and white, symmetric half-folded button ears, red scarf), Konyang (gray "
     "tabby kitten, lime vest, magnifying glass), Ria (white bunny, yellow star hairpin, lilac cape with stars, crayon), "
     "Tubugi (green turtle, dark green shell, small backpack), Pappi (tiny round long-tailed tit bird, short beak, orange "
     "hard hat, pink ribbon), Potto (panda, blue overalls, bamboo basket), Io (orange fox, sky-blue scarf, winking), "
@@ -45,7 +60,8 @@ STYLE = LOOK + (
     "teeth, yellow backpack). Every friend wears the same yellow star badge on the chest. Anyone who appears keeps the "
     "exact face, colours, outfit and prop from the model sheet; never mix two friends or invent new parts. No robot guide or "
     "any other character outside the model sheet appears unless the scene asks for it. The second reference picture "
-    "shows the drawing style: copy its felt texture, light and colours, but not its place, props or composition. "
+    "shows the drawing style in four scenes: copy how the characters and the world are rendered (plush fur, glossy "
+    "eyes, toy-like props, soft light), not the places, props, light or composition. "
 ) + NOT_AI
 
 
@@ -72,16 +88,25 @@ class GeminiPainter:
     up front: one client (a client made lazily per thread got closed under another thread) and the reference pictures
     as bytes (PIL images read lazily from several threads came back truncated)."""
 
-    def __init__(self, model: str | None = None, client=None):
+    def __init__(self, model: str | None = None, client=None, effort: str | None = None, api_key: str | None = None):
         from google import genai
         from google.genai import types
 
         self.model = model or os.environ.get("IMAGE_MODEL", IMAGE_MODEL)
+        self.effort = _image_effort(effort)
+        # pictures are drawn with the paid key only: the image model has no free tier, so the free key (GEMINI_API_KEY,
+        # kept for speech) would only be refused
+        key = api_key or os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+        if client is None and not key:
+            raise PainterError("GEMINI_API_KEY_PAID is not set")
         # one picture usually takes 10~20 s; a busy minute is tried again a few seconds later
-        self.client = client or genai.Client(http_options=types.HttpOptions(
+        self.client = client or genai.Client(api_key=key, http_options=types.HttpOptions(
             timeout=120_000,
-            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[429, 500, 503]),
+            # a 429 is left to the pace below, which waits as long as Google asks
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[500, 503]),
         ))
+        # the paid key's per-minute limit for the image model, shared by the threads drawing one episode
+        self.pace = Pace(int(os.environ.get("IMAGE_RPM", "5")), "pictures (paid key)")
         self.refs = [
             types.Part.from_bytes(data=(ART_DIR / f"{n}.jpg").read_bytes(), mime_type="image/jpeg")
             for n in ("ref_friends", "ref_style")
@@ -92,14 +117,19 @@ class GeminiPainter:
 
     def _draw(self, prompt: str, refs: list, aspect: str) -> bytes:
         from google.genai import types
-        response = self.client.models.generate_content(
+        thinking = (
+            types.ThinkingConfig(thinking_level=getattr(types.ThinkingLevel, self.effort.upper()))
+            if self.effort != "off" else None
+        )
+        response = self.pace.call(lambda: self.client.models.generate_content(
             model=self.model,
             contents=[prompt, *refs],
             config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"],
                 image_config=types.ImageConfig(aspect_ratio=aspect, image_size="1K"),
+                thinking_config=thinking,
             ),
-        )
+        ))
         for part in response.parts or []:
             if part.inline_data is not None and part.inline_data.data:
                 return part.inline_data.data
@@ -107,7 +137,9 @@ class GeminiPainter:
 
 
 def make_painter() -> Painter | None:
-    """Gemini draws when a Gemini key is set; IMAGE_MODEL=off keeps the app's own pictures."""
-    if os.environ.get("IMAGE_MODEL", "").lower() == "off" or not os.environ.get("GEMINI_API_KEY"):
+    """Gemini draws with the paid key (GEMINI_API_KEY_PAID); without it, or with IMAGE_MODEL=off, the app keeps its own
+    pictures."""
+    paid_key = os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+    if os.environ.get("IMAGE_MODEL", "").lower() == "off" or not paid_key:
         return None
-    return GeminiPainter()
+    return GeminiPainter(api_key=paid_key)

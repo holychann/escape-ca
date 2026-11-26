@@ -15,16 +15,16 @@
 - **정답 키**: 퍼즐마다 한 칸이고, 칸에는 계획한 정답 키와 퍼즐을 시작할 때 차 상태 때문에 앱이 바꿔 낼 1순위 키(반대 방향 문제)가 함께 들어갈 수 있습니다. 작가는 두 장면을 다 쓰고, 앱은 실제로 낸 쪽을 읽습니다. 키 형식은 `Q:<문제 종류>:<장치>:<값>`, 예: `Q:MATH:FAN:5`(답이 5인 계산 문제, 풍량 5단으로 답함), `Q:REASON:AC:1`(상황을 듣고 에어컨을 켜서 답함), 그리고 벨트 미션 `BELT`.
   - 문제 종류: `MATH`(계산), `ENGLISH`(숫자 영단어나 글자 수), `PATTERN`(규칙 찾기), `REASON`(추론: 곤란한 상황을 듣고 그 상황을 풀 차 기능을 찾아 조작)
   - 장치와 값: `FAN` 풍량 1~8단, `TEMP_UP`/`TEMP_DOWN` 퍼즐 시작 때보다 1~3도 올리기/내리기, `LIGHTS` 켜진 독서등 1~4개, `SEAT_HEAT` 운전석 열선 1~3단
-  - 추론의 장치와 값(`quiz.REASON_ACTIONS`): 켜기는 1, 끄기는 0, 방향만 있는 조작은 1. `AC` 에어컨 켜기/끄기, `RECIRC` 내기 순환 켜기/끄기, `DEFROST` 앞 유리 성에 제거 켜기, `TEMP_UP`/`TEMP_DOWN` 온도 올리기/내리기, `FAN_UP`/`FAN_DOWN` 바람 세게/약하게, `SEAT_HEAT_ON`/`SEAT_HEAT_OFF` 운전석 열선 켜기/끄기, `LIGHT_CHILD` 아이 자리 독서등 켜기, `LIGHTS_OFF` 독서등 모두 끄기
+  - 추론의 장치와 값(`quiz.REASON_ACTIONS`): 켜기는 1, 끄기는 0, 방향만 있는 조작은 1. `AC` 에어컨 켜기/끄기, `RECIRC` 내기 순환 켜기/끄기, `DEFROST` 앞 유리 성에 제거 켜기, `TEMP_UP`/`TEMP_DOWN` 온도 올리기/내리기, `FAN_UP`/`FAN_DOWN` 바람 세게/약하게, `SEAT_HEAT_ON`/`SEAT_HEAT_OFF` 운전석 열선 켜기/끄기, `LIGHT_CHILD` 뒷자리 독서등 켜기, `LIGHTS_OFF` 독서등 모두 끄기
 - **검사기** (`app/checker.py`, `app/quiz.py`)
   1. 틀: 길이(가장 어린 나이 단계 기준), 빠진 장면
-  2. 말: 무서운 말, 차에서 위험한 말(문, 창문 열기, 벨트 풀기, 출발, 기어 등), 개인정보 질문, 영어와 주소(영어 문제의 단어 하나만 예외)
+  2. 말: 무서운 말, 차에서 위험한 말(문, 창문 열기, 벨트 풀기, 출발, 기어 등), 개인정보 질문, 영어와 주소(영어 문제의 단어 하나만 예외), 존댓말(`~요`, `~니다`, `~죠`)
   3. 다시 풀기: 계산식은 직접 계산하고, 수열은 다음 수를 구하고, 영어는 숫자 단어 표나 글자 수로 답을 구해서 정답 값과 같아야 함. 식의 수가 문제 문장에 모두 있어야 함
-  4. 나이 난이도: 4~6세는 5 이하 수로 한 번 셈, 7~9세는 20 이하 수로 두 번까지, 10~12세는 곱셈과 나눗셈까지(`quiz.LEVELS`). 넘으면 버림
+  4. 나이 난이도: 4~6세는 5 이하 수로 한 번 셈, 7~9세는 10 이하 수로 한 번 셈, 10~12세는 곱셈까지(`quiz.LEVELS`). 넘으면 버림
   5. 정답 새지 않기: 정답 수(숫자, "다섯 개" 같은 말)가 말풍선, 이야기, 문제, 힌트에 나오면 안 됨
-  6. 추론: 문제 문장이 나이별 길이(4~6세 70자, 7~9세 90자, 10~12세 120자, `quiz.REASON_MAX`) 안이어야 함. 아이가 상황을 듣고 기능을 스스로 찾도록 이야기(speech)에 버튼 이름이 없어야 함
+  6. 추론: 문제 문장이 나이별 길이(4~6세 70자, 7~9세 90자, 10~12세 120자, `quiz.REASON_MAX`) 안이어야 함. 아이가 상황을 듣고 기능을 스스로 찾도록 이야기(speech)에 버튼 이름과 직접적인 조작 지시("켜기", "켜 줘", "눌러 봐" 등)가 없어야 함
   7. 말풍선: 그림 옆 말풍선(bubble)에 버튼 이름("성에", "독서등" 등)이나 "켜기", "끄기"가 없어야 함
-  8. 등장인물: 고른 친구 말고 다른 도감 친구, 루미, 예전 친구(펭귄 선장 등)의 이름이 나오면 안 됨. 첫인사에는 고른 친구가 자기 이름을 말해야 함
+  8. 등장인물: 고른 친구 말고 다른 도감 친구, 루미, 예전 친구(펭귄 선장 등)의 이름이 대사와 그림 설명(art) 어디에도 나오면 안 됨. 첫인사에는 고른 친구가 자기 이름을 말해야 함
   9. 푼 뒤 한 줄(result): 길이(4~6세 70자, 그 밖 90자), 무서운 말, 다른 인물 이름. 아이가 이미 정답을 넣은 뒤라 정답 버튼 이름과 수는 써도 됨. 걸리면 그 줄만 빠지고 앱이 기본 칭찬을 말함
 - 답을 어느 버튼에 넣을지와 "안전 지킴이에게 알려 줘"라는 말은 AI가 쓰지 않고 차 앱이 문제 뒤에 붙입니다(`Lines.ask`). 그래서 AI 문장이 아이를 엉뚱한 버튼으로 보낼 수 없습니다.
 - **문제은행** (`app/bank.py`, `app/question_bank.json`)
@@ -38,8 +38,9 @@
 - **규칙 파일** (`app/story_rules.toml`): 길이 제한, 금지 패턴, 벨트 미션의 장면 설명이 여기 있습니다. 서버가 시작할 때 파일을 검사해서, 모르는 항목 이름, 깨진 정규식, 빈 단어 묶음이 있으면 서버가 뜨지 않습니다(오타가 검사를 몰래 약하게 만들지 않도록).
 - 검사 부품(금지 패턴, 길이, 꼭 넣을 말, 판정 범위)과 표본 측정 명령은 [textgate](https://github.com/leekwangeun/textgate) 라이브러리를 씁니다. 나이별 말 길이와 안전 지킴이 규칙처럼 차량탈출에만 있는 규칙은 `app/checker.py`에 있습니다.
 - 판 전체 문장(제목, 첫인사, 끝 인사)에 문제가 있으면 그 초안은 버립니다. 장면 하나만 문제면 그 장면만 빼고, 차는 그 장면을 기본 문장으로 진행합니다. 한 번 더 써 보고 더 깨끗한 초안을 고릅니다.
-- **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고). 설치 ID는 기록하지 않습니다.
-- **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편 (환경 변수로 조정)
+- **기록**: `data/episodes.jsonl`(보낸 이야기), `data/reports.jsonl`(부모의 이야기 신고, 같은 사유 중복 신고 제외·IP별 횟수 제한). 설치 ID와 IP 원문은 기록하지 않습니다.
+- **비용 제한**: 설치 하나당 하루 20편, 주소 하나당 하루 200편, 서버 전체 하루 300편 (`data/daily_limit.json`에 해시 카운터로 저장되어 재시작 뒤에도 유지, 환경 변수로 조정)
+- **그림·음성 자동 정리**: 생성된 `data/images/{storyId}/` 폴더는 기본 24시간(`STORY_IMAGE_TTL_HOURS`), `data/audio_cache/*.wav` 음성 캐시는 기본 72시간(`STORY_AUDIO_TTL_HOURS`, 최대 `STORY_AUDIO_MAX_FILES`개)이 지나면 자동으로 지워집니다. `/v1/speak`도 합성 전에 금칙어와 주소를 먼저 걸러 냅니다.
 
 ## 이야기 소원과 그림 (맞춤 이야기)
 
@@ -64,15 +65,37 @@
 - 끝 인사는 탐험 배지를 줄 때의 한 가지(`treasureBadge`)뿐입니다. 어느 퍼즐에나 쓰던 칭찬과 글로브박스 선물 인사는 없습니다.
 - 규칙 전체는 `현대기아 앱공모전/차근차근탐험단_이야기프롬프트_규칙안.md`에 있습니다.
 
+## 루미 목소리 (동화 낭독)
+
+- 앱의 모든 대사는 Gemini 음성 모델(`TTS_MODEL`, 기본 `gemini-3.8-flash-tts`)이 그림책 읽어 주는 이야기꾼 목소리로 읽습니다. 차의 목소리(Pleos TextToSpeech)는 앱에서 쓰지 않습니다(속도, 높낮이, SSML을 조절할 수 없어 뉴스처럼 읽기 때문).
+- 목소리는 `TTS_VOICE=ko-kr-storyteller-4`(확장 목소리 목록의 한국어 이야기꾼, 27세 여성, 서울말), 말투는 `TTS_STYLE`(영어 지시문)입니다. 목소리 이름이 있는지는 `python -m tools.tts_voices <이름>`으로 봅니다(목록만 조회, 합성 없음).
+- **대사 그대로 합성**: 앱은 말할 문장을 이어 붙인 그대로(이야기 + 문제 + 앱의 안내 한 줄, 첫인사 + 공조 오토 안내 등) `POST /v1/speak {installId, text}`로 보내고 WAV(24kHz, 모노, 16비트)를 받아 틉니다. 말투 지시는 대사와 섞지 않고 `speech_metadata.style`에만 넣습니다(모델은 `text`를 글자 그대로 읽으므로 섞이면 지시문을 소리 내 읽습니다).
+- **캐시 두 겹**: 서버는 `data/audio_cache/{sha256(모델|목소리|스타일 + 대사)}.wav`에 두고 같은 대사·목소리·스타일이면 다시 합성하지 않습니다(같은 줄을 두 차가 동시에 물어도 한 번만). 앱도 받은 녹음을 기기(`files/voice_cache`)에 둡니다. 판이 시작될 때 그 판의 이야기·문제·정답 뒤 한 줄·끝인사를 미리 받아 두고, 힌트는 누를 때 받습니다(아무도 안 듣는 줄은 합성하지 않음).
+- **키 순서**: 무료 키 `GEMINI_API_KEY`로 먼저 합성합니다. 무료 키는 하루 `TTS_DAILY_MAX`(기본 100)번까지만 부르고, 429가 오면 다시 시도하지 않고 멈춥니다(하루 한도면 다음 날까지, 분당 한도면 1분). 무료 키가 한도에 걸리거나 어떤 오류든 나면 유료 키 `GEMINI_API_KEY_PAID`로 **한 번** 더 시도하고, 넘어갈 때마다 서버 로그에 `voice: free key ... retrying once with the paid key`를 남깁니다. 유료 키에는 횟수 제한이 없습니다. 유료 키가 비어 있으면 넘어가지 않습니다.
+- **소리가 없을 때**: 두 키가 모두 실패하거나 서버에 붙지 못하면, 기기나 서버에 남은 녹음이 있으면 그것을 틀고, 없으면 그 대사를 화면에 자막으로 보여 줍니다.
+- **남용 막기**: 유료 키에 제한이 없으므로 `/v1/speak`는 대사 600자까지, 설치 하나당 하루 400줄(`SPEAK_DAILY_PER_INSTALL`), 주소 하나당 하루 2000줄(`SPEAK_DAILY_PER_IP`), 서버 전체 하루 20000줄(`SPEAK_DAILY_TOTAL`)로 막습니다.
+- `TTS_MODEL=off`로 끄면 모든 대사가 자막으로만 나옵니다. 들어 보기: `python -m tools.tts_sample --yes`(1문장, `--yes` 없이는 호출하지 않음, 최대 2번 호출, 무료 키만 사용).
+
 ## 실행
 
 ```powershell
 cd escape\server
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
-copy .env.example .env      # ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 입력 (저장소에 올리지 않음)
+copy .env.example .env      # 키 세 개 입력 (아래 '키 세 개', 저장소에 올리지 않음)
 .\.venv\Scripts\python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8787
 ```
+
+### 키 세 개
+
+| 키 | 하는 일 | 없으면 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 대본(이야기, 대사) 작성, Claude | 앱의 기본 이야기로 진행 |
+| `GEMINI_API_KEY` (무료) | 대사 읽기(TTS)를 먼저 맡음, 무료 한도 안에서 | 처음부터 유료 키로 읽음 |
+| `GEMINI_API_KEY_PAID` (유료) | 그림 생성 전부, 무료 키가 한도에 걸리거나 실패한 대사 읽기 | AI 그림 없이 앱 그림, 무료 키가 못 읽은 대사는 자막 |
+
+- Gemini 키가 있어도 대본은 Claude가 씁니다. Gemini로 대본을 써 보려면 `STORY_PROVIDER=gemini`를 넣습니다(무료 키 사용, 시험용).
+- 그림은 무료 키로 시도하지 않습니다. 그림 모델에는 무료 등급이 없기 때문입니다.
 
 에뮬레이터의 차 앱은 `http://127.0.0.1:8787`로 접속하므로 PC로 포트를 넘겨 줍니다.
 
@@ -80,7 +103,9 @@ copy .env.example .env      # ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 입력 (�
 adb reverse tcp:8787 tcp:8787
 ```
 
-배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
+클라우드(Cloud Run, Fly.io, Render 등)에는 `server/Dockerfile`로 바로 배포할 수 있습니다(`STORY_TRUST_PROXY=1` 기본 포함). 배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
+
+AWS Lightsail 같은 서버 한 대에 올릴 때는 `compose.yaml`(이야기 서버 + HTTPS를 맡는 Caddy)을 씁니다. 인스턴스 만들기부터 앱 연결, 운영 명령까지 [배포_방법.md](배포_방법.md)에 있습니다.
 
 ## 시험
 
@@ -89,13 +114,15 @@ adb reverse tcp:8787 tcp:8787
 .\.venv\Scripts\textgate sample tools.story_spec:SPEC -n 30                 # 실제 모델로 30편: 통과율, 실패 원인, 시간, 토큰 수, 비용 (유료 호출)
 .\.venv\Scripts\textgate recheck tools.story_spec:SPEC "data/sample-*.jsonl"  # 저장된 초안을 지금 규칙으로 다시 판정 (호출 없음, 무료)
 .\.venv\Scripts\textgate try app/story_rules.toml "커피가 따뜻해"              # 문장 하나가 어떤 금지 패턴에 걸리는지
+.\.venv\Scripts\python -m tools.tts_voices Sira Sami   # 목소리 이름이 있는지 (목록 조회만)
+.\.venv\Scripts\python -m tools.tts_sample --yes       # 루미 목소리 1문장 들어 보기 (호출 1번)
 .\.venv\Scripts\python -m tools.dev_server   # 키 없이 앱 연결만 확인하는 개발용 서버 (문장에 [개발용] 표시)
 ```
 
 ## 모델과 정책
 
-- 시제품 모델: Gemini `gemini-3.6-flash`. 정해진 JSON 틀(`response_json_schema`)로 받고 `thinking_level: LOW`로 기다림을 줄입니다(한 편에 대개 5~10초). Google 쪽이 붐비거나 분당 횟수 제한에 걸리면 몇 초 뒤 최대 두 번 다시 요청합니다. `.env`에 `GEMINI_API_KEY`가 있으면 Gemini를 씁니다.
-- 작성기(`app/writer.py`)는 바꿔 끼울 수 있게 나뉘어 있습니다. Claude(`claude-opus-5-5`)도 들어 있어 `STORY_PROVIDER=claude`와 `ANTHROPIC_API_KEY`만 넣으면 바뀌고, 모델 이름은 `STORY_MODEL`로 바꿉니다. 어떤 모델이 쓰든 같은 검사기를 거칩니다.
+- 시제품 모델: 대본은 Claude `claude-opus-5-5`(`ANTHROPIC_API_KEY`), 그림은 Gemini `gemini-nano-banana-2.1`(`GEMINI_API_KEY_PAID`), 대사 읽기는 Gemini `gemini-3.8-flash-tts`(무료 키 먼저, 그다음 유료 키). 정해진 JSON 틀(`json_schema`)로 받고 대본 추론 강도는 기본 `STORY_EFFORT=medium`(그림 생성 `IMAGE_EFFORT=minimal`, 지금 그림 모델은 `low`를 받지 않음)으로 품질과 대기 시간의 균형을 맞춥니다. Google 쪽이 붐비거나 분당 횟수 제한에 걸리면 몇 초 뒤 최대 두 번 다시 요청합니다.
+- 작성기(`app/writer.py`)는 바꿔 끼울 수 있게 나뉘어 있습니다. `STORY_PROVIDER=gemini`로 Gemini `gemini-3.6-flash`(무료 키)로 바꿀 수 있고, 모델 이름은 `STORY_MODEL`로 바꿉니다. 어떤 모델이 쓰든 같은 검사기를 거칩니다.
 - 출시 전 교체: Gemini API 약관은 18세 미만을 대상으로 하거나 18세 미만이 이용할 가능성이 높은 서비스에 API를 쓰는 것을 허용하지 않습니다. 그래서 실제 출시 때는 Pleos 차량 인앱 LLM(앱용 SDK가 공개되면) 또는 미성년자 서비스를 허용하는 제공사(예: Anthropic, 안전장치를 갖추는 조건)로 작성기를 바꿉니다.
-- 결제를 켠 유료 등급으로 호출하므로 보낸 입력과 출력은 Google의 제품 개선에 쓰이지 않습니다. 서버는 정답 키, 나이 단계, 시간대, 계절만 보내고 아이에 대한 정보는 보내지 않습니다.
+- 그림은 결제를 켠 유료 키로 부르므로 보낸 입력과 출력이 Google의 제품 개선에 쓰이지 않습니다. 대사 읽기는 무료 키를 먼저 쓰는데, Gemini 무료 등급에서는 보낸 입력과 출력이 Google의 제품 개선에 쓰일 수 있습니다. 그래서 TTS에는 검사를 통과한 대사 문장만 보냅니다. 서버는 어느 모델에도 정답 키, 나이 단계, 시간대, 계절, 가족이 적은 장소와 이야기 종류만 보내고 아이에 대한 정보는 보내지 않습니다.
 - 아이는 AI와 직접 대화하지 않고 검사를 통과한 문장만 듣습니다. 앱은 시작 화면에 AI가 만든 이야기임을 알리고, 부모 화면에 이야기 신고 버튼을 둡니다.

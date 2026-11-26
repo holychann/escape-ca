@@ -4,6 +4,7 @@ import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
+import kr.escape.car.engine.WrongJudge
 import kotlin.random.Random
 
 /**
@@ -30,6 +31,8 @@ object Lines {
     const val SUCCESS = "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!"
     const val TREASURE_BADGE = "기차가 다 고쳐졌어! 고마워, 탐험대장. 반짝이는 탐험 배지를 줄게!"
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
+    /** 이어 하기: before the puzzle the family comes back to, after the car was switched off. */
+    const val WELCOME_BACK = "다시 만났네! 하던 탐험을 이어서 해 보자."
 
     /**
      * At the start of play: the climate's AUTO mode changes the fan, the air conditioner and the recirculation by
@@ -40,6 +43,33 @@ object Lines {
 
     fun intro(f: Friend) = "안녕, 탐험대장! 나는 ${isName(f.label)}. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. " +
         "나랑 같이 문제를 풀어서 기차를 고쳐 보자! 답을 찾으면, 그 답으로 버튼을 어떻게 바꿀지 안전 지킴이에게 알려 줘."
+
+    /**
+     * A wrong answer (engine WrongJudge), gentle and in words that fit every quiz and every story: they never say the
+     * answer, only whether the button, the amount or the way is off. [n] takes turns through each kind's lines.
+     */
+    fun wrong(kind: WrongJudge.Kind, n: Int): String {
+        val lines = when (kind) {
+            WrongJudge.Kind.BUTTON -> WRONG_BUTTON
+            WrongJudge.Kind.AMOUNT -> WRONG_AMOUNT
+            WrongJudge.Kind.WAY -> WRONG_WAY
+        }
+        return lines[Math.floorMod(n, lines.size)]
+    }
+
+    private val WRONG_BUTTON = listOf(
+        "음, 그 버튼은 아닌 것 같아. 다시 생각해 볼까?",
+        "앗, 다른 버튼이었나 봐. 문제를 다시 떠올려 보자!",
+        "아깝다! 천천히 다시 찾아볼까?",
+    )
+    private val WRONG_AMOUNT = listOf(
+        "버튼은 맞았어! 그런데 답이 조금 다른 것 같아. 다시 풀어 볼까?",
+        "아깝다, 거의 다 왔어! 답을 한 번 더 확인해 볼까?",
+    )
+    private val WRONG_WAY = listOf(
+        "버튼은 맞았는데, 거꾸로 된 것 같아. 다시 생각해 볼까?",
+        "앗, 반대쪽인가 봐. 이야기를 다시 떠올려 볼까?",
+    )
 
     /** After the treasure, in the friend's own words. */
     const val CLOSER = "우리 한층 더 친해졌어!"
@@ -131,7 +161,7 @@ object Lines {
             Dial.FAN_DOWN -> "풍량을 퍼즐 시작 때보다 약하게 (끄지 않기)"
             Dial.SEAT_HEAT_ON -> "운전석 열선 켜기 (몇 단이든)"
             Dial.SEAT_HEAT_OFF -> "운전석 열선 끄기"
-            Dial.LIGHT_CHILD -> "아이 자리 독서등 켜기"
+            Dial.LIGHT_CHILD -> "뒷자리 독서등 켜기"
             Dial.LIGHTS_OFF -> "독서등 모두 끄기"
         }
         val why = when (p.kind) {
@@ -166,10 +196,12 @@ object Lines {
             "scene_wind_face" -> "scene_wind_ok"
             "scene_rooms_left" -> "scene_rooms_ok"
             "scene_together" -> "scene_together_ok"
+            "scene_ac_on", "scene_ac_off" -> "scene_ac_ok"
+            "scene_recirc_on", "scene_recirc_off" -> "scene_recirc_ok"
             else -> "scene_dust_ok"
         }
         Puzzle.BeltMission -> "scene_belt_ok"
-        null -> "badge_explorer"
+        null -> "ending_bante"
     }
 
     // ------------------------------------------------------------ the app's own questions
@@ -285,8 +317,10 @@ object Lines {
         Dial.FAN, Dial.FAN_UP, Dial.FAN_DOWN -> "scene_wind_face"
         Dial.TEMP_UP, Dial.TEMP_DOWN -> "scene_rooms_left"
         Dial.LIGHTS, Dial.LIGHT_CHILD, Dial.LIGHTS_OFF -> "scene_together"
-        Dial.AC, Dial.DEFROST -> "scene_fog"
-        Dial.SEAT_HEAT, Dial.SEAT_HEAT_ON, Dial.SEAT_HEAT_OFF, Dial.RECIRC -> "scene_dust_in"
+        Dial.AC -> if (p.value == 1) "scene_ac_on" else "scene_ac_off"
+        Dial.RECIRC -> if (p.value == 1) "scene_recirc_on" else "scene_recirc_off"
+        Dial.DEFROST -> "scene_fog"
+        Dial.SEAT_HEAT, Dial.SEAT_HEAT_ON, Dial.SEAT_HEAT_OFF -> "scene_dust_in"
     }
 
     private fun button(d: Dial): String = when (d) {

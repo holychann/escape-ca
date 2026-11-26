@@ -17,14 +17,17 @@ import kr.escape.car.engine.Safety
 import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
+import kr.escape.car.engine.WrongJudge
 import kr.escape.car.story.Lines
+import kr.escape.car.story.Progress
+import kr.escape.car.story.ProgressStore
 import kr.escape.car.story.Question
 import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.StoryKeys
 import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
-import kr.escape.car.voice.Lumi
+import kr.escape.car.voice.Voice
 import kotlin.random.Random
 
 enum class Phase { SETUP, INTRO, PLAYING, SOLVED, TREASURE, RESTORE }
@@ -65,6 +68,14 @@ data class GameUi(
     val restoreTried: Boolean = false,
     /** Why the app did not put the car back (not parked); the parent can try again. */
     val restoreNote: String? = null,
+    /** Wall-clock ms before which this episode cannot go on after its 20 minutes (kept with the save). */
+    val restUntil: Long? = null,
+    /** Set by 저장하고 쉬기: putting the car back and the next 처음 화면으로 leave the save for after the rest. */
+    val keepSave: Boolean = false,
+    /** Held after the app did not run for a while; 이어 하기 then takes the climate and the 20 minutes from now. */
+    val rebase: Boolean = false,
+    /** 소원 빌기 asked the story server for this episode and it is still writing: 탐험 시작 waits for it. */
+    val writing: Boolean = false,
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -86,17 +97,30 @@ data class GameUi(
  */
 class Game(
     private val car: StateFlow<CarState>,
-    private val lumi: Lumi,
+    private val lumi: Voice,
     private val stories: StoryRepo? = null,
     private val book: FriendBook? = null,
     private val restorer: CarRestorer? = null,
     private val bank: QuestionBank? = null,
+    /** Where the episode in progress is kept, so the family can go on after the car was switched off (이어 하기). */
+    private val progress: ProgressStore? = null,
     private val rnd: Random = Random.Default,
 ) {
     private val _ui = MutableStateFlow(GameUi())
     val ui: StateFlow<GameUi> = _ui
 
+    /** The episode kept on disk: while it is not null and the game is at its setup, the parent is offered 이어 하기. */
+    private val _saved = MutableStateFlow(progress?.read())
+    val saved: StateFlow<Progress?> = _saved
+
+    init {
+        // the next story the setup screen prepares must not take this one's pictures
+        stories?.keepPlaying(_saved.value?.story?.storyId)
+    }
+
     private var hold: HoldJudge? = null
+    private var wrong: WrongJudge? = null
+    private var wrongTold = 0
     private var lastTickMs: Long? = null
     private var recirculationSince: Long? = null
 
@@ -124,18 +148,19 @@ class Game(
     fun playable(s: CarState): Boolean = Planner.plan(_ui.value.setup, s, Random(0), questions).isNotEmpty()
 
     /**
-     * The start button (이 이야기로 시작하기 / 기본 이야기로 시작하기): plays the episode the story server already wrote for this setup, or plans one and plays
-     * the app's own lines. Remembers the climate as the parent left it, then starts writing the next episode.
+     * 소원 빌기, the setup screen's one button: plans the episode for the parent's choices, remembers the climate as the
+     * parent left it and goes to the episode's first screen at once. With a story server the story is asked for now and
+     * written while the parent turns AUTO off and checks the car there ([storyDone] goes on when it is back); the server
+     * is never asked at any other time. Without one, the app's own lines play.
      */
     fun begin() {
         val s = car.value
         val setup = _ui.value.setup
-        val ready = stories?.take(setup, s)
         var ui = GameUi(
-            phase = Phase.INTRO, setup = setup, puzzles = ready?.puzzles ?: Planner.plan(setup, s, rnd, questions),
-            snapshot = Snapshot.of(s), story = ready?.story,
+            phase = Phase.INTRO, setup = setup, puzzles = Planner.plan(setup, s, rnd, questions),
+            snapshot = Snapshot.of(s), writing = stories != null,
         )
-        // an episode kept since an earlier drive may hold a quiz the car now already answers
+        // never a quiz the car already answers
         var i = 0
         while (i < ui.puzzles.size) {
             val size = ui.puzzles.size
@@ -147,12 +172,48 @@ class Game(
         val youngest = Planner.youngest(setup)
         val own = ui.puzzles.filterIsInstance<Puzzle.Quiz>().mapNotNull { q -> bank?.pick(q, youngest, rnd)?.let { StoryKeys.key(q) to it } }.toMap()
         _ui.value = ui.copy(own = own)
+        save()
         lastTickMs = null
-        lumi.say("${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}")
-        stories?.prepare(setup, s)
+        if (stories == null) {
+            lumi.say("${Lines.intro(setup.friend)} ${Lines.AUTO_OFF}")
+            // every line this episode will say, fetched now so each plays without a wait
+            lumi.prefetch(lines(_ui.value))
+            return
+        }
+        // the parent turns AUTO off while the story is written; the friend says hello once it is here
+        lumi.say(Lines.AUTO_OFF)
+        stories.prepare(setup, s, _ui.value.puzzles)
     }
 
-    fun startPuzzle(index: Int) {
+    /**
+     * The story server's answer to the episode [begin] asked for: its story, the app's own lines when it could not
+     * write one, or back to the setup screen when it refused the family's wish (the reason is shown there).
+     */
+    fun storyDone(status: StoryRepo.Status) {
+        val ui = _ui.value
+        if (ui.phase != Phase.INTRO || !ui.writing) return
+        when (status) {
+            StoryRepo.Status.READY -> introduce(stories?.takeWritten())
+            StoryRepo.Status.OFFLINE -> introduce(null)
+            StoryRepo.Status.REJECTED -> {
+                clearSave()
+                _ui.value = GameUi(setup = ui.setup)
+            }
+            StoryRepo.Status.NONE, StoryRepo.Status.WRITING -> Unit
+        }
+    }
+
+    /** The friend's hello once the story is here (the app's own without one), and every line fetched for later. */
+    private fun introduce(story: Story?) {
+        _ui.update { it.copy(story = story, writing = false) }
+        save()
+        val ui = _ui.value
+        lumi.say(story?.intro ?: Lines.intro(ui.setup.friend))
+        lumi.prefetch(lines(ui))
+    }
+
+    /** [intro] is said before the puzzle's own words (이어 하기's welcome back). */
+    fun startPuzzle(index: Int, intro: String? = null) {
         if (_ui.value.puzzles.getOrNull(index) == null) return
         // a temperature or fan answer counts from the car as it is now
         val start = car.value
@@ -171,9 +232,33 @@ class Game(
             return
         }
         val quiz = p as? Puzzle.Quiz
-        hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start, ui.setup.childSeat) }) }
-        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
-        lumi.say(_ui.value.scene(p).speech)
+        hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start) }) }
+        // the belt mission reads no car value, so it has no wrong answer
+        wrong = quiz?.let { WrongJudge(it, start) }
+        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start) })
+        save()
+        lumi.say(listOfNotNull(intro, _ui.value.scene(p).speech).joinToString(" "))
+        // a quiz swapped just now has new words for after the answer
+        lumi.prefetch(listOf(_ui.value.solvedLine))
+    }
+
+    /**
+     * What Lumi will say in [ui] from [from] onwards, exactly as she will say it: each puzzle's story and question,
+     * the line after the answer, the gentle wrong-answer lines, the last words and the pause line. Hints are left to
+     * when they are asked for, so a line nobody hears is never paid for.
+     */
+    private fun lines(ui: GameUi, from: Int = 0): List<String> = buildList {
+        for (i in from until ui.puzzles.size) {
+            val p = ui.puzzles[i]
+            add(ui.scene(p).speech)
+            add(ui.copy(index = i).solvedLine)
+        }
+        // the few fixed lines for a wrong answer, so "다시 생각해 볼까?" comes at once
+        WrongJudge.Kind.values().forEach { kind -> (0 until 3).forEach { n -> add(Lines.wrong(kind, n)) } }
+        val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
+        add(treasure)
+        add("$treasure ${Lines.CLOSER}")
+        add(Lines.PAUSED)
     }
 
     /**
@@ -189,14 +274,14 @@ class Game(
         return ui.copy(puzzles = puzzles, own = if (swap == null || own == null) ui.own else ui.own + (StoryKeys.key(swap) to own))
     }
 
-    /** Where a temperature or fan answer counts from, or whose reading light it is. */
-    private fun note(q: Puzzle.Quiz, start: CarState, setup: Setup): String? = when (q.dial) {
+    /** Where a temperature or fan answer counts from, or which reading lights solve it. */
+    private fun note(q: Puzzle.Quiz, start: CarState): String? = when (q.dial) {
         Dial.TEMP_UP, Dial.TEMP_DOWN -> start.tempLeft?.let { from ->
             if (q.kind == QuizKind.REASON) "지금 ${degrees(from)}도보다 ${if (q.dial == Dial.TEMP_UP) "높게" else "낮게"}"
             else "지금 ${degrees(from)}도에서 ${degrees(q.tempTarget(from))}도로"
         }
         Dial.FAN_UP, Dial.FAN_DOWN -> start.fanSpeed?.let { "지금 ${it}단에서" }
-        Dial.LIGHT_CHILD -> "${setup.childSeat.label} 자리"
+        Dial.LIGHT_CHILD -> "뒷자리 독서등 아무거나"
         else -> null
     }
 
@@ -213,6 +298,8 @@ class Game(
         val friend = ui.setup.friend
         val hearts = book?.played(friend)
         _ui.update { it.copy(phase = Phase.TREASURE, heartsNow = hearts) }
+        // the heart is given: an episode that reached its treasure is not played again
+        clearSave()
         val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
         lumi.say(if (hearts == null) treasure else "$treasure ${Lines.CLOSER}")
     }
@@ -235,14 +322,32 @@ class Game(
 
     /** 이어 하기: only once the car is safe again. */
     fun resume() {
-        if (_ui.value.stopped != null) return
-        _ui.update { it.copy(held = false) }
-        lumi.repeat()
+        val ui = _ui.value
+        if (ui.stopped != null) return
+        if (!ui.rebase) {
+            _ui.update { it.copy(held = false) }
+            lumi.repeat()
+            return
+        }
+        // back after the car was off: the climate to put back and the 20 minutes start again from now
+        _ui.update { it.copy(held = false, rebase = false, snapshot = Snapshot.of(car.value), playedMs = 0) }
+        // the puzzle starts again like 이어 하기 from the card: one the car now already answers is swapped, and its
+        // answer counts from the car as it is now
+        if (ui.phase == Phase.PLAYING && ui.puzzle != null) startPuzzle(ui.index, intro = Lines.WELCOME_BACK)
+        else lumi.say(Lines.WELCOME_BACK)
+    }
+
+    /** 20분 멈춤's 저장하고 쉬기: the car is put back like 끝내기, but the episode is kept for after the rest. */
+    fun restAndSave() {
+        _ui.update { it.copy(keepSave = true) }
+        finish()
     }
 
     /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
     fun finish() {
-        _ui.update { it.copy(phase = Phase.RESTORE, held = false) }
+        // after its 20 minutes the episode is kept for after the rest, whichever reason the pause shows by then
+        _ui.update { it.copy(phase = Phase.RESTORE, held = false, keepSave = it.keepSave || it.restUntil != null) }
+        if (!_ui.value.keepSave) clearSave()
         restore()
     }
 
@@ -261,14 +366,80 @@ class Game(
 
     fun reset() {
         lumi.stop()
+        if (!_ui.value.keepSave) clearSave()
         _ui.update { GameUi(setup = it.setup) }
     }
 
     private fun solved() {
         hold = null
+        wrong = null
         val ui = _ui.value
         _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
+        save()
         lumi.say(ui.solvedLine)
+    }
+
+    // ------------------------------------------------------------ 이어 하기
+
+    /**
+     * Whether the card's 이어 하기 may go on now: the car as safe as for a new start, the rest after 20 minutes over,
+     * and every device the puzzles still to come need reported (right after the car is switched on it has not yet).
+     */
+    fun canContinue(s: CarState): Boolean {
+        val p = _saved.value ?: return false
+        return Safety.startBlockers(s).isEmpty() && restLeftMs() == 0L &&
+            p.puzzles.drop(p.next).all { s.devices.containsAll(it.devices) }
+    }
+
+    /** How long the family still rests before the saved episode can go on. */
+    fun restLeftMs(): Long = _saved.value?.let { p -> progress?.restLeftMs(p) } ?: 0L
+
+    /**
+     * The card's 이어 하기: the saved episode from its next puzzle, with its stars and story. The climate to put back
+     * and the 20 minutes start again from now.
+     */
+    fun continueSaved() {
+        val p = _saved.value ?: return
+        val s = car.value
+        if (!canContinue(s)) return
+        _ui.value = GameUi(
+            phase = Phase.INTRO, setup = p.setup, puzzles = p.puzzles, stars = p.stars, own = p.own, story = p.story,
+            snapshot = Snapshot.of(s),
+        )
+        lastTickMs = null
+        // the car may have put the climate's AUTO back on while it was off, as at a new start Lumi asks for it off
+        if (p.next < p.puzzles.size) {
+            startPuzzle(p.next, intro = "${Lines.WELCOME_BACK} ${Lines.AUTO_OFF}")
+            lumi.prefetch(lines(_ui.value, from = p.next))
+        } else {
+            treasure()
+        }
+        stories?.prepare(p.setup, s)
+    }
+
+    /** The card's 새로 시작: the saved episode and its pictures go. */
+    fun startOver() {
+        _saved.value?.story?.storyId?.let { stories?.letGo(it) }
+        clearSave()
+    }
+
+    /** Keeps the episode as it is now: the puzzle to come back to follows from where the game stands. */
+    private fun save() {
+        val store = progress ?: return
+        val ui = _ui.value
+        val next = when (ui.phase) {
+            Phase.INTRO -> 0
+            Phase.SOLVED -> ui.index + 1
+            else -> ui.index
+        }
+        val p = Progress(ui.setup, ui.puzzles, next, ui.stars, ui.own, ui.story, ui.restUntil)
+        store.write(p)
+        _saved.value = p
+    }
+
+    private fun clearSave() {
+        progress?.clear()
+        _saved.value = null
     }
 
     /** 이야기 신고 from the parent's screen. */
@@ -285,15 +456,33 @@ class Game(
             lastTickMs = nowMs
             return
         }
-        val dt = lastTickMs?.let { nowMs - it } ?: 0
+        val gap = lastTickMs?.let { nowMs - it } ?: 0
         lastTickMs = nowMs
+        // the app did not run for a while (the car asleep with the app in memory): as if switched off and on again,
+        // the parent goes on with 이어 하기. An episode already at its 20 minutes keeps its rest instead.
+        if (Safety.restarted(gap) && ui.stopped != StopReason.TIME_UP) {
+            _ui.update { it.copy(held = true, rebase = true) }
+            lumi.stop()
+            wrong?.pause()
+            return
+        }
+        val dt = Safety.countedMs(gap)
 
         val stop = Safety.pauseReason(s, ui.playedMs)
         if (stop != ui.stopped) {
             _ui.update { it.copy(stopped = stop) }
             if (stop != null) lumi.say(Lines.PAUSED)
+            // 20 minutes: kept with a rest at once, so switching the car off on this screen still rests
+            val store = progress
+            if (stop == StopReason.TIME_UP && ui.restUntil == null && store != null) {
+                _ui.update { it.copy(restUntil = store.now() + ProgressStore.REST_MS) }
+                save()
+            }
         }
-        if (stop != null || ui.held) return
+        if (stop != null || ui.held) {
+            wrong?.pause()
+            return
+        }
 
         if (s.recirculation == true) {
             if (recirculationSince == null) recirculationSince = nowMs
@@ -304,6 +493,11 @@ class Game(
         _ui.update { it.copy(playedMs = it.playedMs + dt, recirculationWarning = warn) }
 
         if (ui.phase != Phase.PLAYING) return
-        if (hold?.update(s, nowMs) == true) solved()
+        if (hold?.update(s, nowMs) == true) {
+            solved()
+            return
+        }
+        // a wrong answer is told once it has stayed, never over the friend's words; 다시 듣기 still repeats the puzzle
+        wrong?.update(s, nowMs, quiet = lumi.speaking.value)?.let { lumi.aside(Lines.wrong(it, wrongTold++)) }
     }
 }
