@@ -1,0 +1,14 @@
+# API 키와 기록은 이미지에 들어가지 않게
+.env
+.env.*
+!.env.example
+data/
+.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+tests/
+*.md
+Dockerfile
+compose.yaml
+Caddyfile

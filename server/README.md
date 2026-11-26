@@ -82,6 +82,10 @@ adb reverse tcp:8787 tcp:8787
 
 배포한 서버를 쓰는 APK는 `-PstoryUrl=https://주소`로 빌드합니다.
 
+## 배포
+
+AWS Lightsail 인스턴스에 Docker Compose(이야기 서버와 HTTPS를 맡는 Caddy)로 올립니다. 인스턴스 만들기부터 앱 연결, 운영 명령까지 [배포_방법.md](배포_방법.md)에 있습니다. 파일은 `Dockerfile`, `.dockerignore`, `compose.yaml`, `Caddyfile`입니다.
+
 ## 시험
 
 ```powershell
