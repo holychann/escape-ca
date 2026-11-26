@@ -9,7 +9,7 @@ from pathlib import Path
 from . import quiz
 from .bank import Bank
 from .checker import Verdict, art_problems, check, scene_text, to_episode
-from .models import THEME_LABEL, Draft, DraftQuestion, Episode, EpisodeRequest
+from .models import THEME_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
@@ -76,13 +76,17 @@ def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int 
     # a quiz the bank had no question for can never pass, so it is not written again
     bad = {k for k in verdict.items if quiz.parse(k) is None or k in picks}
     if bad:
-        episode = repair(req, writer, episode, bad, picks, timeless)
+        episode, fixed = repair(req, writer, episode, bad, picks, timeless)
+        # the draft holds the text the episode now has, so what is shelved from it is what was checked
+        draft = draft.model_copy(update={"scenes": [fixed.get(s.key, s) for s in draft.scenes]})
     return episode, draft
 
 
-def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks, timeless: bool = False) -> Episode:
+def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks,
+           timeless: bool = False) -> tuple[Episode, dict[str, DraftScene]]:
     """Asks once more for only the scenes that failed, told the story so far so they still belong to it, around the
-    same questions; a scene that passes this time joins the episode, one that fails again stays with the app's own."""
+    same questions; a scene that passes this time joins the episode, one that fails again stays with the app's own.
+    Returns the episode and the scenes it fixed, by key."""
     slots = [[k for k in slot if k in bad] for slot in req.puzzles]
     sub = req.model_copy(update={"puzzles": [slot for slot in slots if slot]})
     told = (
@@ -94,17 +98,17 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], pick
         draft, _ = writer.write(SYSTEM, user_message(sub, picks, timeless) + told)
     except Exception as e:
         log.warning("repair: writer failed: %r", e)
-        return ep
+        return ep, {}
     put_questions(draft, picks)
     verdict = check(draft, sub)
     fixed = {s.key: s for s in reversed(draft.scenes) if s.key in bad and s.key not in verdict.items}
     log.info("repair: fixed=%s still=%s", sorted(fixed), verdict.items)
     if not fixed:
-        return ep
+        return ep, {}
     scenes = dict(ep.scenes)
     for key, s in fixed.items():
         scenes[key] = scene_text(key, s, req)
-    return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]})
+    return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]}), fixed
 
 
 def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path) -> Episode:

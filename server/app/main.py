@@ -16,9 +16,10 @@ from fastapi.responses import FileResponse
 
 from .bank import Bank, load as load_bank
 from .checker import wish_problems
+from .library import Library
 from .models import Episode, EpisodeRequest, Report
 from .painter import Painter, make_painter
-from .service import make_episode, paint_pictures
+from .service import make_episode, paint_pictures, timeless_request
 from .store import DailyLimit, ReportLimit, Store, prune_images
 from .writer import Writer, make_writer
 
@@ -43,7 +44,7 @@ def client_ip(request: Request, trust_proxy: bool) -> str:
 
 
 def create_app(writer: Writer | None = None, data_dir: Path | None = None, painter: Painter | None = _UNSET,
-               bank: Bank | None = None) -> FastAPI:
+               bank: Bank | None = None, library: Library | None = None) -> FastAPI:
     app = FastAPI(title="차량탈출 이야기 서버", docs_url=None, redoc_url=None)
     writer = writer or make_writer()
     painter = make_painter() if painter is _UNSET else painter
@@ -80,7 +81,11 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
         ip = client_ip(request, trust_proxy)
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        made = make_episode(req, writer, bank)
+        # a story for the shelf is written without the season, and only when no wish shapes it
+        timeless = library is not None and req.wish is None
+        if timeless:
+            req = timeless_request(req)
+        made = make_episode(req, writer, bank, timeless=timeless)
         if made is None:
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
@@ -89,6 +94,8 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
             prune_images(images, image_ttl_hours)
             ep = paint_pictures(ep, draft, req, painter, images)
         store.episode(ep, req)
+        if timeless:
+            library.shelve_later(ep, draft, req, bank.digest())
         return ep
 
     @app.get("/v1/images/{story_id}/{name}.webp")

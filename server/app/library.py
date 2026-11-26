@@ -13,6 +13,8 @@ import json
 import logging
 import os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +22,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+from .checker import timeless_problems
 from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, Theme
 
 log = logging.getLogger("story")
@@ -141,7 +144,7 @@ class Library:
         self.storage = storage
         self.models = models
         self.cap, self.min_fresh, self.fresh, self.offer, self.blocks_per_ip = cap, min_fresh, fresh, offer, blocks_per_ip
-        self.run = run
+        self.run = run or ThreadPoolExecutor(max_workers=1).submit
         # request threads and the shelving job both touch the index
         self.lock = threading.Lock()
         self.stories: dict[str, Shelved] = {}
@@ -165,6 +168,27 @@ class Library:
                          "application/json")
         self.storage.put(f"{base}/story.json", shelved.model_dump_json().encode("utf-8"), "application/json")
         self._index(shelved)
+
+    def shelve_later(self, ep: Episode, draft: Draft, req: EpisodeRequest, bank_tag: str) -> bool:
+        """Queues putting a story on the shelf after the response. False when it is skipped up front: it came from a
+        wish, its writer is not allowed, a scene was dropped, it names a season or time of day, or its cell is full."""
+        if req.wish is not None or not self.allows(ep.model) or ep.dropped or timeless_problems(ep):
+            return False
+        shelved = Shelved(
+            meta=ShelfMeta(ages=req.ages, minutes=req.minutes, friend=req.friend, lesson=req.lesson, theme=draft.theme,
+                           writer=ep.model, made=datetime.now(timezone.utc).date().isoformat(), bank=bank_tag),
+            puzzles=req.puzzles, episode=ep)
+        if self.size(shelved.cell) >= self.cap:
+            return False
+
+        def job() -> None:
+            try:
+                self.add(shelved, draft, req)
+            except Exception:
+                log.exception("shelf: %s could not be shelved", ep.storyId)
+
+        self.run(job)
+        return True
 
     def get(self, story_id: str) -> Shelved | None:
         with self.lock:
