@@ -287,7 +287,6 @@ class StoryRepo(
         fun setupJson(s: Setup): JSONObject = JSONObject()
             .put("ages", JSONArray(s.ages.map { it.name }))
             .put("minutes", s.minutes)
-            .put("childSeat", s.childSeat.name)
             .put("friend", s.friend.name)
             .put("wish", s.wish)
 
@@ -297,7 +296,6 @@ class StoryRepo(
             return Setup(
                 ages = List(ages.length()) { Age.valueOf(ages.getString(it)) },
                 minutes = o.getInt("minutes"),
-                childSeat = Seat.valueOf(o.getString("childSeat")),
                 friend = Friend.entries.firstOrNull { it.name == o.optString("friend") } ?: Friend.BANTE,
                 wish = o.optString("wish", ""),
             )

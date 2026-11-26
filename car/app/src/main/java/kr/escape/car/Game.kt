@@ -171,7 +171,10 @@ class Game(
         _ui.value = ui.copy(own = own)
         save()
         lastTickMs = null
-        lumi.say("${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}")
+        val intro = "${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}"
+        lumi.say(intro)
+        // every line this episode will say, fetched now so each plays without a wait
+        lumi.prefetch(lines(_ui.value))
         stories?.prepare(setup, s)
     }
 
@@ -195,12 +198,33 @@ class Game(
             return
         }
         val quiz = p as? Puzzle.Quiz
-        hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start, ui.setup.childSeat) }) }
+        hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start) }) }
         // the belt mission reads no car value, so it has no wrong answer
-        wrong = quiz?.let { WrongJudge(it, start, ui.setup.childSeat) }
-        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
+        wrong = quiz?.let { WrongJudge(it, start) }
+        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start) })
         save()
         lumi.say(listOfNotNull(intro, _ui.value.scene(p).speech).joinToString(" "))
+        // a quiz swapped just now has new words for after the answer
+        lumi.prefetch(listOf(_ui.value.solvedLine))
+    }
+
+    /**
+     * What Lumi will say in [ui] from [from] onwards, exactly as she will say it: each puzzle's story and question,
+     * the line after the answer, the gentle wrong-answer lines, the last words and the pause line. Hints are left to
+     * when they are asked for, so a line nobody hears is never paid for.
+     */
+    private fun lines(ui: GameUi, from: Int = 0): List<String> = buildList {
+        for (i in from until ui.puzzles.size) {
+            val p = ui.puzzles[i]
+            add(ui.scene(p).speech)
+            add(ui.copy(index = i).solvedLine)
+        }
+        // the few fixed lines for a wrong answer, so "다시 생각해 볼까?" comes at once
+        WrongJudge.Kind.values().forEach { kind -> (0 until 3).forEach { n -> add(Lines.wrong(kind, n)) } }
+        val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
+        add(treasure)
+        add("$treasure ${Lines.CLOSER}")
+        add(Lines.PAUSED)
     }
 
     /**
@@ -216,14 +240,14 @@ class Game(
         return ui.copy(puzzles = puzzles, own = if (swap == null || own == null) ui.own else ui.own + (StoryKeys.key(swap) to own))
     }
 
-    /** Where a temperature or fan answer counts from, or whose reading light it is. */
-    private fun note(q: Puzzle.Quiz, start: CarState, setup: Setup): String? = when (q.dial) {
+    /** Where a temperature or fan answer counts from, or which reading lights solve it. */
+    private fun note(q: Puzzle.Quiz, start: CarState): String? = when (q.dial) {
         Dial.TEMP_UP, Dial.TEMP_DOWN -> start.tempLeft?.let { from ->
             if (q.kind == QuizKind.REASON) "지금 ${degrees(from)}도보다 ${if (q.dial == Dial.TEMP_UP) "높게" else "낮게"}"
             else "지금 ${degrees(from)}도에서 ${degrees(q.tempTarget(from))}도로"
         }
         Dial.FAN_UP, Dial.FAN_DOWN -> start.fanSpeed?.let { "지금 ${it}단에서" }
-        Dial.LIGHT_CHILD -> "${setup.childSeat.label} 자리"
+        Dial.LIGHT_CHILD -> "뒷자리 독서등 아무거나"
         else -> null
     }
 
@@ -350,7 +374,12 @@ class Game(
         )
         lastTickMs = null
         // the car may have put the climate's AUTO back on while it was off, as at a new start Lumi asks for it off
-        if (p.next < p.puzzles.size) startPuzzle(p.next, intro = "${Lines.WELCOME_BACK} ${Lines.AUTO_OFF}") else treasure()
+        if (p.next < p.puzzles.size) {
+            startPuzzle(p.next, intro = "${Lines.WELCOME_BACK} ${Lines.AUTO_OFF}")
+            lumi.prefetch(lines(_ui.value, from = p.next))
+        } else {
+            treasure()
+        }
         stories?.prepare(p.setup, s)
     }
 

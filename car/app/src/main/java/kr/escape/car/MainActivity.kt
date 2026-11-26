@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -136,6 +138,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val friends by book.book.collectAsState()
     val car by source.state.collectAsState()
     val speaking by lumi.speaking.collectAsState()
+    val subtitle by lumi.subtitle.collectAsState()
+    val noSound by lumi.noSound.collectAsState()
+    // 아이 화면 자막: on unless the parent turned it off, remembered across drives
+    val prefs = LocalContext.current.getSharedPreferences("screen", android.content.Context.MODE_PRIVATE)
+    var subtitlesOn by remember { mutableStateOf(prefs.getBoolean("subtitles", true)) }
+    val subs = Subs(subtitlesOn) { on -> subtitlesOn = on; prefs.edit().putBoolean("subtitles", on).apply() }
+    // a line with no sound is always shown, whatever the switch says; nothing is shown while the car is not parked
+    val shown = subtitle?.takeIf { (subtitlesOn || noSound) && ui.stopped != StopReason.DRIVING }
     val storyStatus by stories.status.collectAsState()
     val preview by stories.preview.collectAsState()
     val rejection by stories.rejection.collectAsState()
@@ -157,14 +167,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxWidth())
-                    ParentPanel(game, ui, car, speaking, lumi, view, Modifier.fillMaxWidth())
+                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxWidth())
+                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
-                    ParentPanel(game, ui, car, speaking, lumi, view, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxHeight())
+                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.width(panelWidth).fillMaxHeight())
+                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -263,6 +273,7 @@ private fun ParentPanel(
     speaking: Boolean,
     lumi: Lumi,
     view: StoryView,
+    subs: Subs,
     modifier: Modifier,
 ) {
     when (ui.phase) {
@@ -270,7 +281,7 @@ private fun ParentPanel(
             // the episode the car was switched off in comes first: the parent goes on with it or starts anew
             val saved by game.saved.collectAsState()
             val resume = saved
-            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, modifier)
+            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, modifier)
         }
         Phase.INTRO -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
@@ -287,7 +298,7 @@ private fun ParentPanel(
             SafetyLine(ui, car)
             ClayButton("탐험 시작", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp) { game.startPuzzle(0) }
         }
-        Phase.PLAYING -> PlayingPanel(game, ui, car, speaking, lumi, modifier)
+        Phase.PLAYING -> PlayingPanel(game, ui, car, speaking, lumi, subs, modifier)
         Phase.SOLVED -> PanelCard(modifier) {
             Badge("안전 지킴이 · 부모님")
             PanelTitle("정답이에요!")
@@ -340,7 +351,7 @@ private fun ParentPanel(
 }
 
 @Composable
-private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, modifier: Modifier) {
+private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, subs: Subs, modifier: Modifier) {
     val blockers = Safety.startBlockers(car)
     // with no puzzle this car can play, game.begin() would return without a word
     val playable = game.playable(car)
@@ -362,6 +373,7 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, m
                     game.setup { it.copy(minutes = m) }
                 }
             }
+            SubtitleToggle(subs)
             Spacer(Modifier.height(4.dp))
             blockers.forEach { Notice(it.message) }
             if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
@@ -663,7 +675,7 @@ private fun ReportRow(game: Game, ui: GameUi) {
 }
 
 @Composable
-private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolean, lumi: Lumi, modifier: Modifier) {
+private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolean, lumi: Lumi, subs: Subs, modifier: Modifier) {
     val p = ui.puzzle ?: return
     val scene = ui.scene(p)
     val belt = p == Puzzle.BeltMission
@@ -683,6 +695,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
                 }
             } else {
                 VoiceBox(speaking, ui.setup.friend) { lumi.repeat() }
+                SubtitleToggle(subs)
                 if (scene.buttons.isNotEmpty()) {
                     FieldLabel("이 퍼즐에서 쓰는 버튼")
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { scene.buttons.take(3).forEach { CarButton(it) } }
@@ -769,7 +782,7 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 // ---------------------------------------------------------------- kid stage
 
 @Composable
-private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view: StoryView, modifier: Modifier) {
+private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, view: StoryView, modifier: Modifier) {
     val preview = view.preview
     val buddy = ui.setup.friend
     val p = ui.puzzle
@@ -822,11 +835,59 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view
             Phase.RESTORE -> Unit
         }
         val quiz = p as? Puzzle.Quiz
-        if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.let { QuestionCard(it) }
+        val card = if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.takeIf { Lines.card(it) != null } else null
+        card?.let { QuestionCard(it) }
+        // what the friend is saying, a piece at a time, above the question card when there is one
+        subtitle?.let { SubtitleBar(it, aboveCard = card != null) }
         if (ui.phase == Phase.SETUP && view.status == StoryRepo.Status.WRITING && ui.setup.wish.isNotBlank()) {
             WishingOverlay(ui.setup.wish, buddy, view.waited)
         }
         ui.invited?.let { InvitePop(it, game::closeInvite) }
+    }
+}
+
+/** 아이 화면 자막 switch, and its setter (remembered on the device). */
+private data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
+
+/**
+ * The child's subtitles: what the friend is saying now, one or two lines, in the round kid font, dark on a light see-
+ * through cream at the bottom of the stage, clear of the question card and the friend in the corner.
+ */
+@Composable
+private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean) {
+    val shape = RoundedCornerShape(36.dp)
+    Box(
+        Modifier.align(Alignment.BottomCenter)
+            .padding(start = 40.dp, end = 220.dp, bottom = if (aboveCard) 232.dp else 40.dp)
+            .widthIn(max = 1240.dp)
+            .shadow(12.dp, shape).clip(shape).background(Clay.Cream.copy(alpha = 0.9f))
+            .padding(horizontal = 36.dp, vertical = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Crossfade(text, label = "subtitle") { piece ->
+            KidText(piece, 46.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2)
+        }
+    }
+}
+
+/** The parent's switch for the child's subtitles. A line with no sound is shown even when it is off. */
+@Composable
+private fun SubtitleToggle(subs: Subs) {
+    val shape = RoundedCornerShape(28.dp)
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, Clay.Line, shape)
+            .clickable { subs.set(!subs.on) }.padding(horizontal = 22.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            KidText("아이 화면 자막", 28.sp)
+            BodyText("친구가 하는 말을 글자로도 보여 줘요", size = 18.sp)
+        }
+        Box(
+            Modifier.clip(RoundedCornerShape(50)).background(if (subs.on) Clay.Mint else Clay.Line)
+                .padding(horizontal = 22.dp, vertical = 10.dp),
+        ) { KidText(if (subs.on) "켜짐" else "꺼짐", 24.sp, color = if (subs.on) Color.White else Clay.Sub) }
     }
 }
 

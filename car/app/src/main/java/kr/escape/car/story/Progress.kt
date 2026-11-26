@@ -89,7 +89,7 @@ class ProgressStore(private val file: File, val now: () -> Long = System::curren
         }
         val story = if (o.isNull("story")) null else Story.parse(o.getJSONObject("story")).let { s ->
             // a picture gone from the device is left out: its scene shows the app's own
-            s.copy(images = s.images.filterValues { it.startsWith("/") && !it.startsWith("/v1/") && File(it).isFile })
+            s.copy(images = s.images.filterValues { !it.startsWith("/v1/") && (it.startsWith("/") || File(it).isAbsolute) && File(it).isFile })
         }
         return Progress(
             setup = StoryRepo.setupOf(o.getJSONObject("setup")),

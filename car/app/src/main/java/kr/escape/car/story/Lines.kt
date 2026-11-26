@@ -161,7 +161,7 @@ object Lines {
             Dial.FAN_DOWN -> "풍량을 퍼즐 시작 때보다 약하게 (끄지 않기)"
             Dial.SEAT_HEAT_ON -> "운전석 열선 켜기 (몇 단이든)"
             Dial.SEAT_HEAT_OFF -> "운전석 열선 끄기"
-            Dial.LIGHT_CHILD -> "아이 자리 독서등 켜기"
+            Dial.LIGHT_CHILD -> "뒷자리 독서등 켜기"
             Dial.LIGHTS_OFF -> "독서등 모두 끄기"
         }
         val why = when (p.kind) {
@@ -196,6 +196,8 @@ object Lines {
             "scene_wind_face" -> "scene_wind_ok"
             "scene_rooms_left" -> "scene_rooms_ok"
             "scene_together" -> "scene_together_ok"
+            "scene_ac_on", "scene_ac_off" -> "scene_ac_ok"
+            "scene_recirc_on", "scene_recirc_off" -> "scene_recirc_ok"
             else -> "scene_dust_ok"
         }
         Puzzle.BeltMission -> "scene_belt_ok"
@@ -315,8 +317,10 @@ object Lines {
         Dial.FAN, Dial.FAN_UP, Dial.FAN_DOWN -> "scene_wind_face"
         Dial.TEMP_UP, Dial.TEMP_DOWN -> "scene_rooms_left"
         Dial.LIGHTS, Dial.LIGHT_CHILD, Dial.LIGHTS_OFF -> "scene_together"
-        Dial.AC, Dial.DEFROST -> "scene_fog"
-        Dial.SEAT_HEAT, Dial.SEAT_HEAT_ON, Dial.SEAT_HEAT_OFF, Dial.RECIRC -> "scene_dust_in"
+        Dial.AC -> if (p.value == 1) "scene_ac_on" else "scene_ac_off"
+        Dial.RECIRC -> if (p.value == 1) "scene_recirc_on" else "scene_recirc_off"
+        Dial.DEFROST -> "scene_fog"
+        Dial.SEAT_HEAT, Dial.SEAT_HEAT_ON, Dial.SEAT_HEAT_OFF -> "scene_dust_in"
     }
 
     private fun button(d: Dial): String = when (d) {

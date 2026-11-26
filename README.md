@@ -12,7 +12,7 @@
 | APK | [`apk/컴퓨터와경영_차근차근탐험단_release.apk`](apk/컴퓨터와경영_차근차근탐험단_release.apk), release 빌드(누구나 설치할 수 있게 Android debug 키로 서명), 패키지 `kr.escape.car` |
 | 개발·테스트 에뮬레이터 | Pleos Connect 에뮬레이터, 시스템 이미지 **Pleos Connect v2.1.0 APIs** (Android 14, API 34, Android Automotive) |
 | 화면 규격 | **2560 × 1440 (가로), 160 dpi** |
-| 사용 SDK | Pleos Vehicle SDK 2.3.2, Pleos TextToSpeech 3.3.1 |
+| 사용 SDK | Pleos Vehicle SDK 2.3.2 (루미 목소리는 이야기 서버의 Gemini TTS, 서버가 없으면 자막) |
 
 ### APK로 바로 실행하기
 
@@ -40,7 +40,7 @@
 | 폴더 | 내용 |
 |---|---|
 | `apk/` | 제출용 release APK |
-| `car/` | 차 앱. Kotlin, Jetpack Compose, Pleos Vehicle SDK 2.3.2, TextToSpeech 3.3.1 |
+| `car/` | 차 앱. Kotlin, Jetpack Compose, Pleos Vehicle SDK 2.3.2 |
 | `server/` | AI 이야기 서버. Python, FastAPI, Gemini. 자세한 설명은 [server/README.md](server/README.md) |
 | `tools/` | Virtual Console 명령(`tools/vc.mjs`) |
 | `에뮬레이터_테스트_방법.md` | 에뮬레이터에서 퍼즐을 직접 풀어 보는 방법 |

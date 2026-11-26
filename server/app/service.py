@@ -1,7 +1,9 @@
 """One episode: draw its questions from the bank, have the story written around them, check, write once more if
 the first draft was not clean, then draw its pictures."""
 import logging
+import os
 import random
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,6 +15,7 @@ from .models import THEME_LABEL, Draft, DraftQuestion, DraftScene, Episode, Epis
 from .painter import Painter
 from .prompt import SYSTEM, user_message
 from .rules import rule_for
+from .voice import QuotaError, Voice, cache_key
 from .writer import Writer
 
 log = logging.getLogger("story")
@@ -156,3 +159,68 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
                 if key in scenes_out:
                     scenes_out[key] = scenes_out[key].model_copy(update={"picture": f"p{i}"})
     return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})
+
+
+def tidy_line(text: str) -> str:
+    """The line as it is made and kept: spaces collapsed, ends trimmed (the app keys its own copy the same way)."""
+    return " ".join(text.split())
+
+
+class _LineLock:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.waiters = 0
+
+
+# one lock per line being made, removed as soon as the last caller finishes so keys never accumulate in memory
+_making: dict[str, _LineLock] = {}
+_making_lock = threading.Lock()
+
+
+def _touch(path: Path) -> None:
+    try:
+        os.utime(path, None)
+    except OSError:
+        pass
+
+
+def speak_line(text: str, voice: Voice | None, cache: Path) -> bytes | None:
+    """The line read aloud: from [cache] when it was made before with this voice and style, otherwise made now and
+    kept. None when there is no voice or every key failed (the app then shows the line as a caption)."""
+    text = tidy_line(text)
+    key = cache_key(voice, text)
+    cached = cache / f"{key}.wav"
+    if cached.is_file():
+        _touch(cached)
+        return cached.read_bytes()
+    if voice is None:
+        return None
+    with _making_lock:
+        entry = _making.get(key)
+        if entry is None:
+            entry = _making[key] = _LineLock()
+        entry.waiters += 1
+    try:
+        with entry.lock:
+            if cached.is_file():
+                _touch(cached)
+                return cached.read_bytes()
+            try:
+                data = voice.speak(text)
+            except QuotaError as e:
+                log.warning("voice: quota, no sound for this line: %s", e)
+                return None
+            except Exception as e:  # refusal, timeout, no audio part, every key failed
+                log.warning("voice failed: %s", type(e).__name__)
+                return None
+            if data:
+                cache.mkdir(parents=True, exist_ok=True)
+                tmp = cached.with_suffix(".part")
+                tmp.write_bytes(data)
+                tmp.replace(cached)
+            return data or None
+    finally:
+        with _making_lock:
+            entry.waiters -= 1
+            if entry.waiters <= 0:
+                _making.pop(key, None)

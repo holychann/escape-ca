@@ -1,0 +1,221 @@
+"""Reads Lumi's lines aloud with Gemini's speech model, in a warm picture-book voice.
+
+The app sends each line exactly as it will say it (story, question and its own instruction joined) to POST /v1/speak
+and plays the WAV that comes back; it never uses the car's own TTS. A line is made once and kept (service.speak_line).
+
+Two keys: the free key (GEMINI_API_KEY) is tried first, inside the free limits (Quota). When it is refused or fails,
+the paid key (GEMINI_API_KEY_PAID) is tried once, with no limit of its own, and every switch to it is logged. With no
+paid key, a failed line has no sound and the app shows it as a caption.
+"""
+import hashlib
+import io
+import logging
+import os
+import threading
+import time
+import wave
+from datetime import date
+from typing import Protocol
+
+log = logging.getLogger("voice")
+
+TTS_MODEL = "gemini-3.8-flash-tts"
+TTS_VOICE = "Leda"
+# Gemini's speech model returns raw PCM: 24 kHz, mono, 16-bit
+RATE = 24_000
+
+STYLE = (
+    "A warm, playful Korean storyteller reading a picture book aloud to a young child in the back seat. "
+    "Never flat like a news reader: use a wide, lively pitch range and speak with a smile. "
+    "Slow down a little just before a clue, lift the end of every question, say exclamations with excitement, "
+    "and make sound words (like 딸깍, 모락모락, 투덜투덜) fun and bouncy. "
+    "Pronounce every word clearly, at a pace a child can easily follow."
+)
+# the same words read plainly, to hear what the style adds (tools/tts_sample.py --plain)
+PLAIN = "Read the text in a plain, neutral Korean voice."
+
+
+class VoiceError(Exception):
+    pass
+
+
+class QuotaError(VoiceError):
+    """The free quota is used up (or the guard below says so); no call was made, or the model refused with 429."""
+
+
+class Voice(Protocol):
+    def speak(self, text: str) -> bytes:
+        """WAV bytes of [text] read aloud."""
+
+
+def configured_identity() -> str:
+    """Model, voice and style as .env sets them: what a recording made now would sound like, key or no key."""
+    model = os.environ.get("TTS_MODEL", TTS_MODEL)
+    voice = os.environ.get("TTS_VOICE", TTS_VOICE)
+    style = os.environ.get("TTS_STYLE") or STYLE
+    return f"{model}|{voice}|{style}"
+
+
+def cache_key(voice: object | None, text: str) -> str:
+    """Same words, same voice, same style: the same recording. [voice] names itself with ``identity``; with no voice
+    the configured one is used, so a line made before is still found."""
+    who = configured_identity() if voice is None else getattr(voice, "identity", type(voice).__name__)
+    return hashlib.sha256(f"{who}\n{text}".encode("utf-8")).hexdigest()
+
+
+class Quota:
+    """Keeps the speech calls inside a free key's limits, so a key is never pushed past them.
+
+    At most [per_day] calls a day (TTS_DAILY_MAX). When the model answers 429, the calls stop: until tomorrow for a
+    daily limit, for [cooldown] seconds for a per-minute one. Every line that is not read is read by the car's voice.
+    """
+
+    def __init__(self, per_day: int, cooldown: float = 60.0, today=date.today, clock=time.monotonic):
+        self.per_day = per_day
+        self.cooldown = cooldown
+        self._today = today
+        self._clock = clock
+        self._day = today()
+        self._used = 0
+        self._closed_day: date | None = None
+        self._closed_until = 0.0
+        self._lock = threading.Lock()
+
+    def take(self) -> None:
+        """Raises QuotaError instead of letting a call go out."""
+        with self._lock:
+            today = self._today()
+            if today != self._day:
+                self._day, self._used = today, 0
+            if self._closed_day == today:
+                raise QuotaError("daily free quota used up")
+            if self._clock() < self._closed_until:
+                raise QuotaError("per-minute quota, cooling down")
+            if self._used >= self.per_day:
+                raise QuotaError(f"TTS_DAILY_MAX={self.per_day} reached")
+            self._used += 1
+
+    def refused(self, error: Exception) -> None:
+        """The model said 429: stop for the day when it names a daily limit, otherwise for a minute."""
+        text = str(error)
+        with self._lock:
+            if "PerDay" in text or "per day" in text.lower():
+                self._closed_day = self._today()
+            else:
+                self._closed_until = self._clock() + self.cooldown
+
+
+def is_quota(error: Exception) -> bool:
+    return getattr(error, "code", None) == 429 or "RESOURCE_EXHAUSTED" in str(error)
+
+
+def to_wav(audio: bytes, rate: int = RATE) -> bytes:
+    """[audio] as a WAV file: kept as it is when it already is one, raw 16-bit mono PCM gets a RIFF header."""
+    if audio[:4] == b"RIFF" and audio[8:12] == b"WAVE":
+        return audio
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(audio)
+    return out.getvalue()
+
+
+class GeminiVoice:
+    """Shared by the threads that read one episode's lines at the same time, so the client is made once up front
+    (as in GeminiPainter)."""
+
+    def __init__(self, model: str | None = None, voice: str | None = None, style: str | None = None, client=None,
+                 quota: Quota | None = None, api_key: str | None = None, limited: bool = True):
+        from google import genai
+        from google.genai import types
+
+        self.model = model or os.environ.get("TTS_MODEL", TTS_MODEL)
+        self.voice = voice or os.environ.get("TTS_VOICE", TTS_VOICE)
+        self.style = style or os.environ.get("TTS_STYLE") or STYLE
+        # a 429 is not tried again here: on a free key it means the quota is gone, and [Quota] stops the calls instead
+        self.client = client or genai.Client(api_key=api_key, http_options=types.HttpOptions(
+            timeout=120_000,
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[500, 503]),
+        ))
+        # the paid key has no limit of its own (limited=False); TTS_DAILY_MAX is only for the free key
+        self.quota = (quota or Quota(per_day=int(os.environ.get("TTS_DAILY_MAX", "100")))) if limited else None
+
+    @property
+    def identity(self) -> str:
+        """What makes two recordings of the same words differ, for the cache."""
+        return f"{self.model}|{self.voice}|{self.style}"
+
+    def request(self, text: str) -> dict:
+        """The call's arguments. The line goes in ``text`` exactly as written and the reading instructions only in
+        ``speech_metadata.style``: the model reads ``text`` verbatim, so an instruction there would be read aloud."""
+        return dict(
+            model=self.model,
+            contents=[{"role": "user", "parts": [{"text": text, "speech_metadata": {"style": self.style}}]}],
+            config={"response_modalities": ["AUDIO"], "speech_config": {"voice_config": {"voice": self.voice}}},
+        )
+
+    def speak(self, text: str) -> bytes:
+        if self.quota is not None:
+            self.quota.take()
+        try:
+            response = self.client.models.generate_content(**self.request(text))
+        except Exception as e:
+            if is_quota(e) and self.quota is not None:
+                self.quota.refused(e)
+                raise QuotaError(str(e)) from e
+            raise
+        candidate = response.candidates[0] if response.candidates else None
+        parts = (candidate.content.parts if candidate and candidate.content else None) or []
+        for part in parts:
+            if part.inline_data is not None and part.inline_data.data:
+                return to_wav(part.inline_data.data)
+        raise VoiceError(f"no audio in the reply (prompt_feedback={getattr(response, 'prompt_feedback', None)})")
+
+
+def _why(e: Exception) -> str:
+    """A short reason for the log: the error's kind and code, never the request (which carries no key, but stays out)."""
+    code = getattr(e, "code", None)
+    return f"{type(e).__name__}{f' {code}' if code else ''}"
+
+
+class KeyedVoice:
+    """The free key first, then the paid key once. [free] or [paid] may be missing (no such key in .env)."""
+
+    def __init__(self, free: Voice | None, paid: Voice | None):
+        if free is None and paid is None:
+            raise ValueError("no voice")
+        self.free = free
+        self.paid = paid
+
+    @property
+    def identity(self) -> str:
+        # both keys make the same recording (same model, voice and style), so they share the cache
+        return getattr(self.free or self.paid, "identity", "voice")
+
+    def speak(self, text: str) -> bytes:
+        if self.free is None:
+            log.warning("voice: no free key, using the paid key")
+            return self.paid.speak(text)
+        try:
+            return self.free.speak(text)
+        except Exception as e:
+            if self.paid is None:
+                raise
+            log.warning("voice: free key %s (%s), retrying once with the paid key",
+                        "quota" if isinstance(e, QuotaError) else "failed", _why(e))
+        return self.paid.speak(text)
+
+
+def make_voice() -> Voice | None:
+    """GEMINI_API_KEY (free) and GEMINI_API_KEY_PAID; TTS_MODEL=off, or neither key, means no voice."""
+    if os.environ.get("TTS_MODEL", "").lower() == "off":
+        return None
+    free_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    paid_key = os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+    free = GeminiVoice(api_key=free_key) if free_key else None
+    paid = GeminiVoice(api_key=paid_key, limited=False) if paid_key else None
+    if free is None and paid is None:
+        return None
+    return free if paid is None else KeyedVoice(free, paid)

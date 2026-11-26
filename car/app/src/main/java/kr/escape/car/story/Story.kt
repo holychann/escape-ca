@@ -75,7 +75,7 @@ data class Story(
         }
 
     /** A drawn picture as a stage picture name ("file:/…/cover.webp"), or null when there is none on the device. */
-    fun picture(name: String): String? = images[name]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }?.let { FILE + it }
+    fun picture(name: String): String? = images[name]?.takeIf { !it.startsWith("/v1/") && (it.startsWith("/") || java.io.File(it).isAbsolute) }?.let { FILE + it }
 
     /**
      * [own] is the app's question for this puzzle, used where the server's words or question are missing.

@@ -12,7 +12,6 @@
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
     <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
-    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
     <!-- writes, only for 처음 설정으로 at the end (normal permissions, granted at install) -->
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
@@ -26,7 +25,9 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="차근차근 탐험단"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="${cleartext}">

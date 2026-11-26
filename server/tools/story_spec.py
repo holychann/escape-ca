@@ -16,7 +16,7 @@ from textgate import Spec, Written
 from app import quiz
 from app.bank import Bank, load as load_bank
 from app.checker import check
-from app.models import FRIEND_LABEL, Draft, EpisodeRequest
+from app.models import FRIEND_LABEL, LESSON_LABEL, Draft, EpisodeRequest
 from app.prompt import SYSTEM, user_message
 from app.service import pick_questions, put_questions
 from app.writer import DEFAULT_MODEL, Writer, make_writer
@@ -45,6 +45,8 @@ def configured_price() -> tuple[float, float]:
 
 # quizzes per waiting time, as the car plans them (car Planner.puzzleCount, less the belt mission)
 PUZZLES = {5: 2, 10: 3, 15: 4}
+SAMPLE_PLACES = ("공룡 섬", "우주 정거장", "바닷속 마을", "구름 성", "과자 숲", "장난감 공장")
+STORY_KINDS = ("보물찾기", "구조대", "탐정 놀이", "고장 수리", "축제 준비", "발명 대회")
 
 # the car's devices and the dials each one is asked on (car Puzzles.kt Dial.device)
 DEVICES = {
@@ -56,6 +58,32 @@ DEVICES = {
     "RECIRCULATION": ("RECIRC",),
     "DEFROST": ("DEFROST",),
 }
+
+
+def opposite_quiz(q: quiz.QuizKey, age: str) -> quiz.QuizKey | None:
+    """The fallback quiz the car sends in the same slot (car Planner.opposite & StoryRepo.request)."""
+    opp: quiz.QuizKey | None = None
+    if q.dial in ("AC", "RECIRC"):
+        opp = quiz.QuizKey(q.kind, q.dial, 1 - q.value)
+    elif q.dial == "TEMP_UP":
+        opp = quiz.QuizKey(q.kind, "TEMP_DOWN", q.value)
+    elif q.dial == "TEMP_DOWN":
+        opp = quiz.QuizKey(q.kind, "TEMP_UP", q.value)
+    elif q.dial == "FAN_UP":
+        opp = quiz.QuizKey(q.kind, "FAN_DOWN", 1)
+    elif q.dial == "FAN_DOWN":
+        opp = quiz.QuizKey(q.kind, "FAN_UP", 1)
+    elif q.dial == "SEAT_HEAT_ON":
+        opp = quiz.QuizKey(q.kind, "SEAT_HEAT_OFF", 0)
+    elif q.dial == "SEAT_HEAT_OFF":
+        opp = quiz.QuizKey(q.kind, "SEAT_HEAT_ON", 1)
+    elif q.dial == "LIGHT_CHILD":
+        opp = quiz.QuizKey(q.kind, "LIGHTS_OFF", 0)
+    elif q.dial == "LIGHTS_OFF":
+        opp = quiz.QuizKey(q.kind, "LIGHT_CHILD", 1)
+    if opp is not None and opp.kind == "REASON" and age == "LITTLE" and opp.dial in quiz.REASON_NOT_LITTLE:
+        return None
+    return opp
 
 
 def options(device: str, age: str) -> list[quiz.QuizKey]:
@@ -92,7 +120,17 @@ def random_quizzes(r: random.Random, count: int, age: str) -> list[list[str]]:
         kind = next((k for k in kinds if k not in used), kinds[0])
         used.add(kind)
         picked[d] = r.choice([q for q in numbers[d] if q.kind == kind])
-    return [[picked[d].key] for d in devices]
+    named = {picked[d].key for d in devices}
+    slots: list[list[str]] = []
+    for d in devices:
+        q = picked[d]
+        opp = opposite_quiz(q, age)
+        if opp is not None and opp.key not in named:
+            named.add(opp.key)
+            slots.append([q.key, opp.key])
+        else:
+            slots.append([q.key])
+    return slots
 
 
 def random_request(r: random.Random) -> EpisodeRequest:
@@ -101,6 +139,7 @@ def random_request(r: random.Random) -> EpisodeRequest:
     picks = random_quizzes(r, PUZZLES[minutes], age)
     if len(picks) >= 3:
         picks.insert(2, ["BELT"])
+    wish = f"{r.choice(SAMPLE_PLACES)}에서 펼쳐지는 {r.choice(STORY_KINDS)} 이야기" if r.random() < 0.5 else None
     return EpisodeRequest(
         installId="00000000-0000-0000-0000-000000000000",
         ages=[age],
@@ -111,6 +150,8 @@ def random_request(r: random.Random) -> EpisodeRequest:
             "outsideTempC": r.choice([None, -3, 8, 18, 31]),
         },
         puzzles=picks,
+        wish=wish,
+        lesson=r.choice(list(LESSON_LABEL)),
         friend=r.choice(list(FRIEND_LABEL)),
     )
 

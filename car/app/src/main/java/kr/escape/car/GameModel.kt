@@ -12,6 +12,7 @@ import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.StoryClient
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.voice.Lumi
+import kr.escape.car.voice.VoiceCache
 import java.io.File
 import java.util.UUID
 
@@ -21,10 +22,13 @@ import java.util.UUID
  */
 class GameModel(app: Application) : AndroidViewModel(app) {
     val source = VehicleSource(app).also { it.start() }
-    val lumi = Lumi(app)
+    private val client = StoryClient(BuildConfig.STORY_URL)
+    private val install = installId(app)
+    // every line is read by the story server's Gemini voice and kept on the device; the car's TTS is not used
+    val lumi = Lumi(VoiceCache(File(app.filesDir, "voice_cache")) { text -> client.speak(install, text) })
     private val bank = QuestionBank.load(app)
     val stories = StoryRepo(
-        File(app.filesDir, "next_episode.json"), installId(app), StoryClient(BuildConfig.STORY_URL), viewModelScope,
+        File(app.filesDir, "next_episode.json"), install, client, viewModelScope,
         questions = bank.questions, bank = bank, heard = HeardStories(File(app.filesDir, "heard_stories.json")),
     )
     val book = FriendBook(File(app.filesDir, "friend_book"))

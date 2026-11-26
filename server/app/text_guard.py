@@ -18,6 +18,22 @@ _INVISIBLE = re.compile(
 )
 _STRIP_ALL = re.compile(r"[\W_]+")
 _INLINE_PUNCT = re.compile(r"[^\w\s]+|_+")
+# 존댓말 endings ("~요", "~니다", "~죠"), excluding common -요 nouns ("담요", "동요", "요요"...)
+_POLITE = re.compile(
+    r"((?<![담동요주필중강])요|니다|죠)(?:[.!?,~…]|\s*$)"
+    r"|(?:습|합|입)니다(?=\s)"
+    r"|(?:세|해|어|아|예|이에|네|군|까|줘|워|봐)요(?=\s)"
+)
+
+
+def clean_text(text: str) -> str:
+    """NFKC-normalized text with invisible format characters removed."""
+    return _INVISIBLE.sub("", unicodedata.normalize("NFKC", text))
+
+
+def polite(text: str) -> bool:
+    """Whether ``text`` uses polite speech endings instead of 반말."""
+    return bool(_POLITE.search(clean_text(text)))
 
 
 def norm(text: str) -> str:
