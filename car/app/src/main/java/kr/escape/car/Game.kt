@@ -273,8 +273,10 @@ class Game(
         }
         // back after the car was off: the climate to put back and the 20 minutes start again from now
         _ui.update { it.copy(held = false, rebase = false, snapshot = Snapshot.of(car.value), playedMs = 0) }
-        val p = ui.puzzle
-        lumi.say(if (ui.phase == Phase.PLAYING && p != null) "${Lines.WELCOME_BACK} ${ui.scene(p).speech}" else Lines.WELCOME_BACK)
+        // the puzzle starts again like 이어 하기 from the card: one the car now already answers is swapped, and its
+        // answer counts from the car as it is now
+        if (ui.phase == Phase.PLAYING && ui.puzzle != null) startPuzzle(ui.index, intro = Lines.WELCOME_BACK)
+        else lumi.say(Lines.WELCOME_BACK)
     }
 
     /** 20분 멈춤's 저장하고 쉬기: the car is put back like 끝내기, but the episode is kept for after the rest. */
@@ -285,7 +287,8 @@ class Game(
 
     /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
     fun finish() {
-        _ui.update { it.copy(phase = Phase.RESTORE, held = false) }
+        // after its 20 minutes the episode is kept for after the rest, whichever reason the pause shows by then
+        _ui.update { it.copy(phase = Phase.RESTORE, held = false, keepSave = it.keepSave || it.restUntil != null) }
         if (!_ui.value.keepSave) clearSave()
         restore()
     }
@@ -346,7 +349,8 @@ class Game(
             snapshot = Snapshot.of(s),
         )
         lastTickMs = null
-        if (p.next < p.puzzles.size) startPuzzle(p.next, intro = Lines.WELCOME_BACK) else treasure()
+        // the car may have put the climate's AUTO back on while it was off, as at a new start Lumi asks for it off
+        if (p.next < p.puzzles.size) startPuzzle(p.next, intro = "${Lines.WELCOME_BACK} ${Lines.AUTO_OFF}") else treasure()
         stories?.prepare(p.setup, s)
     }
 

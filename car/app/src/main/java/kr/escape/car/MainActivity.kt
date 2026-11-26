@@ -400,6 +400,8 @@ private fun ResumePanel(game: Game, saved: Progress, car: CarState, modifier: Mo
             BodyText("‘${saved.story?.title ?: "기본 이야기"}’", size = 28.sp, weight = FontWeight.Bold)
             BodyText("함께한 친구 ${saved.setup.friend.label} · $where · 별 ${saved.stars}개", size = 22.sp)
             Spacer(Modifier.height(4.dp))
+            // the car may have put AUTO back on while it was off
+            Notice(Lines.AUTO_OFF_PARENT)
             blockers.forEach { Notice(it.message) }
             if (restLeft > 0) Notice("${(restLeft + 59_999) / 60_000}분 뒤에 이어 할 수 있어요")
             if (blockers.isEmpty() && restLeft == 0L && !ready) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
@@ -1066,8 +1068,9 @@ private fun PauseOverlay(game: Game, ui: GameUi) {
             else FriendFace(ui.setup.friend.picture, ui.setup.friend.label, 260.dp, ring = Clay.Line, ringWidth = 6.dp)
             KidText(if (reason == null) "잠깐 멈췄어요" else "잠깐 쉬어요!", 60.sp)
             BodyText(reason?.message ?: "준비되면 이어 하기를 눌러 주세요", size = 26.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
-            if (reason == StopReason.TIME_UP) {
-                // the episode is kept: after the rest the setup screen offers 이어 하기
+            if (reason == StopReason.TIME_UP || ui.restUntil != null) {
+                // the episode is kept: after the rest the setup screen offers 이어 하기. Once the 20 minutes are up this
+                // stays the only way out, also while an open door or the gear is what the pause shows
                 ClayButton("저장하고 쉬기", ClayStyle.SUN, Modifier.fillMaxWidth()) { game.restAndSave() }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

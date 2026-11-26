@@ -239,6 +239,50 @@ class GameTest {
     }
 
     @Test
+    fun aLongGapResumeRefitsAPuzzleTheCarNowAnswers() {
+        saved(listOf(defrost, Puzzle.BeltMission), next = 0)
+        val g = game()
+        g.continueSaved()
+        assertEquals(defrost, g.ui.value.puzzle)
+        g.tick(0)
+        g.tick(1_000)
+        g.tick(62_000)
+        // while the car was off the defroster was switched on: the child did nothing
+        car.value = known.copy(defrostFront = true)
+        g.resume()
+        var t = 62_000L
+        repeat(25) {
+            t += 200
+            g.tick(t)
+        }
+        assertEquals(Phase.PLAYING, g.ui.value.phase)
+        assertEquals(0, g.ui.value.stars)
+        assertFalse(defrost in g.ui.value.puzzles)
+    }
+
+    @Test
+    fun continuingAsksToSwitchTheClimateAutoOff() {
+        saved(listOf(quiz, Puzzle.BeltMission), next = 0)
+        val g = game()
+        g.continueSaved()
+        assertTrue(Lines.AUTO_OFF in voice.said.last())
+    }
+
+    @Test
+    fun endingAfterTwentyMinutesStillKeepsTheRest() {
+        val g = playing()
+        val t = g.playTwentyMinutes()
+        // the family gets out for the rest: the door's reason shows now, and with it 끝내기
+        car.value = known.copy(doorOpen = true)
+        g.tick(t + 200)
+        assertEquals(StopReason.DOOR_OPEN, g.ui.value.stopped)
+        g.finish()
+        g.reset()
+        assertNotNull(g.saved.value)
+        assertNotNull(store.read()!!.restUntil)
+    }
+
+    @Test
     fun startingOverForgetsTheSave() {
         saved(listOf(quiz, Puzzle.BeltMission), next = 0)
         val g = game()

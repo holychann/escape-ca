@@ -5,6 +5,9 @@ import kr.escape.car.engine.Setup
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * One episode in progress, kept on disk so the family can go on after the car was switched off (이어 하기).
@@ -51,11 +54,15 @@ class ProgressStore(private val file: File, val now: () -> Long = System::curren
             .put("restUntil", p.restUntil ?: JSONObject.NULL)
         runCatching {
             file.parentFile?.mkdirs()
-            // a car that loses power half way through leaves the old file, never half a new one
+            // a car that loses power half way through leaves the old file, never half a new one: the new one is on
+            // the disk (synced) before it takes the old one's place in one step
             val part = File(file.path + ".part")
-            part.writeText(o.toString())
-            if (!part.renameTo(file)) part.delete()
-        }
+            FileOutputStream(part).use { out ->
+                out.write(o.toString().toByteArray(Charsets.UTF_8))
+                out.fd.sync()
+            }
+            Files.move(part.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+        }.onFailure { File(file.path + ".part").delete() }
     }
 
     fun clear() {
