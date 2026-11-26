@@ -11,7 +11,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from .text_guard import norm
+from .text_guard import clean_text, norm
 
 KINDS = ("MATH", "ENGLISH", "PATTERN", "REASON")
 KIND_LABEL = {"MATH": "계산", "ENGLISH": "영어", "PATTERN": "규칙 찾기", "REASON": "추론"}
@@ -35,7 +35,7 @@ DIALS = {
     # the driver seat heat on (any step) or off
     "SEAT_HEAT_ON": (1, 1),
     "SEAT_HEAT_OFF": (0, 0),
-    # the reading light over the child's seat on, or every reading light off
+    # a back-seat reading light on, or every reading light off
     "LIGHT_CHILD": (1, 1),
     "LIGHTS_OFF": (0, 0),
 }
@@ -81,7 +81,7 @@ REASON_ACTIONS = {
     ("FAN_DOWN", 1): "바람 약하게 하기",
     ("SEAT_HEAT_ON", 1): "운전석 열선 켜기",
     ("SEAT_HEAT_OFF", 0): "운전석 열선 끄기",
-    ("LIGHT_CHILD", 1): "아이 자리 독서등 켜기",
+    ("LIGHT_CHILD", 1): "뒷자리 독서등 켜기",
     ("LIGHTS_OFF", 0): "독서등 모두 끄기",
 }
 
@@ -99,7 +99,7 @@ REASON_WHEN = {
     ("FAN_DOWN", 1): "바람 세기가 6단 이상일 때",
     ("SEAT_HEAT_ON", 1): "운전석 열선이 꺼져 있을 때",
     ("SEAT_HEAT_OFF", 0): "운전석 열선이 켜져 있을 때",
-    ("LIGHT_CHILD", 1): "아이 자리 독서등이 꺼져 있을 때",
+    ("LIGHT_CHILD", 1): "뒷자리 독서등이 모두 꺼져 있을 때",
     ("LIGHTS_OFF", 0): "독서등이 하나라도 켜져 있을 때",
 }
 
@@ -114,8 +114,29 @@ REASON_OWN = {
     "SEAT_HEAT_ON": ("열선",), "SEAT_HEAT_OFF": ("열선",), "LIGHT_CHILD": ("독서등",), "LIGHTS_OFF": ("독서등",),
 }
 
-# the car's button names: a story around a situation never says them, the child works the function out from the trouble
-BUTTON_NAMES = ("내기 순환", "외기", "성에 제거", "성에", "풍량", "바람 세기", "열선", "독서등", "에어컨", "온도")
+# the car's button and control names: a story around a situation never says them, the child works the function out from the trouble
+BUTTON_NAMES = (
+    "내기 순환", "외기", "순환", "성에 제거", "성에", "풍량", "바람 세기", "풍향", "송풍", "공조",
+    "열선", "독서등", "에어컨", "히터", "온도", "버튼", "스위치", "다이얼",
+)
+# direct operation instructions a situation's story must not tell before the question ("켜기", "시원한 바람을 켜 줘", "눌러 봐"...)
+REASON_ACTION_WORDS = ("켜기", "끄기")
+_REASON_DIRECTIVE = re.compile(
+    r"(?<![시비지들밝익])켜\s*(?:줘|봐|자|달라)"
+    r"|(?<![가-힣])(?:꺼\s*(?:줘|봐|자|달라)|끄\s*자)"
+    r"|(?:눌러|맞춰|올려|내려|줄여|높여|낮춰)\s*(?:줘|봐|자|달라)"
+)
+
+
+def action_words(text: str) -> list[str]:
+    """Direct manipulation words in a situation's story (speech), where only the cause should be told."""
+    t = norm(text)
+    found = [w for w in REASON_ACTION_WORDS if norm(w) in t]
+    depunct = re.sub(r"[^\w\s]+|_+", "", clean_text(text))
+    for m in _REASON_DIRECTIVE.finditer(depunct):
+        if m.group(0) not in found:
+            found.append(m.group(0))
+    return found
 
 # a bank question is an instruction to the car with the amount as a little puzzle ("ONE만큼 온도를 내려 줘!"): the
 # child works out the amount and puts it in by doing it. It names the device and says what to do with it
@@ -448,7 +469,7 @@ _REASON_TROUBLE = {
     ("FAN_DOWN", 1): "바람이 너무 세서 종이가 날아가려 한다. 바람은 조금 나와야 한다",
     ("SEAT_HEAT_ON", 1): "안전 지킴이 의자만 차갑다",
     ("SEAT_HEAT_OFF", 0): "안전 지킴이 의자가 계속 데워져서 뜨끈뜨끈하다",
-    ("LIGHT_CHILD", 1): "내가 준 그림 지도가 작아서 아이 자리가 더 밝아야 잘 보인다",
+    ("LIGHT_CHILD", 1): "내가 준 그림 지도가 작아서 뒷자리가 더 밝아야 잘 보인다",
     ("LIGHTS_OFF", 0): "작은 불이 하나라도 켜져 있으면 마음이 안 놓인다",
 }
 

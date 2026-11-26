@@ -17,7 +17,6 @@ import kotlin.math.abs
 class WrongJudge(
     private val quiz: Puzzle.Quiz,
     private val start: CarState,
-    private val childSeat: Seat = Seat.REAR_RIGHT,
     private val settleMs: Long = HoldJudge.HOLD_MS,
     private val gapMs: Long = GAP_MS,
 ) {
@@ -74,7 +73,7 @@ class WrongJudge(
             seenSinceMs = nowMs
             told = null
         }
-        if (quiz.solvedBy(s, start, childSeat)) return null
+        if (quiz.solvedBy(s, start)) return null
         if (v == told || nowMs - seenSinceMs < settleMs) return null
         val kind = own(b, v) ?: if (other(b, v)) Kind.BUTTON else null
         if (kind == null || quiet || toldAtMs?.let { nowMs - it < gapMs } == true) return null
@@ -137,8 +136,8 @@ class WrongJudge(
                 val now = v.seatHeat ?: return null
                 Kind.WAY.takeIf { changed(b.seatHeat, now) && now > was }
             }
-            // another seat's light is another button
-            Dial.LIGHT_CHILD -> Kind.BUTTON.takeIf { (newlyOn(b, v) - childSeat).isNotEmpty() }
+            // a front seat's light is another button; either back light is the answer
+            Dial.LIGHT_CHILD -> Kind.BUTTON.takeIf { newlyOn(b, v).any { !it.rear } }
             Dial.LIGHTS_OFF -> Kind.WAY.takeIf { newlyOn(b, v).isNotEmpty() }
             // switched one way it is the answer, switched back it is the start again
             Dial.AC, Dial.RECIRC, Dial.DEFROST, Dial.SEAT_HEAT_ON -> null

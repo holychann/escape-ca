@@ -84,6 +84,34 @@ def test_no_sound_is_503_and_bad_requests_are_refused(tmp_path):
     assert say(c, install="not an id!").status_code == 422
 
 
+def test_speak_rejects_forbidden_or_non_korean_lines_and_cleans_up(tmp_path):
+    import os
+    from app import service
+    from app.store import prune_audio
+
+    v = FakeVoice()
+    c = client(tmp_path, v)
+    # English quiz words inside a Korean line pass; scary/unsafe/URL/non-Korean spam are rejected before touching voice
+    assert say(c, "켜진 독서등이 모두 two개가 되게 해 줘!").status_code == 200
+    for bad in ("귀신이 나타났어!", "창문을 열자!", "https://evil.example/ 가자", "Hello world only"):
+        r = say(c, bad)
+        assert r.status_code == 422 and r.json()["detail"]["error"] == "speak_rejected"
+    assert len(v.calls) == 1
+    # in-flight lock table never leaks finished keys
+    assert service._making == {}
+
+    cache_dir = tmp_path / "audio_prune"
+    cache_dir.mkdir()
+    old_wav = cache_dir / ("a" * 64 + ".wav")
+    mid_wav = cache_dir / ("b" * 64 + ".wav")
+    new_wav = cache_dir / ("c" * 64 + ".wav")
+    for p, t in ((old_wav, 1000), (mid_wav, 90000), (new_wav, 95000)):
+        p.write_bytes(b"RIFF")
+        os.utime(p, (t, t))
+    assert prune_audio(cache_dir, max_age_hours=24, max_files=1, now=100000) == 2
+    assert not old_wav.exists() and not mid_wav.exists() and new_wav.exists()
+
+
 def test_lines_a_day_are_limited(tmp_path, monkeypatch):
     monkeypatch.setenv("SPEAK_DAILY_PER_INSTALL", "2")
     c = client(tmp_path, FakeVoice())

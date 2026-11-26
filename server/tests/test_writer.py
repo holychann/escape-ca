@@ -41,7 +41,51 @@ def test_gemini_draft_is_read_with_the_same_schema_and_rules():
     assert config.system_instruction == "규칙"
     assert config.response_json_schema == DRAFT_SCHEMA
     assert config.response_mime_type == "application/json"
+    assert config.thinking_config.thinking_level == types.ThinkingLevel.MEDIUM
     assert models.calls[0]["contents"] == "장면"
+
+
+def test_story_and_image_efforts_follow_defaults_and_env(monkeypatch):
+    from app.painter import GeminiPainter
+
+    for name in ("STORY_EFFORT", "IMAGE_EFFORT"):
+        monkeypatch.delenv(name, raising=False)
+    captured = {}
+
+    def create(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            stop_reason="end_turn",
+            content=[SimpleNamespace(type="text", text=draft([MATH]).model_dump_json())],
+            model="claude-opus-5-5",
+            usage=None,
+        )
+
+    fake_claude = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=create)))
+    ClaudeWriter(client=fake_claude).write("규칙", "장면")
+    assert captured["output_config"]["effort"] == "medium"
+
+    monkeypatch.setenv("STORY_EFFORT", "high")
+    ClaudeWriter(client=fake_claude).write("규칙", "장면")
+    assert captured["output_config"]["effort"] == "high"
+    w, gem_models = gemini()
+    w.write("규칙", "장면")
+    assert gem_models.calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.HIGH
+
+    img_calls = []
+
+    class FakeImgModels:
+        def generate_content(self, **kwargs):
+            img_calls.append(kwargs)
+            from PIL import Image
+            import io
+            buf = io.BytesIO()
+            Image.new("RGB", (20, 20), (255, 200, 100)).save(buf, "PNG")
+            return SimpleNamespace(parts=[SimpleNamespace(inline_data=SimpleNamespace(data=buf.getvalue()))])
+
+    painter = GeminiPainter(client=SimpleNamespace(models=FakeImgModels()))
+    painter.paint("반테가 웃는다")
+    assert img_calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.LOW
 
 
 def test_the_writer_is_not_asked_for_questions():

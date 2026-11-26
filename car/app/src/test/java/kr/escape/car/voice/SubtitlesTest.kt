@@ -44,5 +44,9 @@ class SubtitlesTest {
         assertEquals(listOf(0L), Subtitles.starts(listOf("한 줄"), 3000))
         assertEquals(Subtitles.MIN_PIECE_MS, Subtitles.readMs("짧다"))
         assertEquals(20 * Subtitles.READ_MS_PER_CHAR, Subtitles.readMs("가".repeat(20)))
+        val (planStarts, totalMs) = Subtitles.readingPlan(listOf("짧다", "가".repeat(20)))
+        assertEquals(listOf(0L, Subtitles.MIN_PIECE_MS), planStarts)
+        assertEquals(Subtitles.MIN_PIECE_MS + 20 * Subtitles.READ_MS_PER_CHAR, totalMs)
+        assertEquals(emptyList<Long>() to 0L, Subtitles.readingPlan(emptyList()))
     }
 }

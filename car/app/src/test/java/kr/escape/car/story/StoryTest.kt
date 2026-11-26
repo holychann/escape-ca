@@ -430,7 +430,7 @@ class StoryTest {
         val situation = Question(QuizKind.REASON, "?")
         assertEquals("운전석 온도를 퍼즐 시작 때보다 올리기", Lines.answer(Puzzle.Quiz(QuizKind.REASON, Dial.TEMP_UP, 1), situation))
         assertEquals("내기 순환 끄기 (외기 유입)", Lines.answer(Puzzle.Quiz(QuizKind.REASON, Dial.RECIRC, 0), situation))
-        assertEquals("아이 자리 독서등 켜기", Lines.answer(Puzzle.Quiz(QuizKind.REASON, Dial.LIGHT_CHILD, 1), situation))
+        assertEquals("뒷자리 독서등 켜기", Lines.answer(Puzzle.Quiz(QuizKind.REASON, Dial.LIGHT_CHILD, 1), situation))
         assertEquals("풍량을 퍼즐 시작 때보다 약하게 (끄지 않기)", Lines.answer(Puzzle.Quiz(QuizKind.REASON, Dial.FAN_DOWN, 1), situation))
     }
 

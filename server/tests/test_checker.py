@@ -63,15 +63,39 @@ def test_bubble_naming_the_button_is_dropped():
     assert "말풍선에 버튼 말: 풍량" in check(d, req).items[MATH]
 
 
-@pytest.mark.parametrize("line,word", [
-    ("나 너무 더워. 에어컨을 찾아볼까?", "에어컨"),
-    ("땀이 뻘뻘 나. 온도를 바꾸면 될까?", "온도"),
+@pytest.mark.parametrize("line,expected", [
+    ("나 너무 더워. 에어컨을 찾아볼까?", "이야기에 버튼 말: 에어컨"),
+    ("땀이 뻘뻘 나. 온도를 바꾸면 될까?", "이야기에 버튼 말: 온도"),
+    ("땀이 뻘뻘 나. 버튼을 눌러 볼까?", "이야기에 버튼 말: 버튼"),
+    ("땀이 뻘뻘 나. 시원한 바람을 켜 줘!", "이야기에 조작 말: 켜 줘"),
+    ("땀이 뻘뻘 나. 불 켜기 해 볼까?", "이야기에 조작 말: 켜기"),
 ])
-def test_a_situation_story_naming_a_button_is_dropped(line, word):
+def test_a_situation_story_naming_a_button_or_action_is_dropped(line, expected):
     req = request([[AC]])
     d = filled(req.keys)
     d.scenes[0].speech = line
-    assert f"이야기에 버튼 말: {word}" in check(d, req).items[AC]
+    assert expected in check(d, req).items[AC]
+
+
+def test_polite_speech_in_episode_or_scene_is_rejected():
+    from app.models import DRAFT_SCHEMA
+    from app.rules import LIMITS
+
+    assert f"{LIMITS.title}자 이내" in DRAFT_SCHEMA["properties"]["title"]["description"]
+    req = request([[MATH], ["BELT"]])
+    assert "존댓말" in check(filled(req.keys, intro="안녕, 탐험대장! 나는 반테예요. 같이 가 볼까요?"), req).whole
+    assert "존댓말" in check(filled(req.keys, treasureBadge="탐험 배지를 드립니다!"), req).whole
+    d = filled(req.keys)
+    d.scenes[0].speech = "바람개비가 멈췄어요. 같이 돌려 봐요!"
+    assert "존댓말" in check(d, req).items[MATH]
+    d2 = filled(req.keys)
+    d2.scenes[0].result = "바람개비가 잘 돌아가요!"
+    ep = to_episode(d2, check(d2, req), req, "0" * 32, "m")
+    assert ep.scenes[MATH].result == ""
+    # nouns ending in 요 ("담요", "동요") pass cleanly
+    d3 = filled(req.keys)
+    d3.scenes[0].bubble = "따뜻한 담요, 동요!"
+    assert check(d3, req).clean
 
 
 def test_the_chosen_friend_introduces_itself():
@@ -129,11 +153,13 @@ def test_the_banks_hint_is_not_held_to_one_way():
 def test_a_situation_picture_shows_the_trouble_but_no_button():
     req = request([[MATH], [REASON], ["BELT"]])
     d = filled(req.keys)
-    d.art = Art(cover="별빛 기차 앞의 반테", puzzles=["새싹 로봇", "펭귄 선장이 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"])
+    d.art = Art(cover="별빛 기차 앞의 반테", puzzles=["반테가 멈춘 바람개비를 본다", "반테가 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"])
     # a situation has no number to give away, so its trouble may be drawn
     assert art_problems(d, req) == {}
-    d.art = d.art.model_copy(update={"puzzles": ["새싹 로봇", "펭귄 선장이 성에 낀 앞 유리를 본다", "탐험대장 자리"]})
+    d.art = d.art.model_copy(update={"puzzles": ["반테가 멈춘 바람개비를 본다", "반테가 성에 낀 앞 유리를 본다", "탐험대장 자리"]})
     assert art_problems(d, req) == {"p2": ["버튼 말: 성에"]}
+    d.art = d.art.model_copy(update={"cover": "별빛 기차 앞의 루미와 반테", "puzzles": ["코냥이 바람개비를 본다", "반테가 뿌연 앞 유리를 본다", "펭귄 선장"]})
+    assert art_problems(d, req) == {"cover": ["다른 인물: 루미"], "p1": ["다른 인물: 코냥"], "p3": ["다른 인물: 펭귄 선장"]}
 
 
 @pytest.mark.parametrize("text", [

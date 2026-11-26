@@ -4,7 +4,6 @@ import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
-import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,7 +38,7 @@ class ProgressStoreTest {
     """.trimIndent())).copy(images = images)
 
     private fun progress(story: Story? = story(), next: Int = 1, restUntil: Long? = null) = Progress(
-        setup = Setup(minutes = 15, childSeat = Seat.REAR_LEFT, friend = Friend.entries.last { !it.rare }, wish = "공룡 섬"),
+        setup = Setup(minutes = 15, friend = Friend.entries.last { !it.rare }, wish = "공룡 섬"),
         puzzles = listOf(math, Puzzle.BeltMission),
         next = next,
         stars = 1,

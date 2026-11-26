@@ -119,8 +119,10 @@ class WrongJudgeTest {
         assertEquals(Kind.WAY, wrongAt(reason(Dial.SEAT_HEAT_OFF, 0), warm.copy(seatHeat = 3), warm))
         assertNull(wrongAt(reason(Dial.SEAT_HEAT_OFF, 0), warm.copy(seatHeat = 1), warm))
         assertEquals(Kind.WAY, wrongAt(reason(Dial.LIGHTS_OFF, 0), lit(Seat.DRIVER, Seat.REAR_LEFT), lit(Seat.DRIVER)))
-        // another seat's light for the child's is another button
+        // a front seat's light is another button; either back-seat light is the answer
         assertEquals(Kind.BUTTON, wrongAt(reason(Dial.LIGHT_CHILD), lit(Seat.DRIVER)))
+        assertEquals(Kind.BUTTON, wrongAt(reason(Dial.LIGHT_CHILD), lit(Seat.PASSENGER)))
+        assertNull(wrongAt(reason(Dial.LIGHT_CHILD), lit(Seat.REAR_LEFT)))
         assertNull(wrongAt(reason(Dial.LIGHT_CHILD), lit(Seat.REAR_RIGHT)))
         // a function that only goes on and off is either the answer or back at the start
         assertNull(wrongAt(reason(Dial.AC), known.copy(acOn = true)))

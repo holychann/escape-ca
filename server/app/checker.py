@@ -5,12 +5,14 @@ personal, foreign), and the answer (each scene says its own answer and never the
 episode-wide lines rejects the whole draft; a problem in one scene drops only that scene, and the car plays its
 own reviewed lines there instead.
 """
+import re
+
 from textgate import Verdict, too_long
 
 from . import quiz
 from .models import FRIEND_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, Question, SceneText
 from .rules import BUBBLE_NEVER, EVERYWHERE_NEVER, FORBID, LIMITS, Rule, rule_for
-from .text_guard import find_forbidden, missing, norm, present
+from .text_guard import clean_text, find_forbidden, missing, norm, polite, present
 
 
 def bad_words(text: str) -> list[str]:
@@ -21,6 +23,19 @@ def wish_problems(wish: str) -> list[str]:
     """A wish that asks for something scary, unsafe in a car or personal is refused before any model sees it.
     English is fine in a wish ("T-rex"); the writer still answers in Korean."""
     return find_forbidden(wish, [f for f in FORBID if f.quote_match])
+
+
+def speak_problems(text: str) -> list[str]:
+    """Checks a line sent to POST /v1/speak before synthesizing (and potentially falling back to the paid key).
+    Allows an English quiz word inside a Korean sentence ("two만큼 온도를 올려 줘!"), while blocking scary/unsafe/personal
+    words, URLs, and non-Korean spam."""
+    clean = clean_text(text)
+    out = find_forbidden(text, [f for f in FORBID if f.quote_match])
+    if re.search(r"https?:|www\.", clean, re.IGNORECASE):
+        out.append("영어나 주소")
+    if not re.search(r"[가-힣]", clean):
+        out.append("우리말 없음")
+    return out
 
 
 # the chosen friend is the only one in the story: Lumi and the old crew are gone, and the other book friends stay out
@@ -38,6 +53,8 @@ def result_problems(scene: DraftScene, req: EpisodeRequest) -> list[str]:
     left out on its own (the car says its own praise there) instead of losing the scene."""
     text = scene.result
     problems = too_long("result", text, getattr(LIMITS.result, req.youngest)) + bad_words(text)
+    if polite(text):
+        problems.append("존댓말")
     problems += [f"쓰지 말 말: {w}" for w in present(text, EVERYWHERE_NEVER)]
     return problems + other_names(text, req)
 
@@ -49,6 +66,8 @@ def check_scene(rule: Rule, scene: SceneText, youngest: str) -> list[str]:
         + too_long("hint", scene.hint, LIMITS.hint)
     )
     problems += bad_words(" ".join([scene.bubble, scene.speech, scene.hint]))
+    if any(polite(t) for t in (scene.bubble, scene.speech, scene.hint)):
+        problems.append("존댓말")
     problems += [f"정답 말 빠짐: {'/'.join(g)}" for g in missing(scene.speech, rule.must)]
     problems += [f"힌트에 정답 말 빠짐: {'/'.join(g)}" for g in missing(scene.hint, rule.hint_must)]
     problems += [f"다른 정답 말: {w}" for w in present("|".join([scene.bubble, scene.speech, scene.hint]), rule.never)]
@@ -74,12 +93,15 @@ def check_quiz_scene(q: quiz.QuizKey, scene: DraftScene, youngest: str) -> list[
     word = quiz.english_word(q, question)
     asked = quiz.without_word(question.text, word)
     problems += bad_words(" ".join([scene.bubble, scene.speech, quiz.hint_without_english(scene.hint, word), asked]))
+    if any(polite(t) for t in (scene.bubble, scene.speech)):
+        problems.append("존댓말")
     problems += [f"말풍선에 버튼 말: {w}" for w in present(scene.bubble, BUBBLE_NEVER)]
     # only the words written for this episode: the bank's hint was checked when it was made and suits any device
     problems += [f"반대로 들리는 말: {w}" for w in present(" ".join([scene.bubble, scene.speech]), quiz.other_way(q))]
     if q.kind == "REASON":
-        # the child works the function out from the trouble, so the story never names the button
+        # the child works the function out from the trouble, so the story never names the button or tells what to do
         problems += [f"이야기에 버튼 말: {w}" for w in present(scene.speech, quiz.BUTTON_NAMES)]
+        problems += [f"이야기에 조작 말: {w}" for w in quiz.action_words(scene.speech)]
     else:
         lines = {"말풍선": scene.bubble, "이야기": scene.speech, "힌트": scene.hint, "문제": question.text}
         problems += [f"{name}에 정답 수" for name, text in lines.items() if quiz.leaks(text, q.value)]
@@ -136,7 +158,7 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
 
     def look(name: str, text: str, extra: list[str]) -> None:
-        problems = too_long(name, text, ART_MAX) + bad_words(text)
+        problems = too_long(name, text, ART_MAX) + bad_words(text) + other_names(text, req)
         problems += [f"정답이 보이는 말: {w}" for w in present(text, extra)]
         problems += [f"버튼 말: {w}" for w in present(text, BUBBLE_NEVER)]
         if problems:
@@ -161,6 +183,8 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
         v.whole.append("첫인사에 고른 친구 소개 빠짐")
     episode_text = " ".join([draft.title, draft.intro, draft.treasureBadge, draft.world])
     v.whole += bad_words(episode_text)
+    if any(polite(t) for t in (draft.title, draft.intro, draft.treasureBadge)):
+        v.whole.append("존댓말")
     v.whole += other_names(episode_text, req)
 
     written = {}

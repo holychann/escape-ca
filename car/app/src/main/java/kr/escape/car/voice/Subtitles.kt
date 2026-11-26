@@ -65,4 +65,11 @@ object Subtitles {
 
     /** How long a piece stays up when there is no sound to follow. */
     fun readMs(piece: String): Long = (piece.count { !it.isWhitespace() } * READ_MS_PER_CHAR).coerceAtLeast(MIN_PIECE_MS)
+
+    /** Start times (ms) for each piece and total reading duration (ms) when shown silently at reading pace. */
+    fun readingPlan(pieces: List<String>): Pair<List<Long>, Long> {
+        if (pieces.isEmpty()) return emptyList<Long>() to 0L
+        val times = pieces.runningFold(0L) { at, p -> at + readMs(p) }
+        return times.dropLast(1) to times.last()
+    }
 }

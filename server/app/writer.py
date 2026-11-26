@@ -11,6 +11,20 @@ from .models import DRAFT_SCHEMA, Draft
 
 DEFAULT_MODEL = "claude-opus-5-5"
 GEMINI_MODEL = "gemini-3.6-flash"
+DEFAULT_EFFORT = "medium"
+EFFORTS = ("low", "medium", "high")
+_GEMINI_THINKING = {
+    "low": types.ThinkingLevel.LOW,
+    "medium": types.ThinkingLevel.MEDIUM,
+    "high": types.ThinkingLevel.HIGH,
+}
+
+
+def _story_effort(effort: str | None = None) -> str:
+    chosen = (effort or os.environ.get("STORY_EFFORT") or DEFAULT_EFFORT).strip().lower()
+    if chosen not in EFFORTS:
+        raise ValueError(f"unknown STORY_EFFORT: {chosen}")
+    return chosen
 
 
 class WriterError(Exception):
@@ -23,8 +37,10 @@ class Writer(Protocol):
 
 
 class ClaudeWriter:
-    def __init__(self, model: str | None = None, client: anthropic.Anthropic | None = None):
+    def __init__(self, model: str | None = None, client: anthropic.Anthropic | None = None,
+                 effort: str | None = None):
         self.model = model or os.environ.get("STORY_MODEL", DEFAULT_MODEL)
+        self.effort = _story_effort(effort)
         self._client = client
         self.last_usage: anthropic.types.beta.BetaUsage | None = None
 
@@ -53,8 +69,8 @@ class ClaudeWriter:
             max_tokens=16000,
             system=system,
             messages=[{"role": "user", "content": user}],
-            # short creative writing with fixed rules: low effort is enough and keeps the wait short
-            output_config={"effort": "low", "format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
+            # medium effort gives enough planning for 2-variant continuity and lesson callbacks without high's wait
+            output_config={"effort": self.effort, "format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
             **extra,
         )
         self.last_usage = getattr(response, "usage", None)
@@ -67,8 +83,9 @@ class ClaudeWriter:
 
 
 class GeminiWriter:
-    def __init__(self, model: str | None = None, client: genai.Client | None = None):
+    def __init__(self, model: str | None = None, client: genai.Client | None = None, effort: str | None = None):
         self.model = model or os.environ.get("STORY_MODEL", GEMINI_MODEL)
+        self.effort = _story_effort(effort)
         self._client = client
         # token counts of the last call, read by tools/story_spec.py to work out the cost
         self.last_usage: types.GenerateContentResponseUsageMetadata | None = None
@@ -101,7 +118,7 @@ class GeminiWriter:
                 system_instruction=system,
                 response_mime_type="application/json",
                 response_json_schema=DRAFT_SCHEMA,
-                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
+                thinking_config=types.ThinkingConfig(thinking_level=_GEMINI_THINKING[self.effort]),
                 max_output_tokens=16000,
             ),
         )

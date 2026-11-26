@@ -1,4 +1,4 @@
-"""Draws an episode's pictures with Gemini's image model, in the app's soft felt-doll look.
+"""Draws an episode's pictures with Gemini's image model, in the app's smooth 3D clay-doll look.
 
 The writer only describes each picture (Draft.art) and the checker has already removed any description that
 would show an answer, so a picture can set the scene but never tell the child which button to press.
@@ -16,17 +16,26 @@ from PIL import Image
 log = logging.getLogger("painter")
 
 IMAGE_MODEL = "gemini-nano-banana-2.1"
+IMAGE_EFFORT = "low"
+IMAGE_EFFORTS = ("minimal", "low", "medium", "high", "off")
 ART_DIR = Path(__file__).with_name("art")
 
-# The app's own pictures are soft needle-felted dolls in warm light; a polished CGI render with glow, bokeh and props
-# everywhere reads as "AI picture" next to them.
+
+def _image_effort(effort: str | None = None) -> str:
+    chosen = (effort or os.environ.get("IMAGE_EFFORT") or IMAGE_EFFORT).strip().lower()
+    if chosen not in IMAGE_EFFORTS:
+        raise ValueError(f"unknown IMAGE_EFFORT: {chosen}")
+    return chosen
+
+# The app's own pictures are smooth matte 3D clay dolls in warm light; a polished glossy CGI render or a fuzzy
+# wool/felt picture reads out of place next to them.
 LOOK = (
-    "Soft 3D felt-doll look, like needle-felted wool figures on a small cosy tabletop set. Fuzzy wool texture on the "
-    "characters and on the world around them, with a faint soft fuzz at the edges; rounded chunky shapes with few "
-    "details, not smooth clay and not shiny plastic. Warm golden light like a cosy lamp-lit room or a late afternoon, "
-    "gentle soft shadows, almost everything in focus. Rich warm colours, calm, not neon, not oversaturated. "
-    "A simple, uncluttered background with only a few props and some empty space. Cute but not babyish, for children "
-    "aged 4 to 12. "
+    "Soft 3D clay-doll look, like smooth handmade plasticine figures on a small cosy tabletop set. Smooth velvety "
+    "matte clay surfaces on the characters and on the world around them, with rounded chunky shapes and clean soft "
+    "edges; no wool fuzz, no knitted or needle-felted yarn texture, and no shiny plastic gloss. Warm golden light "
+    "like a cosy lamp-lit room or a late afternoon, gentle soft shadows, almost everything in focus. Rich warm "
+    "colours, calm, not neon, not oversaturated. A simple, uncluttered background with only a few props and some "
+    "empty space. Cute but not babyish, for children aged 4 to 12. "
 )
 # what makes a picture look machine-made; said every time, because the model falls back to it unasked
 NOT_AI = (
@@ -45,7 +54,7 @@ STYLE = LOOK + (
     "teeth, yellow backpack). Every friend wears the same yellow star badge on the chest. Anyone who appears keeps the "
     "exact face, colours, outfit and prop from the model sheet; never mix two friends or invent new parts. No robot guide or "
     "any other character outside the model sheet appears unless the scene asks for it. The second reference picture "
-    "shows the drawing style: copy its felt texture, light and colours, but not its place, props or composition. "
+    "shows the drawing style: copy its smooth matte clay surface, warm light and colours, but not its place, props or composition. "
 ) + NOT_AI
 
 
@@ -72,11 +81,12 @@ class GeminiPainter:
     up front: one client (a client made lazily per thread got closed under another thread) and the reference pictures
     as bytes (PIL images read lazily from several threads came back truncated)."""
 
-    def __init__(self, model: str | None = None, client=None):
+    def __init__(self, model: str | None = None, client=None, effort: str | None = None):
         from google import genai
         from google.genai import types
 
         self.model = model or os.environ.get("IMAGE_MODEL", IMAGE_MODEL)
+        self.effort = _image_effort(effort)
         # one picture usually takes 10~20 s; a busy minute is tried again a few seconds later
         self.client = client or genai.Client(http_options=types.HttpOptions(
             timeout=120_000,
@@ -92,12 +102,17 @@ class GeminiPainter:
 
     def _draw(self, prompt: str, refs: list, aspect: str) -> bytes:
         from google.genai import types
+        thinking = (
+            types.ThinkingConfig(thinking_level=getattr(types.ThinkingLevel, self.effort.upper()))
+            if self.effort != "off" else None
+        )
         response = self.client.models.generate_content(
             model=self.model,
             contents=[prompt, *refs],
             config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"],
                 image_config=types.ImageConfig(aspect_ratio=aspect, image_size="1K"),
+                thinking_config=thinking,
             ),
         )
         for part in response.parts or []:

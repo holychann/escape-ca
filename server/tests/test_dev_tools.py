@@ -97,23 +97,30 @@ def test_sampled_requests_look_like_the_cars_plan():
     device_of = {dial: device for device, dials in DEVICES.items() for dial in dials}
     assert sorted(device_of) == sorted(quiz.DIALS)
     seen = set()
+    wishes, lessons, dual_slots = 0, set(), 0
     for _ in range(300):
         req = random_request(r)
         quizzes = [quiz.parse(slot[0]) for slot in req.puzzles if slot != ["BELT"]]
+        if req.wish:
+            wishes += 1
+        if req.lesson:
+            lessons.add(req.lesson)
+        dual_slots += sum(1 for slot in req.puzzles if len(slot) == 2)
         assert len(quizzes) == {5: 2, 10: 3, 15: 4}[req.minutes]
         assert (["BELT"] in req.puzzles) == (len(quizzes) >= 3) and (len(quizzes) < 3 or req.puzzles[2] == ["BELT"])
         # one quiz per car device, every key one the car can send to this age (quiz.parse refuses the rest)
         devices = [device_of[q.dial] for q in quizzes]
         assert len(set(devices)) == len(devices)
-        assert not any(never_told(q, req.youngest) for q in quizzes)
+        assert not any(never_told(q, req.youngest) for k in req.keys if (q := quiz.parse(k)) is not None)
         # about half are situations; the number questions differ in kind where the devices allow it
         situations = [q for q in quizzes if q.kind == "REASON"]
         numbers = [q for q in quizzes if q.kind != "REASON"]
         assert len(situations) >= len(quizzes) // 2
         assert len({q.kind for q in numbers}) == min(len(numbers), 3)
         seen |= {(q.kind, q.dial) for q in quizzes}
-    # every kind on every dial comes up
+    # every kind on every dial comes up, along with wishes, lessons and two-variant slots
     assert seen == {(kind, dial) for dial in quiz.DIALS for kind in quiz.KINDS_FOR[dial]}
+    assert 80 < wishes < 220 and len(lessons) == 10 and dual_slots > 100
 
 
 class RecordingWriter:

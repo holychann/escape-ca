@@ -36,6 +36,7 @@ class GameTest {
     private class FakeVoice : Voice {
         override val speaking: StateFlow<Boolean> = MutableStateFlow(false)
         val said = mutableListOf<String>()
+        val prefetched = mutableListOf<String>()
         private var last: String? = null
         override fun say(text: String) {
             said += text
@@ -48,6 +49,9 @@ class GameTest {
             last?.let { said += it }
         }
         override fun stop() {}
+        override fun prefetch(lines: Collection<String>) {
+            prefetched += lines
+        }
     }
 
     /** Parked with a parent in the driver seat, every climate value known: the fan at 3, 21 degrees, everything else off. */
@@ -105,6 +109,7 @@ class GameTest {
         // the climate is put back as it was when they went on, not as it was before the car went off
         assertEquals(Snapshot.of(car.value), ui.snapshot)
         assertTrue(voice.said.last().startsWith(Lines.WELCOME_BACK))
+        assertTrue(ui.scene(Puzzle.BeltMission).speech in voice.prefetched)
     }
 
     @Test

@@ -42,27 +42,33 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     private val steps = Any()
 
     /** Says [text], cutting off whatever Lumi was saying. Call on the main thread. */
-    override fun say(text: String) {
-        last = text
+    override fun say(text: String) = speak(text, keepLast = true)
+
+    /** Says [text] like [say], but 다시 듣기 still repeats the line before it (the puzzle, not "다시 생각해 볼까?"). */
+    override fun aside(text: String) = speak(text, keepLast = false)
+
+    private fun speak(text: String, keepLast: Boolean) {
+        val afterSilent = if (keepLast) null else last?.let { Subtitles.pieces(it).lastOrNull() }
+        if (keepLast) last = text
         val mine = ++turn
         stopPlayer()
         _speaking.value = false
         _noSound.value = false
         val pieces = Subtitles.pieces(text)
         // the first piece is up at once; the rest follow the recording when it starts, or reading pace without one
-        show(pieces, mine, null)
-        val c = cache ?: return silent(pieces, mine)
+        show(pieces, mine, null, keepLast, afterSilent)
+        val c = cache ?: return silent(pieces, mine, keepLast, afterSilent)
         // a line kept on the device plays at once; any other is fetched first
         val kept = c.cached(text)
         if (kept != null) {
-            play(kept, pieces, mine)
+            play(kept, pieces, mine, keepLast, afterSilent)
             return
         }
         now.execute {
             val file = c.get(text)
             main.post {
                 if (mine != turn) return@post
-                if (file != null) play(file, pieces, mine) else silent(pieces, mine)
+                if (file != null) play(file, pieces, mine, keepLast, afterSilent) else silent(pieces, mine, keepLast, afterSilent)
             }
         }
     }
@@ -72,13 +78,6 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         val c = cache ?: return
         val todo = lines.map(VoiceCache::tidy).filter { it.isNotEmpty() }.distinct()
         ahead.execute { todo.forEach { line -> if (c.cached(line) == null) c.get(line) } }
-    }
-
-    /** Says [text] like [say], but 다시 듣기 still repeats the line before it (the puzzle, not "다시 생각해 볼까?"). */
-    override fun aside(text: String) {
-        val keep = last
-        say(text)
-        last = keep
     }
 
     /** 다시 듣기. */
@@ -97,33 +96,42 @@ class Lumi(private val cache: VoiceCache?) : Voice {
 
     /**
      * Puts [pieces] up one after another: along a recording [totalMs] long, or at reading pace when it is null. Along
-     * a recording the last piece goes away a moment after the sound ends; without one it stays for the child to read.
+     * a recording the last piece goes away a moment after the sound ends; without sound a puzzle line stays for the
+     * child to read, while an [aside] ("다시 생각해 볼까?") restores [afterSilent] once read.
      */
-    private fun show(pieces: List<String>, mine: Int, totalMs: Long?) {
+    private fun show(pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null) {
         main.removeCallbacksAndMessages(steps)
         if (pieces.isEmpty()) {
             _subtitle.value = null
             return
         }
         _subtitle.value = pieces.first()
-        if (totalMs == null && !_noSound.value) return
-        val starts = if (totalMs != null) Subtitles.starts(pieces, totalMs)
-        else pieces.runningFold(0L) { at, p -> at + Subtitles.readMs(p) }.dropLast(1)
-        pieces.zip(starts).drop(1).forEach { (piece, at) ->
-            main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
+        if (totalMs != null) {
+            val starts = Subtitles.starts(pieces, totalMs)
+            pieces.zip(starts).drop(1).forEach { (piece, at) ->
+                main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
+            }
+            main.postDelayed({ if (mine == turn && player == null) _subtitle.value = null }, steps, totalMs + LINGER_MS)
+        } else if (_noSound.value) {
+            val (starts, totalReadMs) = Subtitles.readingPlan(pieces)
+            pieces.zip(starts).drop(1).forEach { (piece, at) ->
+                main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
+            }
+            if (!keepLast) {
+                main.postDelayed({ if (mine == turn) _subtitle.value = afterSilent }, steps, totalReadMs + LINGER_MS)
+            }
         }
-        if (totalMs != null) main.postDelayed({ if (mine == turn && player == null) _subtitle.value = null }, steps, totalMs + LINGER_MS)
     }
 
     /** No sound for this line: its subtitles are all the child gets. */
-    private fun silent(pieces: List<String>, mine: Int) {
+    private fun silent(pieces: List<String>, mine: Int, keepLast: Boolean, afterSilent: String?) {
         if (mine != turn) return
         _speaking.value = false
         _noSound.value = true
-        show(pieces, mine, null)
+        show(pieces, mine, null, keepLast, afterSilent)
     }
 
-    private fun play(file: File, pieces: List<String>, mine: Int) {
+    private fun play(file: File, pieces: List<String>, mine: Int, keepLast: Boolean, afterSilent: String?) {
         val mp = MediaPlayer()
         runCatching {
             mp.setAudioAttributes(
@@ -152,7 +160,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
                     release(failed)
                     _speaking.value = false
                     // no sound after all: the subtitles carry the line
-                    silent(pieces, mine)
+                    silent(pieces, mine, keepLast, afterSilent)
                 }
                 true
             }
@@ -162,7 +170,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
             log("녹음 재생 실패: ${it.message}")
             if (player === mp) player = null
             runCatching { mp.release() }
-            silent(pieces, mine)
+            silent(pieces, mine, keepLast, afterSilent)
         }
     }
 

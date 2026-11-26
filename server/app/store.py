@@ -11,6 +11,7 @@ from pathlib import Path
 from .models import Episode, EpisodeRequest, Report
 
 _STORY_ID = re.compile(r"^[0-9a-f]{32}$")
+_AUDIO_WAV = re.compile(r"^[0-9a-f]{64}\.wav$")
 
 
 def _digest(value: str) -> str:
@@ -123,6 +124,44 @@ def prune_images(images_dir: Path, max_age_hours: float, now: float | None = Non
                 removed += 1
         except OSError:
             continue
+    return removed
+
+
+def prune_audio(audio_dir: Path, max_age_hours: float, max_files: int = 2000, now: float | None = None) -> int:
+    """Deletes cached TTS WAV files older than ``max_age_hours`` and trims oldest files above ``max_files``."""
+    if not audio_dir.is_dir():
+        return 0
+    current = time.time() if now is None else now
+    cutoff = current - max_age_hours * 3600 if max_age_hours > 0 else None
+    part_cutoff = current - 3600
+    removed = 0
+    kept: list[tuple[float, Path]] = []
+    for child in list(audio_dir.iterdir()):
+        if not child.is_file():
+            continue
+        try:
+            mtime = child.stat().st_mtime
+            if child.name.endswith(".part"):
+                if mtime < part_cutoff:
+                    child.unlink(missing_ok=True)
+                continue
+            if not _AUDIO_WAV.fullmatch(child.name):
+                continue
+            if cutoff is not None and mtime < cutoff:
+                child.unlink(missing_ok=True)
+                removed += 1
+            else:
+                kept.append((mtime, child))
+        except OSError:
+            continue
+    if max_files > 0 and len(kept) > max_files:
+        kept.sort(key=lambda item: (item[0], item[1].name))
+        for _, child in kept[: len(kept) - max_files]:
+            try:
+                child.unlink(missing_ok=True)
+                removed += 1
+            except OSError:
+                continue
     return removed
 
 

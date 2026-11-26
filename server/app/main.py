@@ -16,11 +16,11 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from .bank import Bank, load as load_bank
-from .checker import wish_problems
+from .checker import speak_problems, wish_problems
 from .models import Episode, EpisodeRequest, Report, SpeakRequest
 from .painter import Painter, make_painter
 from .service import make_episode, paint_pictures, speak_line
-from .store import DailyLimit, ReportLimit, Store, prune_images
+from .store import DailyLimit, ReportLimit, Store, prune_audio, prune_images
 from .voice import Voice, make_voice
 from .writer import Writer, make_writer
 
@@ -64,6 +64,8 @@ def create_app(
     trust_proxy = os.environ.get("STORY_TRUST_PROXY", "").lower() in ("1", "true", "yes")
     # recordings by words, voice and style, shared by every story and every car
     audio_cache = folder / "audio_cache"
+    audio_ttl_hours = float(os.environ.get("STORY_AUDIO_TTL_HOURS", "72"))
+    audio_max_files = int(os.environ.get("STORY_AUDIO_MAX_FILES", "2000"))
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
@@ -82,6 +84,7 @@ def create_app(
         per_day=int(os.environ.get("STORY_REPORT_DAILY_TOTAL", "500")),
     )
     prune_images(images, image_ttl_hours)
+    prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
     log.info("writer=%s painter=%s voice=%s trust_proxy=%s", type(writer).__name__,
              type(painter).__name__ if painter else "none", type(voice).__name__ if voice else "none", trust_proxy)
 
@@ -119,6 +122,8 @@ def create_app(
 
     @app.post("/v1/speak")
     def speak(req: SpeakRequest, request: Request) -> Response:
+        if problems := speak_problems(req.text):
+            raise HTTPException(status_code=422, detail={"error": "speak_rejected", "reasons": problems})
         ip = client_ip(request, trust_proxy)
         if not speak_limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
@@ -126,6 +131,7 @@ def create_app(
         if data is None:
             # no sound for this line: the app shows it as a caption
             raise HTTPException(status_code=503, detail="no_voice")
+        prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
         return Response(content=data, media_type="audio/wav")
 
     @app.post("/v1/report", status_code=204)

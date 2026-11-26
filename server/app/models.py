@@ -6,7 +6,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import quiz
-from .rules import rule_for
+from .rules import LIMITS, rule_for
 
 Age =Literal["LITTLE", "CAPTAIN", "DETECTIVE"]
 Theme = Literal["STAR_TRAIN", "SEA_SUB", "FOREST_SHIP"]
@@ -190,7 +190,7 @@ DRAFT_SCHEMA = {
     "properties": {
         "theme": {"type": "string", "enum": list(THEME_LABEL)},
         "world": _text("오늘의 세계를 한 줄로. 예: 공룡이 사는 화산섬"),
-        "title": _text("오늘의 탐험 카드 제목. 15자 이내"),
+        "title": _text(f"오늘의 탐험 카드 제목. {LIMITS.title}자 이내"),
         "intro": _text("고른 친구의 첫인사와 오늘의 장소, 목표. 2~3문장"),
         "treasureBadge": _text("끝 인사: 목표를 이루고 탐험대장에게 탐험 배지를 줄 때의 말"),
         "scenes": {

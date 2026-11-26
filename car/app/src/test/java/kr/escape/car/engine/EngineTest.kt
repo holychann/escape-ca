@@ -182,13 +182,14 @@ class EngineTest {
         assertFalse(heatOff.solvedBy(known.copy(seatHeat = 1), known.copy(seatHeat = 2)))
         assertFalse(heatOff.solvedBy(known.copy(seatHeat = null), known.copy(seatHeat = 2)))
 
-        // only the child's own light counts; the others do not matter
+        // either back-seat light solves it; front-seat lights do not
         val childLight = reason(Dial.LIGHT_CHILD)
         val off = Seat.entries.associateWith { false }
-        assertTrue(childLight.solvedBy(known.copy(readingLights = off + (Seat.REAR_LEFT to true)), known, Seat.REAR_LEFT))
-        assertTrue(childLight.solvedBy(known.copy(readingLights = Seat.entries.associateWith { true }), known, Seat.REAR_LEFT))
-        assertFalse(childLight.solvedBy(known.copy(readingLights = off + (Seat.REAR_RIGHT to true)), known, Seat.REAR_LEFT))
-        assertFalse(childLight.solvedBy(known.copy(readingLights = emptyMap()), known, Seat.REAR_LEFT))
+        assertTrue(childLight.solvedBy(known.copy(readingLights = off + (Seat.REAR_LEFT to true)), known))
+        assertTrue(childLight.solvedBy(known.copy(readingLights = off + (Seat.REAR_RIGHT to true)), known))
+        assertTrue(childLight.solvedBy(known.copy(readingLights = Seat.entries.associateWith { true }), known))
+        assertFalse(childLight.solvedBy(known.copy(readingLights = off + (Seat.DRIVER to true)), known))
+        assertFalse(childLight.solvedBy(known.copy(readingLights = emptyMap()), known))
 
         val allOff = reason(Dial.LIGHTS_OFF, 0)
         val one = known.copy(readingLights = off + (Seat.DRIVER to true))
@@ -401,16 +402,14 @@ class EngineTest {
         assertFalse(Planner.fits(heatOff, known, setup))
         assertFalse(Planner.fits(heatOff, known.copy(seatHeat = null), setup))
 
-        // the child's own light (Setup.childSeat), whatever the others are
+        // both back-seat lights must be off before asking; front lights do not matter
         val childLight = reason(Dial.LIGHT_CHILD)
         val off = Seat.entries.associateWith { false }
         assertTrue(Planner.fits(childLight, known, setup))
         assertTrue(Planner.fits(childLight, known.copy(readingLights = off + (Seat.DRIVER to true)), setup))
         assertFalse(Planner.fits(childLight, known.copy(readingLights = off + (Seat.REAR_RIGHT to true)), setup))
+        assertFalse(Planner.fits(childLight, known.copy(readingLights = off + (Seat.REAR_LEFT to true)), setup))
         assertFalse(Planner.fits(childLight, known.copy(readingLights = mapOf(Seat.DRIVER to false)), setup))
-        val leftChild = Setup(childSeat = Seat.REAR_LEFT)
-        assertTrue(Planner.fits(childLight, known.copy(readingLights = off + (Seat.REAR_RIGHT to true)), leftChild))
-        assertFalse(Planner.fits(childLight, known.copy(readingLights = off + (Seat.REAR_LEFT to true)), leftChild))
 
         val allOff = reason(Dial.LIGHTS_OFF, 0)
         assertTrue(Planner.fits(allOff, known.copy(readingLights = off + (Seat.PASSENGER to true)), setup))
@@ -583,10 +582,10 @@ class EngineTest {
         val r = Random(7)
         repeat(2000) { seed ->
             val car = randomCar(r)
-            val s = Setup(ages = listOf(Age.entries.random(r)), minutes = 15, childSeat = Seat.entries.random(r))
+            val s = Setup(ages = listOf(Age.entries.random(r)), minutes = 15)
             val quizzes = Planner.plan(s, car, Random(seed)).filterIsInstance<Puzzle.Quiz>()
             for (q in quizzes) {
-                assertFalse("$q on $car", q.solvedBy(car, car, s.childSeat))
+                assertFalse("$q on $car", q.solvedBy(car, car))
                 assertTrue("$q on $car", Planner.fits(q, car, s))
             }
             // in an order where an earlier puzzle never spoils a later one, whenever such an order exists
@@ -599,7 +598,7 @@ class EngineTest {
         var now = car
         for (q in order) {
             if (!Planner.fits(q, now, s)) return false
-            now = Planner.after(q, now, s.childSeat)
+            now = Planner.after(q, now)
         }
         return true
     }
@@ -705,7 +704,7 @@ class EngineTest {
                 val q = now.getOrNull(i) as? Puzzle.Quiz ?: continue
                 if (now.size < planned.size) continue
                 assertTrue("$q on $car", Planner.fits(q, car, s))
-                assertFalse("$q on $car", q.solvedBy(car, car, s.childSeat))
+                assertFalse("$q on $car", q.solvedBy(car, car))
             }
         }
     }
