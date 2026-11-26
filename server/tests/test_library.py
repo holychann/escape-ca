@@ -102,7 +102,7 @@ def test_a_shelved_story_is_laid_out_by_cell(tmp_path):
     Library(FolderStorage(tmp_path)).add(shelved(), filled(KEYS), request())
     base = tmp_path / "library/BANTE/CAPTAIN/10m" / STORY_ID
     assert {p.name for p in base.iterdir()} == {"story.json", "draft.json"}
-    stored = (base / "draft.json").read_text()
+    stored = (base / "draft.json").read_text(encoding="utf-8")
     for word in (INSTALL, "wish", "context", "season", "timeOfDay", "outsideTempC"):
         assert word not in stored
 
@@ -128,12 +128,12 @@ def test_a_half_written_story_is_skipped(tmp_path):
     base = tmp_path / "library/BANTE/CAPTAIN/10m"
     (base / STORY_ID / "story.json").rename(base / "other-story.json")
     (base / "draft-only").mkdir()
-    (base / "draft-only" / "draft.json").write_text("{}")
+    (base / "draft-only" / "draft.json").write_text("{}", encoding="utf-8")
     (base / "story-only").mkdir()
-    (base / "story-only" / "story.json").write_text((base / "other-story.json").read_text())
+    (base / "story-only" / "story.json").write_text((base / "other-story.json").read_text(encoding="utf-8"), encoding="utf-8")
     (base / "broken").mkdir()
-    (base / "broken" / "story.json").write_text("not json")
-    (base / "broken" / "draft.json").write_text("{}")
+    (base / "broken" / "story.json").write_text("not json", encoding="utf-8")
+    (base / "broken" / "draft.json").write_text("{}", encoding="utf-8")
     again = Library(FolderStorage(tmp_path))
     again.load()
     assert again.size(CELL) == 0

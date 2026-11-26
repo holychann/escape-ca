@@ -91,7 +91,7 @@ def test_the_shelved_draft_has_the_repaired_scene(tmp_path):
     fixed.scenes[0].speech = "발명품 바람개비가 멈췄어. 바람 세기를 알아내면 다시 돌릴 수 있어!"
     ep = client(tmp_path, FakeWriter(leaky(), leaky(), fixed), lib).post("/v1/episode", json=BODY).json()
     assert ep["dropped"] == []
-    body = json.loads((tmp_path / "shelf" / CELL.path() / ep["storyId"] / "draft.json").read_text())
+    body = json.loads((tmp_path / "shelf" / CELL.path() / ep["storyId"] / "draft.json").read_text(encoding="utf-8"))
     scene = next(s for s in body["draft"]["scenes"] if s["key"] == MATH)
     assert scene["speech"] == fixed.scenes[0].speech and scene["question"]["text"] == ep["scenes"][MATH]["question"]["text"]
     assert "wish" not in body["request"] and "installId" not in body["request"]

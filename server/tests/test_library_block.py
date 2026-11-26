@@ -32,7 +32,7 @@ def test_a_reported_shelf_story_is_no_longer_offered(tmp_path):
 def test_a_block_survives_a_restart(tmp_path):
     lib = stocked(tmp_path, story(), story("b" * 32))
     assert lib.block(STORY_ID, "SCARY", IP)
-    marker = json.loads((tmp_path / "shelf" / "blocked" / f"{STORY_ID}.json").read_text())
+    marker = json.loads((tmp_path / "shelf" / "blocked" / f"{STORY_ID}.json").read_text(encoding="utf-8"))
     assert marker["reason"] == "SCARY" and marker["at"]
     again = Library(FolderStorage(tmp_path / "shelf"), run=lambda job: job())
     again.load()
@@ -46,7 +46,7 @@ def test_one_address_can_block_at_most_five_a_day(tmp_path):
     for i in ids(6):
         assert report(c, i, headers={}).status_code == 204
     assert len(offered_ids(lib)) == 1
-    assert len((tmp_path / "reports.jsonl").read_text().splitlines()) == 6
+    assert len((tmp_path / "reports.jsonl").read_text(encoding="utf-8").splitlines()) == 6
 
 
 def test_the_count_starts_over_the_next_day(tmp_path):
@@ -78,9 +78,9 @@ def edited_start(tmp_path, edit):
     s = story(puzzles=[[MATH], ["Q:REASON:DEFROST:1"], ["BELT"]])
     lib = stocked(tmp_path, s)
     path = next((tmp_path / "shelf" / "library").rglob("draft.json"))
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     edit(data)
-    path.write_text(json.dumps(data, ensure_ascii=False))
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     started = Library(FolderStorage(tmp_path / "shelf"), run=lambda job: job())
     started.load(lambda s, d, r: recheck(s, d, r, BANK))
     return started
