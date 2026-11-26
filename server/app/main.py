@@ -126,6 +126,8 @@ def create_app(writer: Writer | None = None, data_dir: Path | None = None, paint
             raise HTTPException(status_code=429, detail="report_limit")
         if should_write:
             store.report(r)
+        if library is not None:
+            library.block(r.storyId, r.reason, ip)
         return Response(status_code=204)
 
     return app

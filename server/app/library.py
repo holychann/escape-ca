@@ -15,7 +15,7 @@ import os
 import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,11 +23,15 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from .checker import timeless_problems
+from . import checker, quiz
+from .bank import Bank
+from .checker import result_problems, timeless_problems
+from .store import _digest
 from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, LibraryRequest, Theme
 
 log = logging.getLogger("story")
 ROOT = "library/"
+BLOCKED = "blocked/"
 # the install id put back into a stored request when it is read: a shelved story belongs to no install
 SHELF_INSTALL = "0" * 16
 # a placeholder only, put back where the request needs a context: the checks never read it
@@ -152,6 +156,9 @@ class Library:
         self.cells: dict[Cell, list[str]] = {}
         # stories nobody is offered any more (filled in when a story is blocked)
         self.blocked: set[str] = set()
+        # reports that took a story off the shelf today, per hashed address
+        self._block_day = date.today()
+        self._blocks: dict[str, int] = {}
 
     def allows(self, model: str) -> bool:
         return not self.models or model.startswith(self.models)
@@ -228,8 +235,36 @@ class Library:
             return []
         return rnd.sample(fits, min(self.offer, len(fits)))
 
+    def block(self, story_id: str, reason: str, ip: str, today: date | None = None) -> bool:
+        """Takes a reported story off the shelf for good (its files stay). False when it is not on the shelf or this
+        address has already taken ``blocks_per_ip`` stories off today."""
+        today = today or date.today()
+        key = _digest(ip)
+        with self.lock:
+            if today != self._block_day:
+                self._block_day = today
+                self._blocks.clear()
+            if story_id not in self.stories:
+                return False
+            if story_id in self.blocked:
+                return True
+            if self._blocks.get(key, 0) >= self.blocks_per_ip:
+                return False
+            self._blocks[key] = self._blocks.get(key, 0) + 1
+            self.blocked.add(story_id)
+        try:
+            body = {"reason": reason, "at": datetime.now(timezone.utc).isoformat()}
+            self.storage.put(f"{BLOCKED}{story_id}.json", json.dumps(body).encode("utf-8"), "application/json")
+        except Exception:
+            # blocked in memory for now; a restart would offer it again until the next report
+            log.exception("shelf: the block of %s could not be saved", story_id)
+        return True
+
     def load(self, check: Check | None = None) -> None:
         """Index every complete story in the storage; a broken, half-written, unallowed or failing one is skipped."""
+        for path in self.storage.list(BLOCKED):
+            if path.endswith(".json"):
+                self.blocked.add(path.removeprefix(BLOCKED).removesuffix(".json"))
         for path in self.storage.list(ROOT):
             if not path.endswith("/story.json"):
                 continue
@@ -245,6 +280,9 @@ class Library:
             except Exception as e:
                 log.warning("shelf: %s cannot be read, skipped: %s", path, e)
                 continue
+            if shelved.episode.storyId in self.blocked:
+                log.info("shelf: %s was reported, skipped", path)
+                continue
             if not self.allows(shelved.meta.writer) or not self.allows(shelved.episode.model):
                 log.info("shelf: %s was written by %s, skipped", path, shelved.meta.writer)
                 continue
@@ -252,6 +290,20 @@ class Library:
                 log.warning("shelf: %s fails its check, skipped: %s", path, problems)
                 continue
             self._index(shelved)
+
+
+def recheck(shelved: Shelved, draft: Draft, request: EpisodeRequest, bank: Bank) -> list[str]:
+    """Every problem the rules of today find in a shelved story: the checks of a new story, the lines said after an
+    answer, a question the bank no longer holds, and season or time words. The request's context is never read."""
+    verdict = checker.check(draft, request)
+    problems = list(verdict.whole) + [p for ps in verdict.items.values() for p in ps]
+    for scene in draft.scenes:
+        problems += result_problems(scene, request)
+    for key, scene in shelved.episode.scenes.items():
+        q = quiz.parse(key)
+        if q is not None and scene.question is not None and not bank.has_text(q, request.youngest, scene.question.text):
+            problems.append(f"문제가 문제 은행에 없음: {key}")
+    return problems + timeless_problems(shelved.episode)
 
 
 def _int(name: str, default: int) -> int:
