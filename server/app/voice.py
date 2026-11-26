@@ -1,8 +1,11 @@
-"""Reads Lumi's lines aloud with Gemini's speech model, in a warm picture-book voice instead of the car's flat TTS.
+"""Reads Lumi's lines aloud with Gemini's speech model, in a warm picture-book voice.
 
-The car's own voice (Pleos TextToSpeech) has no rate, pitch or SSML control and reads every line like the news, so
-the server records each checked line once and the app plays the recording. A line without a recording (no key, a
-failed call, the app's own lines) is still read by the car's voice.
+The app sends each line exactly as it will say it (story, question and its own instruction joined) to POST /v1/speak
+and plays the WAV that comes back; it never uses the car's own TTS. A line is made once and kept (service.speak_line).
+
+Two keys: the free key (GEMINI_API_KEY) is tried first, inside the free limits (Quota). When it is refused or fails,
+the paid key (GEMINI_API_KEY_PAID) is tried once, with no limit of its own, and every switch to it is logged. With no
+paid key, a failed line has no sound and the app shows it as a caption.
 """
 import hashlib
 import io
@@ -45,9 +48,18 @@ class Voice(Protocol):
         """WAV bytes of [text] read aloud."""
 
 
-def cache_key(voice: object, text: str) -> str:
-    """Same words, same voice, same style: the same recording. [voice] names itself with ``identity``."""
-    who = getattr(voice, "identity", type(voice).__name__)
+def configured_identity() -> str:
+    """Model, voice and style as .env sets them: what a recording made now would sound like, key or no key."""
+    model = os.environ.get("TTS_MODEL", TTS_MODEL)
+    voice = os.environ.get("TTS_VOICE", TTS_VOICE)
+    style = os.environ.get("TTS_STYLE") or STYLE
+    return f"{model}|{voice}|{style}"
+
+
+def cache_key(voice: object | None, text: str) -> str:
+    """Same words, same voice, same style: the same recording. [voice] names itself with ``identity``; with no voice
+    the configured one is used, so a line made before is still found."""
+    who = configured_identity() if voice is None else getattr(voice, "identity", type(voice).__name__)
     return hashlib.sha256(f"{who}\n{text}".encode("utf-8")).hexdigest()
 
 
@@ -115,7 +127,7 @@ class GeminiVoice:
     (as in GeminiPainter)."""
 
     def __init__(self, model: str | None = None, voice: str | None = None, style: str | None = None, client=None,
-                 quota: Quota | None = None):
+                 quota: Quota | None = None, api_key: str | None = None, limited: bool = True):
         from google import genai
         from google.genai import types
 
@@ -123,11 +135,12 @@ class GeminiVoice:
         self.voice = voice or os.environ.get("TTS_VOICE", TTS_VOICE)
         self.style = style or os.environ.get("TTS_STYLE") or STYLE
         # a 429 is not tried again here: on a free key it means the quota is gone, and [Quota] stops the calls instead
-        self.client = client or genai.Client(http_options=types.HttpOptions(
+        self.client = client or genai.Client(api_key=api_key, http_options=types.HttpOptions(
             timeout=120_000,
             retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[500, 503]),
         ))
-        self.quota = quota or Quota(per_day=int(os.environ.get("TTS_DAILY_MAX", "100")))
+        # the paid key has no limit of its own (limited=False); TTS_DAILY_MAX is only for the free key
+        self.quota = (quota or Quota(per_day=int(os.environ.get("TTS_DAILY_MAX", "100")))) if limited else None
 
     @property
     def identity(self) -> str:
@@ -144,11 +157,12 @@ class GeminiVoice:
         )
 
     def speak(self, text: str) -> bytes:
-        self.quota.take()
+        if self.quota is not None:
+            self.quota.take()
         try:
             response = self.client.models.generate_content(**self.request(text))
         except Exception as e:
-            if is_quota(e):
+            if is_quota(e) and self.quota is not None:
                 self.quota.refused(e)
                 raise QuotaError(str(e)) from e
             raise
@@ -160,8 +174,48 @@ class GeminiVoice:
         raise VoiceError(f"no audio in the reply (prompt_feedback={getattr(response, 'prompt_feedback', None)})")
 
 
+def _why(e: Exception) -> str:
+    """A short reason for the log: the error's kind and code, never the request (which carries no key, but stays out)."""
+    code = getattr(e, "code", None)
+    return f"{type(e).__name__}{f' {code}' if code else ''}"
+
+
+class KeyedVoice:
+    """The free key first, then the paid key once. [free] or [paid] may be missing (no such key in .env)."""
+
+    def __init__(self, free: Voice | None, paid: Voice | None):
+        if free is None and paid is None:
+            raise ValueError("no voice")
+        self.free = free
+        self.paid = paid
+
+    @property
+    def identity(self) -> str:
+        # both keys make the same recording (same model, voice and style), so they share the cache
+        return getattr(self.free or self.paid, "identity", "voice")
+
+    def speak(self, text: str) -> bytes:
+        if self.free is None:
+            log.warning("voice: no free key, using the paid key")
+            return self.paid.speak(text)
+        try:
+            return self.free.speak(text)
+        except Exception as e:
+            if self.paid is None:
+                raise
+            log.warning("voice: free key %s (%s), retrying once with the paid key",
+                        "quota" if isinstance(e, QuotaError) else "failed", _why(e))
+        return self.paid.speak(text)
+
+
 def make_voice() -> Voice | None:
-    """Gemini reads aloud when a Gemini key is set; TTS_MODEL=off leaves every line to the car's own voice."""
-    if os.environ.get("TTS_MODEL", "").lower() == "off" or not os.environ.get("GEMINI_API_KEY"):
+    """GEMINI_API_KEY (free) and GEMINI_API_KEY_PAID; TTS_MODEL=off, or neither key, means no voice."""
+    if os.environ.get("TTS_MODEL", "").lower() == "off":
         return None
-    return GeminiVoice()
+    free_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    paid_key = os.environ.get("GEMINI_API_KEY_PAID", "").strip()
+    free = GeminiVoice(api_key=free_key) if free_key else None
+    paid = GeminiVoice(api_key=paid_key, limited=False) if paid_key else None
+    if free is None and paid is None:
+        return None
+    return free if paid is None else KeyedVoice(free, paid)

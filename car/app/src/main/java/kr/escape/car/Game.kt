@@ -20,9 +20,9 @@ import kr.escape.car.engine.StopReason
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Question
 import kr.escape.car.story.QuestionBank
+import kr.escape.car.story.StoryKeys
 import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
-import kr.escape.car.story.StoryKeys
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.voice.Lumi
 import kotlin.random.Random
@@ -148,7 +148,10 @@ class Game(
         val own = ui.puzzles.filterIsInstance<Puzzle.Quiz>().mapNotNull { q -> bank?.pick(q, youngest, rnd)?.let { StoryKeys.key(q) to it } }.toMap()
         _ui.value = ui.copy(own = own)
         lastTickMs = null
-        lumi.say(ready?.story?.intro ?: Lines.intro(setup.friend), ready?.story?.voice("intro"), then = Lines.AUTO_OFF)
+        val intro = "${ready?.story?.intro ?: Lines.intro(setup.friend)} ${Lines.AUTO_OFF}"
+        lumi.say(intro)
+        // every line this episode will say, fetched now so each plays without a wait
+        lumi.prefetch(lines(_ui.value))
         stories?.prepare(setup, s)
     }
 
@@ -173,15 +176,26 @@ class Game(
         val quiz = p as? Puzzle.Quiz
         hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start, ui.setup.childSeat) }) }
         _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
-        lumi.say(_ui.value.scene(p).speech, voice(p, "speech"))
+        lumi.say(_ui.value.scene(p).speech)
+        // a quiz swapped just now has new words for after the answer
+        lumi.prefetch(listOf(_ui.value.solvedLine))
     }
 
     /**
-     * The server's recording of puzzle [p]'s [part], only where the words spoken are the server's own: the belt
-     * mission's speech and hint (a quiz scene also says the question and the app's instruction).
+     * What Lumi will say in [ui], exactly as she will say it: each puzzle's story and question, the line after the
+     * answer, the last words and the pause line. Hints are left to when they are asked for, so a line nobody hears is
+     * never paid for.
      */
-    private fun voice(p: Puzzle, part: String): String? =
-        if (p is Puzzle.Quiz) null else _ui.value.story?.voice("${StoryKeys.key(p)}.$part")
+    private fun lines(ui: GameUi): List<String> = buildList {
+        ui.puzzles.forEachIndexed { i, p ->
+            add(ui.scene(p).speech)
+            add(ui.copy(index = i).solvedLine)
+        }
+        val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
+        add(treasure)
+        add("$treasure ${Lines.CLOSER}")
+        add(Lines.PAUSED)
+    }
 
     /**
      * [ui] with the quiz at [index] fitting the car [s]: one whose answer the car already shows, or whose story no
@@ -221,13 +235,13 @@ class Game(
         val hearts = book?.played(friend)
         _ui.update { it.copy(phase = Phase.TREASURE, heartsNow = hearts) }
         val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
-        lumi.say(treasure, ui.story?.voice("treasureBadge"), then = if (hearts == null) null else Lines.CLOSER)
+        lumi.say(if (hearts == null) treasure else "$treasure ${Lines.CLOSER}")
     }
 
     fun hint() {
         val p = _ui.value.puzzle ?: return
         _ui.update { it.copy(hintHeard = true) }
-        lumi.say(_ui.value.scene(p).hint, voice(p, "hint"))
+        lumi.say(_ui.value.scene(p).hint)
     }
 
     /** 벨트 딸깍 미션: the parent saw the child buckle up (no car signal is read). */
@@ -275,9 +289,7 @@ class Game(
         hold = null
         val ui = _ui.value
         _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
-        val line = ui.solvedLine
-        // the story's own line for this puzzle has a recording; the app's praise does not
-        lumi.say(line, ui.puzzle?.let { p -> ui.story?.voice("${StoryKeys.key(p)}.result")?.takeIf { line != Lines.SUCCESS } })
+        lumi.say(ui.solvedLine)
     }
 
     /** 이야기 신고 from the parent's screen. */

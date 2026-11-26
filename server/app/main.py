@@ -3,7 +3,7 @@
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
 GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
-GET  /v1/audio/{storyId}/{name}.wav one of Lumi's lines read aloud (WAV)
+POST /v1/speak                      one of Lumi's lines read aloud (WAV), made once and kept
 POST /v1/report                     a parent reports a story (이야기 신고)
 GET  /health
 """
@@ -16,9 +16,9 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from .checker import wish_problems
-from .models import Episode, EpisodeRequest, Report
+from .models import Episode, EpisodeRequest, Report, SpeakRequest
 from .painter import Painter, make_painter
-from .service import make_episode, paint_pictures, read_aloud
+from .service import make_episode, paint_pictures, speak_line
 from .store import DailyLimit, Store
 from .voice import Voice, make_voice
 from .bank import Bank, load as load_bank
@@ -46,12 +46,16 @@ def create_app(
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
     images = folder / "images"
-    audio = folder / "audio"
-    # recordings by words, voice and style, shared by every story
+    # recordings by words, voice and style, shared by every story and every car
     audio_cache = folder / "audio_cache"
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
+    )
+    # lines read aloud a day: an episode is a few dozen; the paid key has no limit of its own, so this one guards it
+    speak_limit = DailyLimit(
+        per_install=int(os.environ.get("SPEAK_DAILY_PER_INSTALL", "400")),
+        per_ip=int(os.environ.get("SPEAK_DAILY_PER_IP", "2000")),
     )
     log.info("writer=%s painter=%s voice=%s", type(writer).__name__, type(painter).__name__ if painter else "none",
              type(voice).__name__ if voice else "none")
@@ -75,9 +79,6 @@ def create_app(
         ep, draft = made
         if painter is not None and req.pictures:
             ep = paint_pictures(ep, draft, req, painter, images)
-        # Lumi's lines read aloud; a line without a recording is read by the car's own voice
-        if voice is not None:
-            ep = read_aloud(ep, voice, audio, cache=audio_cache)
         store.episode(ep, req)
         return ep
 
@@ -90,14 +91,16 @@ def create_app(
             raise HTTPException(status_code=404)
         return FileResponse(path, media_type="image/webp")
 
-    @app.get("/v1/audio/{story_id}/{name}.wav")
-    def recording(story_id: str, name: str) -> FileResponse:
-        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"[A-Za-z0-9_.]{1,64}", name) or ".." in name:
-            raise HTTPException(status_code=404)
-        path = audio / story_id / f"{name}.wav"
-        if not path.is_file():
-            raise HTTPException(status_code=404)
-        return FileResponse(path, media_type="audio/wav")
+    @app.post("/v1/speak")
+    def speak(req: SpeakRequest, request: Request) -> Response:
+        ip = request.client.host if request.client else "unknown"
+        if not speak_limit.take(req.installId, ip):
+            raise HTTPException(status_code=429, detail="daily_limit")
+        data = speak_line(req.text, voice, audio_cache)
+        if data is None:
+            # no sound for this line: the app shows it as a caption
+            raise HTTPException(status_code=503, detail="no_voice")
+        return Response(content=data, media_type="audio/wav")
 
     @app.post("/v1/report", status_code=204)
     def report(r: Report) -> Response:

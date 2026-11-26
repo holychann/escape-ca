@@ -108,6 +108,7 @@ import kr.escape.car.ui.Portrait
 import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
 import kr.escape.car.voice.Lumi
+import kr.escape.car.voice.VoiceCache
 import java.io.File
 import java.util.UUID
 
@@ -123,9 +124,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Fonts.load(assets)
         source = VehicleSource(this).also { it.start() }
-        lumi = Lumi(this)
+        val client = StoryClient(BuildConfig.STORY_URL)
+        val install = installId()
+        // every line is read by the story server's Gemini voice and kept on the device; the car's TTS is not used
+        lumi = Lumi(VoiceCache(File(filesDir, "voice_cache")) { text -> client.speak(install, text) })
         val bank = QuestionBank.load(this)
-        stories = StoryRepo(File(filesDir, "next_episode.json"), installId(), StoryClient(BuildConfig.STORY_URL), scope, questions = bank.questions)
+        stories = StoryRepo(File(filesDir, "next_episode.json"), install, client, scope, questions = bank.questions)
         book = FriendBook(File(filesDir, "friend_book"))
         game = Game(source.state, lumi, stories, book, restorer = source, bank = bank)
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
@@ -164,6 +168,7 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val friends by book.book.collectAsState()
     val car by source.state.collectAsState()
     val speaking by lumi.speaking.collectAsState()
+    val caption by lumi.caption.collectAsState()
     val storyStatus by stories.status.collectAsState()
     val preview by stories.preview.collectAsState()
     val rejection by stories.rejection.collectAsState()
@@ -185,14 +190,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
             Spacer(Modifier.height(24.dp))
             if (portrait) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxWidth())
+                    KidStage(game, ui, friends, speaking, caption, view, Modifier.weight(1f).fillMaxWidth())
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.fillMaxWidth())
                 }
             } else {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                     val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
                     ParentPanel(game, ui, car, speaking, lumi, view, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(game, ui, friends, speaking, view, Modifier.weight(1f).fillMaxHeight())
+                    KidStage(game, ui, friends, speaking, caption, view, Modifier.weight(1f).fillMaxHeight())
                 }
             }
         }
@@ -756,7 +761,7 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 // ---------------------------------------------------------------- kid stage
 
 @Composable
-private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view: StoryView, modifier: Modifier) {
+private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, caption: String?, view: StoryView, modifier: Modifier) {
     val preview = view.preview
     val buddy = ui.setup.friend
     val p = ui.puzzle
@@ -794,6 +799,8 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view
             Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 SpeechBubble(bubble)
                 if (speaking) SpeakingTag()
+                // a line with no sound (still coming, or none to be had) is read on screen
+                caption?.let { Caption(it) }
             }
         }
         when (ui.phase) {
@@ -810,6 +817,16 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, view
         }
         ui.invited?.let { InvitePop(it, game::closeInvite) }
     }
+}
+
+/** What the friend is saying, as words on screen, while it has no sound. */
+@Composable
+private fun Caption(text: String) {
+    val shape = RoundedCornerShape(28.dp)
+    Box(
+        Modifier.widthIn(max = 980.dp).clip(shape).background(Clay.NightBottom.copy(alpha = 0.78f))
+            .padding(horizontal = 28.dp, vertical = 18.dp),
+    ) { BodyText(text, size = 28.sp, color = Color.White, weight = FontWeight.Medium) }
 }
 
 /** While a wish is being made: the stage dims and the friend waits inside a spinning ring, with what is happening. */

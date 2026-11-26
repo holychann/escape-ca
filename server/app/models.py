@@ -242,9 +242,18 @@ class Episode(BaseModel):
     images: dict[str, str] = {}
     # answer key -> its puzzle's picture name, also for a key whose words were dropped (it plays the app's own lines)
     pictures: dict[str, str] = {}
-    # line name ("intro", "treasureBadge", "BELT.speech", "BELT.hint", "<key>.result", ..) -> its recording on this
-    # server (/v1/audio/{storyId}/{file}.wav); a line without one is read by the car's own voice
-    voices: dict[str, str] = {}
+
+
+SPEAK_MAX = 600
+
+
+class SpeakRequest(BaseModel):
+    """One line exactly as the app will say it (story, question and the app's instruction joined)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    installId: str = Field(pattern=r"^[0-9a-f-]{16,64}$")
+    text: str = Field(min_length=1, max_length=SPEAK_MAX)
 
 
 class Report(BaseModel):

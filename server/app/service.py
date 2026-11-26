@@ -149,70 +149,42 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
     return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})
 
 
-def voice_lines(ep: Episode) -> dict[str, str]:
-    """Every line the server wrote for this episode, by name: intro, treasureBadge, {key}.speech, {key}.hint and
-    {key}.result (empty ones are left out)."""
-    lines = {"intro": ep.intro, "treasureBadge": ep.treasureBadge}
-    for key, s in ep.scenes.items():
-        lines[f"{key}.speech"] = s.speech
-        lines[f"{key}.hint"] = s.hint
-        lines[f"{key}.result"] = s.result
-    return {name: text for name, text in lines.items() if text.strip()}
+def tidy_line(text: str) -> str:
+    """The line as it is made and kept: spaces collapsed, ends trimmed (the app keys its own copy the same way)."""
+    return " ".join(text.split())
 
 
-def voice_file(name: str) -> str:
-    """A line's file name: the answer keys' ':' are not safe in a file name ("ROOMS:LEFT.speech" -> "ROOMS_LEFT.speech")."""
-    return name.replace(":", "_")
+# one lock per line being made, so two cars asking for the same line at once pay for it once
+_making: dict[str, threading.Lock] = {}
+_making_lock = threading.Lock()
 
 
-def read_aloud(ep: Episode, voice: Voice, folder: Path, cache: Path | None = None) -> Episode:
-    """Records every line side by side; a line that fails is left out and the car reads it with its own voice.
-
-    A recording is kept in [cache] by its words, voice and style, so a line said again (the same praise, the same
-    guide or treasure line, the same scene) is never made twice. Once the quota says no, the remaining lines are not
-    tried at all."""
-    lines = voice_lines(ep)
-    if not lines:
-        return ep
-    stopped = threading.Event()
-
-    def recorded(text: str) -> bytes | None:
-        key = cache_key(voice, text)
-        cached = cache / f"{key}.wav" if cache is not None else None
-        if cached is not None and cached.is_file():
+def speak_line(text: str, voice: Voice | None, cache: Path) -> bytes | None:
+    """The line read aloud: from [cache] when it was made before with this voice and style, otherwise made now and
+    kept. None when there is no voice or every key failed (the app then shows the line as a caption)."""
+    text = tidy_line(text)
+    key = cache_key(voice, text)
+    cached = cache / f"{key}.wav"
+    if cached.is_file():
+        return cached.read_bytes()
+    if voice is None:
+        return None
+    with _making_lock:
+        lock = _making.setdefault(key, threading.Lock())
+    with lock:
+        if cached.is_file():
             return cached.read_bytes()
-        if stopped.is_set():
-            return None
         try:
             data = voice.speak(text)
         except QuotaError as e:
-            stopped.set()
-            log.warning("voice quota: %s; the car reads the rest itself", e)
+            log.warning("voice: quota, no sound for this line: %s", e)
             return None
-        except Exception as e:  # refusal, timeout, no audio part
-            log.warning("voice failed: %r", e)
+        except Exception as e:  # refusal, timeout, no audio part, every key failed
+            log.warning("voice failed: %s", type(e).__name__)
             return None
-        if cached is not None and data:
+        if data:
             cache.mkdir(parents=True, exist_ok=True)
             tmp = cached.with_suffix(".part")
             tmp.write_bytes(data)
             tmp.replace(cached)
-        return data
-
-    # the same words twice in one episode (two variants with one hint) are read once
-    texts = sorted(set(lines.values()))
-    with ThreadPoolExecutor(max_workers=min(8, len(texts))) as pool:
-        spoken = dict(zip(texts, pool.map(recorded, texts)))
-
-    out = folder / ep.storyId
-    voices = {}
-    for name, text in lines.items():
-        data = spoken.get(text)
-        if data:
-            out.mkdir(parents=True, exist_ok=True)
-            file = voice_file(name)
-            (out / f"{file}.wav").write_bytes(data)
-            voices[name] = f"/v1/audio/{ep.storyId}/{file}.wav"
-    if len(voices) < len(lines):
-        log.info("voice: %d of %d lines recorded", len(voices), len(lines))
-    return ep.model_copy(update={"voices": voices})
+        return data or None

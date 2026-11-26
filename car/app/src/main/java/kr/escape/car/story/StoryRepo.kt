@@ -126,23 +126,15 @@ class StoryRepo(
         scope.launch(io) { runCatching { client.report(storyId, reason) } }
     }
 
-    /**
-     * Downloads the pictures the server drew and the lines it read aloud; one that fails is left out, and its scene
-     * keeps the app's picture or its line is read by the car's own voice.
-     */
+    /** Downloads the pictures the server drew; one that fails is left out and its scene keeps the app's picture. */
     private fun withLocalPictures(story: Story): Story {
-        if (story.images.isEmpty() && story.voices.isEmpty()) return story
+        if (story.images.isEmpty()) return story
         val dir = File(pictures, story.storyId)
         val local = story.images.mapNotNull { (name, path) ->
             val to = File(dir, "$name.webp")
             runCatching { if (!to.isFile) client.download(path, to) }.map { name to to.absolutePath }.getOrNull()
         }.toMap()
-        val voiceDir = File(dir, "voice")
-        val voices = story.voices.mapNotNull { (line, path) ->
-            val to = File(voiceDir, "${line.replace(':', '_')}.wav")
-            runCatching { if (!to.isFile) client.download(path, to) }.map { line to to.absolutePath }.getOrNull()
-        }.toMap()
-        return story.copy(images = local, voices = voices)
+        return story.copy(images = local)
     }
 
     private fun forgetPicturesExcept(keep: Set<String>) {

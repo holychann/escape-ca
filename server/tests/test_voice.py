@@ -1,29 +1,19 @@
-"""Lumi's lines read aloud: every line is recorded and served, a failed line is left out, nothing without a voice."""
+"""Lumi's lines read aloud on POST /v1/speak: made once and kept, free key first, then the paid key once, and no
+sound (a caption in the app) when neither works. No test calls a real model."""
 import io
+import logging
 import wave
+from datetime import date
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.voice import GeminiVoice, to_wav
-from app.models import Episode
-from app.service import voice_lines
-from tests.fakes import BANK, MATH, REASON, FakeWriter, draft
+from app.voice import GeminiVoice, KeyedVoice, Quota, QuotaError, make_voice, to_wav
+from tests.fakes import BANK, FakeWriter
 
-BODY = {
-    "installId": "0123456789abcdef0123",
-    "ages": ["CAPTAIN"],
-    "minutes": 10,
-    "context": {"timeOfDay": "AFTERNOON", "season": "AUTUMN"},
-    "puzzles": [[MATH], [REASON], ["BELT"]],
-    "friend": "BANTE",
-}
-KEYS = [MATH, REASON, "BELT"]
-
-
-def lines(ep: dict) -> set[str]:
-    """The names of the lines this episode has words for."""
-    return set(voice_lines(Episode.model_validate({**ep, "voices": {}})))
+INSTALL = "0123456789abcdef0123"
+LINE = "수달 요리사가 큰일이래! 3 더하기 2만큼 바람을 세게 해 줘! 어떻게 하면 되는지 안전 지킴이에게 말해 줘!"
 
 
 def pcm(text: str) -> bytes:
@@ -31,58 +21,146 @@ def pcm(text: str) -> bytes:
 
 
 class FakeVoice:
-    def __init__(self, fail: set[str] = frozenset()):
+    def __init__(self, fail: Exception | None = None, identity: str = "fake|voice|style"):
         self.calls: list[str] = []
         self.fail = fail
+        self.identity = identity
 
     def speak(self, text: str) -> bytes:
         self.calls.append(text)
-        if any(f in text for f in self.fail):
-            raise RuntimeError("refused")
+        if self.fail is not None:
+            raise self.fail
         return to_wav(pcm(text))
 
 
 def client(tmp_path, voice):
-    return TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=voice))
+    return TestClient(create_app(writer=FakeWriter(), data_dir=tmp_path, painter=None, bank=BANK, voice=voice))
 
 
-def test_every_line_is_read_aloud_and_served(tmp_path):
+def say(c, text=LINE, install=INSTALL):
+    return c.post("/v1/speak", json={"installId": install, "text": text})
+
+
+# ---------------------------------------------------------------- the endpoint and its cache
+
+
+def test_a_line_is_read_aloud_and_kept(tmp_path):
     v = FakeVoice()
     c = client(tmp_path, v)
-    ep = c.post("/v1/episode", json=BODY).json()
-    names = lines(ep)
-    assert {"intro", "treasureBadge", f"{MATH}.speech", f"{MATH}.result", "BELT.speech", "BELT.hint"} <= names
-    assert set(ep["voices"]) == names
-    assert len(v.calls) == len(names)
-    sid = ep["storyId"]
-    # ':' in the answer keys does not go into file names
-    assert ep["voices"][f"{MATH}.speech"] == f"/v1/audio/{sid}/{MATH.replace(':', '_')}.speech.wav"
-    for path in ep["voices"].values():
-        r = c.get(path)
-        assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
-        assert r.content[:4] == b"RIFF"
+    r = say(c)
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav" and r.content[:4] == b"RIFF"
+    # the same line again, even spaced differently, is not made again
+    assert say(c, "  " + LINE.replace(" ", "  ") + " ").content == r.content
+    assert v.calls == [LINE]
     assert c.get("/health").json()["voice"] is True
 
 
-def test_a_line_that_fails_is_left_out(tmp_path):
-    ep = client(tmp_path, FakeVoice(fail={"이미 맸"})).post("/v1/episode", json=BODY).json()
-    assert "BELT.speech" not in ep["voices"]
-    assert set(ep["voices"]) == lines(ep) - {"BELT.speech"}
-
-
-def test_without_a_voice_there_are_no_recordings(tmp_path):
+def test_the_cache_outlives_the_server_and_a_missing_key(tmp_path, monkeypatch):
+    for name in ("TTS_MODEL", "TTS_VOICE", "TTS_STYLE"):
+        monkeypatch.delenv(name, raising=False)
+    made = GeminiVoice(client=_Obj(models=_Models(pcm(LINE))))
+    assert say(client(tmp_path, made)).status_code == 200
+    # a restart with no key at all: the line made before still plays; a new one has no sound
     c = client(tmp_path, None)
-    assert c.post("/v1/episode", json=BODY).json()["voices"] == {}
+    assert say(c).status_code == 200
+    assert say(c, "처음 듣는 말").status_code == 503
     assert c.get("/health").json()["voice"] is False
 
 
-def test_bad_names_are_not_found(tmp_path):
+def test_another_voice_or_style_is_another_recording(tmp_path):
+    first, second = FakeVoice(identity="m|A|calm"), FakeVoice(identity="m|B|calm")
+    say(client(tmp_path, first))
+    say(client(tmp_path, second))
+    assert len(first.calls) == len(second.calls) == 1
+
+
+def test_no_sound_is_503_and_bad_requests_are_refused(tmp_path):
+    c = client(tmp_path, FakeVoice(fail=RuntimeError("refused")))
+    assert say(c).status_code == 503
+    # nothing is kept for a line that failed, so it is tried again next time
+    assert not list(tmp_path.glob("audio_cache/*.wav"))
+    assert say(c, "").status_code == 422
+    assert say(c, "가" * 601).status_code == 422
+    assert say(c, install="not an id!").status_code == 422
+
+
+def test_lines_a_day_are_limited(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPEAK_DAILY_PER_INSTALL", "2")
     c = client(tmp_path, FakeVoice())
-    sid = c.post("/v1/episode", json=BODY).json()["storyId"]
-    assert c.get(f"/v1/audio/{sid}/intro.wav").status_code == 200
-    for bad in [f"/v1/audio/{sid}/..intro.wav", f"/v1/audio/{sid}/a..b.wav", f"/v1/audio/{sid}/in%20tro.wav",
-                f"/v1/audio/{sid}/{'a' * 65}.wav", "/v1/audio/not-a-story/intro.wav", f"/v1/audio/{sid}/missing.wav"]:
-        assert c.get(bad).status_code == 404, bad
+    assert [say(c, f"줄 {i}").status_code for i in range(3)] == [200, 200, 429]
+
+
+# ---------------------------------------------------------------- free key first, paid key once
+
+
+def test_a_used_up_free_key_goes_to_the_paid_key_once_and_says_so(tmp_path, caplog):
+    free, paid = FakeVoice(fail=QuotaError("429 RESOURCE_EXHAUSTED")), FakeVoice()
+    c = client(tmp_path, KeyedVoice(free, paid))
+    with caplog.at_level(logging.WARNING, logger="voice"):
+        assert say(c).status_code == 200
+    assert free.calls == [LINE] and paid.calls == [LINE]
+    assert "paid key" in caplog.text
+    # kept: the paid key is not asked again for the same line
+    say(c)
+    assert len(paid.calls) == 1
+
+
+def test_any_free_key_error_goes_to_the_paid_key(tmp_path):
+    paid = FakeVoice()
+    assert say(client(tmp_path, KeyedVoice(FakeVoice(fail=RuntimeError("500")), paid))).status_code == 200
+    assert paid.calls == [LINE]
+
+
+def test_when_both_keys_fail_there_is_no_sound(tmp_path):
+    paid = FakeVoice(fail=RuntimeError("down"))
+    assert say(client(tmp_path, KeyedVoice(FakeVoice(fail=QuotaError("429")), paid))).status_code == 503
+    assert paid.calls == [LINE]
+
+
+def test_a_working_free_key_never_touches_the_paid_key(tmp_path, caplog):
+    free, paid = FakeVoice(), FakeVoice()
+    with caplog.at_level(logging.WARNING, logger="voice"):
+        say(client(tmp_path, KeyedVoice(free, paid)))
+    assert paid.calls == [] and "paid key" not in caplog.text
+
+
+def test_the_paid_key_has_no_daily_limit():
+    models = _Models(pcm("가"))
+    paid = GeminiVoice(model="m", voice="v", style="s", client=_Obj(models=models), limited=False)
+    assert paid.quota is None
+    for _ in range(5):
+        paid.speak("가")
+    free = GeminiVoice(model="m", voice="v", style="s", client=_Obj(models=models), quota=Quota(per_day=1))
+    free.speak("가")
+    with pytest.raises(QuotaError):
+        free.speak("가")
+
+
+def test_make_voice_follows_the_keys(monkeypatch):
+    import app.voice as voice
+
+    class Made:
+        def __init__(self, api_key=None, limited=True):
+            self.api_key, self.limited = api_key, limited
+
+    monkeypatch.setattr(voice, "GeminiVoice", Made)
+    monkeypatch.delenv("TTS_MODEL", raising=False)
+    assert make_voice() is None
+    monkeypatch.setenv("GEMINI_API_KEY", "free")
+    only_free = make_voice()
+    assert isinstance(only_free, Made) and only_free.limited
+    # an empty paid key changes nothing
+    monkeypatch.setenv("GEMINI_API_KEY_PAID", " ")
+    assert isinstance(make_voice(), Made)
+    monkeypatch.setenv("GEMINI_API_KEY_PAID", "paid")
+    both = make_voice()
+    assert isinstance(both, KeyedVoice)
+    assert (both.free.api_key, both.free.limited, both.paid.api_key, both.paid.limited) == ("free", True, "paid", False)
+    monkeypatch.setenv("TTS_MODEL", "off")
+    assert make_voice() is None
+
+
+# ---------------------------------------------------------------- the model call itself
 
 
 def test_pcm_gets_a_header_and_wav_is_kept():
@@ -110,94 +188,39 @@ class _Models:
         return _Obj(candidates=[_Obj(content=_Obj(parts=[part]))], prompt_feedback=None)
 
 
-def test_gemini_voice_asks_for_audio_in_the_storyteller_style():
-    models = _Models(pcm("안녕"))
-    v = GeminiVoice(model="m", voice="Leda", style="S", client=_Obj(models=models))
-    assert v.speak("안녕")[:4] == b"RIFF"
-    assert models.sent["contents"][0]["parts"][0] == {"text": "안녕", "speech_metadata": {"style": "S"}}
+def test_the_style_is_never_part_of_the_words(monkeypatch):
+    style = "Read in Korean like a warm, playful storyteller reading a picture book to a 5-year-old."
+    monkeypatch.setenv("TTS_STYLE", style)
+    monkeypatch.setenv("TTS_VOICE", "ko-kr-storyteller-4")
+    models = _Models(pcm(LINE))
+    v = GeminiVoice(model="m", client=_Obj(models=models))
+    assert v.speak(LINE)[:4] == b"RIFF"
+    part = models.sent["contents"][0]["parts"][0]
+    assert part == {"text": LINE, "speech_metadata": {"style": style}}
     assert models.sent["config"]["response_modalities"] == ["AUDIO"]
-    assert models.sent["config"]["speech_config"]["voice_config"]["voice"] == "Leda"
-
-
-# ---------------------------------------------------------------- cache, quota, style kept out of the words
-
-from datetime import date
-
-from app.service import read_aloud
-from app.voice import Quota, QuotaError
-
-
-class QuotaVoice(FakeVoice):
-    """Says no with the quota after [ok] lines."""
-
-    def __init__(self, ok: int):
-        super().__init__()
-        self.ok = ok
-
-    def speak(self, text: str) -> bytes:
-        if len(self.calls) >= self.ok:
-            self.calls.append(text)
-            raise QuotaError("429 RESOURCE_EXHAUSTED")
-        return super().speak(text)
-
-
-def test_a_line_said_again_is_not_made_again(tmp_path):
-    v = FakeVoice()
-    c = TestClient(create_app(writer=FakeWriter(draft(KEYS), draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=v))
-    first = c.post("/v1/episode", json=BODY).json()
-    made = len(v.calls)
-    second = c.post("/v1/episode", json=BODY).json()
-    # the second story has the same words: every line comes from the cache, none is read again
-    assert len(v.calls) == made
-    assert set(second["voices"]) == lines(second) and first["storyId"] != second["storyId"]
-    assert c.get(second["voices"]["intro"]).content == c.get(first["voices"]["intro"]).content
-
-
-def test_the_same_words_twice_in_one_story_are_read_once(tmp_path):
-    ep = client(tmp_path, FakeVoice()).post("/v1/episode", json=BODY).json()
-    ep["treasureBadge"] = ep["intro"]
-    v = FakeVoice()
-    out = read_aloud(Episode.model_validate({**ep, "voices": {}}), v, tmp_path / "a", cache=tmp_path / "c")
-    assert len(v.calls) == len(lines(ep)) - 1 and set(out.voices) == lines(ep)
-
-
-def test_a_used_up_quota_stops_the_calls_and_the_story_still_plays(tmp_path):
-    v = QuotaVoice(ok=0)
-    r = TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=v)).post("/v1/episode", json=BODY)
-    # no recordings: the car reads every line with its own voice
-    assert r.status_code == 200 and r.json()["voices"] == {} and r.json()["scenes"]
-    # after the first 429 the remaining lines are not tried (only the calls already on their way)
-    assert len(v.calls) <= 8
+    assert models.sent["config"]["speech_config"]["voice_config"]["voice"] == "ko-kr-storyteller-4"
 
 
 def test_the_quota_guard():
     now = [0.0]
     day = [date(2026, 11, 26)]
     q = Quota(per_day=2, cooldown=60, today=lambda: day[0], clock=lambda: now[0])
-    q.take(); q.take()
-    try:
+    q.take()
+    q.take()
+    with pytest.raises(QuotaError):
         q.take()
-        raise AssertionError("third call let out")
-    except QuotaError:
-        pass
     day[0] = date(2026, 11, 27)
     q.take()
     # a per-minute 429 waits a minute; a daily one waits for tomorrow
     q.refused(Exception("429 RESOURCE_EXHAUSTED. GenerateRequestsPerMinutePerProjectPerModel-FreeTier"))
-    for blocked in (True, False):
-        try:
-            q.take()
-            assert not blocked
-        except QuotaError:
-            assert blocked
-        now[0] += 61
+    with pytest.raises(QuotaError):
+        q.take()
+    now[0] += 61
+    q.take()
     q.refused(Exception("429 RESOURCE_EXHAUSTED. GenerateRequestsPerDayPerProjectPerModel-FreeTier"))
     now[0] += 3600
-    try:
+    with pytest.raises(QuotaError):
         q.take()
-        raise AssertionError("daily limit ignored")
-    except QuotaError:
-        pass
 
 
 class _Refusing:
@@ -211,27 +234,10 @@ class _Refusing:
         raise e
 
 
-def test_a_429_from_the_model_closes_the_quota_without_more_calls():
+def test_a_429_on_the_free_key_closes_it_without_more_calls():
     models = _Refusing()
-    v = GeminiVoice(model="m", voice="Sira", style="S", client=_Obj(models=models), quota=Quota(per_day=100))
+    v = GeminiVoice(model="m", voice="v", style="S", client=_Obj(models=models), quota=Quota(per_day=100))
     for _ in range(3):
-        try:
+        with pytest.raises(QuotaError):
             v.speak("안녕")
-            raise AssertionError("no error")
-        except QuotaError:
-            pass
     assert models.calls == 1
-
-
-def test_the_style_is_never_part_of_the_words(monkeypatch):
-    style = "Read in Korean like a warm, playful storyteller reading a picture book to a 5-year-old."
-    monkeypatch.setenv("TTS_STYLE", style)
-    monkeypatch.setenv("TTS_VOICE", "Sira")
-    line = "수달 요리사가 큰일이래! 밖에서 먼지 구름이 몰려와."
-    v = GeminiVoice(model="m", client=_Obj(models=_Models(b"")))
-    part = v.request(line)["contents"][0]["parts"][0]
-    assert part["text"] == line and style not in part["text"]
-    assert part["speech_metadata"] == {"style": style}
-    assert v.request(line)["config"]["speech_config"]["voice_config"]["voice"] == "Sira"
-    # a different style or voice is a different recording
-    assert v.identity != GeminiVoice(model="m", style="other", client=_Obj(models=None)).identity

@@ -53,11 +53,6 @@ data class Story(
     val images: Map<String, String> = emptyMap(),
     /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
     val scenePictures: Map<String, String> = emptyMap(),
-    /**
-     * Line name ("intro", "treasureBadge", "BELT.speech", "<key>.result", ..) -> the server's recording, and after
-     * [StoryRepo] downloads it, a local WAV file. A line without one is read by the car's own voice.
-     */
-    val voices: Map<String, String> = emptyMap(),
 ) {
     /**
      * [picture] names this scene's picture in [images]; [speech] is only the story before the question; [result] is
@@ -82,9 +77,6 @@ data class Story(
     /** A drawn picture as a stage picture name ("file:/…/cover.webp"), or null when there is none on the device. */
     fun picture(name: String): String? = images[name]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }?.let { FILE + it }
 
-    /** A recorded line as a file on the device, or null when there is none (same rule as [picture], no prefix). */
-    fun voice(line: String): String? = voices[line]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }
-
     /**
      * [own] is the app's question for this puzzle, used where the server's words or question are missing.
      */
@@ -107,7 +99,6 @@ data class Story(
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
         .put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
-        .put("voices", JSONObject(voices))
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
                 o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint)
@@ -146,7 +137,6 @@ data class Story(
                 world = o.optString("world", ""),
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
                 scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
-                voices = o.optJSONObject("voices")?.let { v -> v.keys().asSequence().associateWith { v.getString(it) } } ?: emptyMap(),
             )
         }
     }
