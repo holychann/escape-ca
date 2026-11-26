@@ -260,6 +260,24 @@ class StoryTest {
     }
 
     @Test
+    fun theBeltMissionShowsItsPictureAfterTheClickOnceItIsDone() {
+        val base = Story.parse(JSONObject(json))
+        val story = base.copy(
+            images = mapOf(
+                "p1" to "/data/story_images/x/p1.webp",
+                "p3" to "/data/story_images/x/p3.webp",
+                "p3_ok" to "/data/story_images/x/p3_ok.webp",
+            ),
+            scenePictures = mapOf(StoryKeys.key(fan) to "p1", StoryKeys.key(Puzzle.BeltMission) to "p3"),
+        )
+        assertEquals("file:/data/story_images/x/p3_ok.webp", story.donePicture(Puzzle.BeltMission))
+        // a puzzle drawn only once, or a story with no pictures: the solved screen keeps its cover
+        assertNull(story.donePicture(fan))
+        assertNull(base.donePicture(Puzzle.BeltMission))
+        assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
     fun aDroppedSceneKeepsItsPuzzlesDrawnPicture() {
         val base = Story.parse(JSONObject(json))
         val story = base.copy(

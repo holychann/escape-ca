@@ -133,6 +133,53 @@ def test_the_painter_is_told_what_a_rule_puzzle_picture_must_not_show(tmp_path, 
     assert not any("그림에 절대" in c for c in painter.calls if not c.startswith(ART.puzzles[2]))
 
 
+class BeltPainter(FakePainter):
+    """Also draws the belt mission's child seat: the picture before the click, then the same picture buckled."""
+
+    def __init__(self, fail_buckle: bool = False):
+        super().__init__()
+        self.belt: list[str] = []
+        self.buckled: list[bytes] = []
+        self.fail_buckle = fail_buckle
+
+    def paint_belt(self, description: str) -> bytes:
+        self.belt.append(description)
+        out = io.BytesIO()
+        Image.new("RGB", (30, 20), (90, 120, 180)).save(out, "WEBP")
+        return out.getvalue()
+
+    def buckle(self, before: bytes) -> bytes:
+        self.buckled.append(before)
+        if self.fail_buckle:
+            raise RuntimeError("refused")
+        return before + b"ok"
+
+
+def test_the_belt_mission_is_drawn_before_and_after_the_click(tmp_path):
+    painter = BeltPainter()
+    c = client(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter)
+    ep = c.post("/v1/episode", json={**BODY, "pictures": True}).json()
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "p3_ok"}
+    # the belt scene goes to the child seat, the other pictures are drawn as before
+    assert len(painter.belt) == 1 and painter.belt[0].startswith(ART.puzzles[2]) and len(painter.calls) == 3
+    # the picture after is edited from the very picture before, and only the scene before is tied to the puzzle
+    before = (tmp_path / "images" / ep["storyId"] / "p3.webp").read_bytes()
+    assert painter.buckled == [before]
+    assert (tmp_path / "images" / ep["storyId"] / "p3_ok.webp").read_bytes() == before + b"ok"
+    assert ep["scenes"]["BELT"]["picture"] == "p3" and ep["pictures"]["BELT"] == "p3"
+    assert c.get(ep["images"]["p3_ok"]).status_code == 200
+    assert c.get(f"/v1/images/{ep['storyId']}/p3_no.webp").status_code == 404
+    # the writer describes the friend in the seat and leaves the belt to the painter
+    assert "탐험대 카시트" in SYSTEM
+
+
+def test_a_failed_click_picture_keeps_the_one_before(tmp_path):
+    painter = BeltPainter(fail_buckle=True)
+    ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter).post("/v1/episode", json={**BODY, "pictures": True}).json()
+    assert "p3" in ep["images"] and "p3_ok" not in ep["images"]
+    assert ep["scenes"]["BELT"]["picture"] == "p3"
+
+
 def test_a_failed_picture_is_left_to_the_app(tmp_path):
     painter = FakePainter(fail={"모래 언덕"})
     ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter).post("/v1/episode", json={**BODY, "pictures": True}).json()

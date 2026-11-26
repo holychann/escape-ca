@@ -19,6 +19,8 @@ from .voice import QuotaError, Voice, cache_key
 from .writer import Writer
 
 log = logging.getLogger("story")
+# the belt mission's answer key (the app's StoryKeys), the one scene drawn before and after
+BELT = "BELT"
 
 Picks = dict[str, tuple[DraftQuestion, str]]
 
@@ -131,17 +133,29 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
     wanted = {name: text for name, text in wanted.items() if name not in skip}
     if not wanted:
         return ep
+    # 벨트 딸깍 미션 is drawn twice, before the click and after it (p3, p3_ok), by a painter that knows the child seat
+    belt = {f"p{i}" for i, slot in enumerate(req.puzzles, start=1) if BELT in slot}
+    paint_belt, buckle = getattr(painter, "paint_belt", None), getattr(painter, "buckle", None)
 
-    def draw(name: str, text: str) -> tuple[str, bytes | None]:
+    def draw(name: str, text: str) -> list[tuple[str, bytes | None]]:
         try:
-            return name, painter.paint(text)
+            if name not in belt or paint_belt is None:
+                return [(name, painter.paint(text))]
+            before = paint_belt(text)
         except Exception as e:  # refusal, timeout, no image part
             log.warning("picture %s failed: %r", name, e)
-            return name, None
+            return [(name, None)]
+        # edited from the picture before, so only the belt and the friend's pose change; without it the app shows the cover
+        try:
+            after = buckle(before) if buckle is not None else None
+        except Exception as e:
+            log.warning("picture %s_ok failed: %r", name, e)
+            after = None
+        return [(name, before), (f"{name}_ok", after)]
 
     # two at a time, so one episode does not use the image model's whole minute at once (IMAGE_PARALLEL)
     with ThreadPoolExecutor(max_workers=max(1, min(len(wanted), int(os.environ.get("IMAGE_PARALLEL", "2"))))) as pool:
-        drawn = dict(pool.map(lambda item: draw(*item), wanted.items()))
+        drawn = dict(pair for pairs in pool.map(lambda item: draw(*item), wanted.items()) for pair in pairs)
 
     out = folder / ep.storyId
     images = {}

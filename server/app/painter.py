@@ -63,6 +63,31 @@ STYLE = LOOK + (
     "shows the drawing style in four scenes: copy how the characters and the world are rendered (plush fur, glossy "
     "eyes, toy-like props, soft light), not the places, props, light or composition. "
 ) + NOT_AI
+# 벨트 딸깍 미션: the friend sits in the explorer team's child seat, drawn in today's place but always the same seat and
+# belt, from two sheets of all nine friends in it (ref_belt_before, ref_belt_after, laid out like the model sheet)
+BELT_BEFORE = (
+    "Belt mission: the friend has got into the ride of this scene (the little train carriage, cable car, balloon basket, "
+    "submarine or whatever the scene names) and sits in the explorer team's round plush denim-blue child car seat, which "
+    "is firmly fitted onto a seat inside that ride. Seen from inside the ride, facing the friend: the ride's own seat, "
+    "walls, window frames or railing are around the child seat and the place of the scene is seen beyond them, so the "
+    "child seat is never standing alone on the ground. No one else is in the ride and no one drives it. The child seat "
+    "is in the middle of the picture. The third reference picture shows how each friend sits in "
+    "that seat, in the same places as on the model sheet: draw only the friend of this scene, as in its own place there, "
+    "with the same seat, dark gray five-point harness, two round silver buckle tongues and black buckle with a red "
+    "button. The belt is not buckled yet: the friend holds one silver tongue in each paw, clearly apart from the "
+    "red-button buckle between its legs, and smiles at the viewer. The seat and the buckle are large and clear in the "
+    "middle; the top fifth and the bottom sixth of the picture are simple background. "
+)
+BUCKLED = (
+    "Edit the first picture. Keep everything else exactly the same: the place, the light, the colours, the friend, the "
+    "child seat, the camera and the composition. The friend keeps its whole outfit (vest, cape, overalls, scarf, hat), "
+    "the yellow star badge on its chest and its prop exactly as in the first picture, with the straps going over them. "
+    "Change only this: both silver tongues are clicked all the way into the "
+    "black buckle with the red button between the friend's legs, joined together, and the shoulder straps run neatly in "
+    "a V from the shoulders to the buckle, as for the same friend on the second reference picture. The friend no longer "
+    "holds the tongues: it smiles with happy closed eyes and waves one paw at shoulder height. The buckle stays clearly "
+    "visible. "
+) + NOT_AI
 
 
 class PainterError(Exception):
@@ -70,6 +95,9 @@ class PainterError(Exception):
 
 
 class Painter(Protocol):
+    """A painter may also have paint_belt(description) and buckle(before) for the belt mission ([GeminiPainter]); one
+    without them draws that scene with paint() and no picture for after the click."""
+
     def paint(self, description: str) -> bytes:
         """WebP bytes of one landscape picture for this scene description."""
 
@@ -111,9 +139,23 @@ class GeminiPainter:
             types.Part.from_bytes(data=(ART_DIR / f"{n}.jpg").read_bytes(), mime_type="image/jpeg")
             for n in ("ref_friends", "ref_style")
         ]
+        self.belt_before, self.belt_after = (
+            types.Part.from_bytes(data=(ART_DIR / f"{n}.jpg").read_bytes(), mime_type="image/jpeg")
+            for n in ("ref_belt_before", "ref_belt_after")
+        )
 
     def paint(self, description: str) -> bytes:
         return to_webp(self._draw(STYLE + "Scene: " + description, self.refs, "3:2"))
+
+    def paint_belt(self, description: str) -> bytes:
+        """벨트 딸깍 미션 before the click: the friend of the scene in the child seat, the belt not buckled yet."""
+        return to_webp(self._draw(STYLE + "Scene: " + description + " " + BELT_BEFORE, [*self.refs, self.belt_before], "3:2"))
+
+    def buckle(self, before: bytes) -> bytes:
+        """The same picture once the belt is clicked shut, edited from [paint_belt]'s picture."""
+        from google.genai import types
+        first = types.Part.from_bytes(data=before, mime_type="image/webp")
+        return to_webp(self._draw(BUCKLED, [first, self.belt_after], "3:2"))
 
     def _draw(self, prompt: str, refs: list, aspect: str) -> bytes:
         from google.genai import types

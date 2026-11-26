@@ -136,7 +136,7 @@ def create_app(
 
     @app.get("/v1/images/{story_id}/{name}.webp")
     def image(story_id: str, name: str) -> FileResponse:
-        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|p[1-6]", name):
+        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|p[1-6](_ok)?", name):
             raise HTTPException(status_code=404)
         path = images / story_id / f"{name}.webp"
         if not path.is_file():

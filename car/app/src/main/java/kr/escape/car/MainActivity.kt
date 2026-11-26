@@ -801,7 +801,7 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subt
         }
         Phase.INTRO -> (ui.story?.title ?: if (ui.writing) "오늘의 이야기" else "별빛 기차가 고장 났대!") to theme
         Phase.PLAYING -> p?.let { ui.scene(it).let { s -> s.bubble to (s.pictures.firstOrNull() ?: theme) } } ?: ("" to theme)
-        Phase.SOLVED -> "정답! 별 하나 획득!" to (story?.picture("cover") ?: successPicture(p))
+        Phase.SOLVED -> "정답! 별 하나 획득!" to (p?.let { story?.donePicture(it) } ?: story?.picture("cover") ?: successPicture(p))
         Phase.TREASURE -> "탐험 배지 획득!" to "ending_${buddy.name.lowercase()}"
         Phase.RESTORE -> when {
             ui.restoring -> "차를 처음처럼 정리하는 중!"

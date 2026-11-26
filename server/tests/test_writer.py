@@ -88,6 +88,30 @@ def test_story_and_image_efforts_follow_defaults_and_env(monkeypatch):
     assert img_calls[0]["config"].thinking_config.thinking_level == types.ThinkingLevel.MINIMAL
 
 
+def test_the_belt_mission_is_drawn_with_the_seat_sheets_and_buckled_from_its_own_picture():
+    from app.painter import BELT_BEFORE, BUCKLED, GeminiPainter
+
+    calls = []
+
+    class FakeImgModels:
+        def generate_content(self, **kwargs):
+            calls.append(kwargs)
+            from PIL import Image
+            import io
+            buf = io.BytesIO()
+            Image.new("RGB", (20, 20), (90, 120, 180)).save(buf, "PNG")
+            return SimpleNamespace(parts=[SimpleNamespace(inline_data=SimpleNamespace(data=buf.getvalue()))])
+
+    painter = GeminiPainter(client=SimpleNamespace(models=FakeImgModels()))
+    before = painter.paint_belt("반테가 공룡 섬의 탐험대 카시트에 앉아 있다")
+    painter.buckle(before)
+    prompt, *refs = calls[0]["contents"]
+    # the model sheet, the style picture and the sheet of every friend in the seat
+    assert prompt.endswith(BELT_BEFORE) and "공룡 섬" in prompt and refs == [*painter.refs, painter.belt_before]
+    prompt, first, sheet = calls[1]["contents"]
+    assert prompt == BUCKLED and first.inline_data.data == before and sheet is painter.belt_after
+
+
 def test_the_writer_is_not_asked_for_questions():
     scene = DRAFT_SCHEMA["properties"]["scenes"]["items"]
     # the story around the bank's question and the line said once it is solved
