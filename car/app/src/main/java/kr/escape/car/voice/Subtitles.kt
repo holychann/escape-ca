@@ -13,8 +13,9 @@ object Subtitles {
     const val READ_MS_PER_CHAR = 230L
     const val MIN_PIECE_MS = 1800L
 
-    // a speech tag ([excited], <short pause>, {laugh}) is for the voice, never for the screen
-    private val TAG = Regex("""\[[^\]]*]|<[^>]*>|\{[^}]*}""")
+    // a speech tag ([excited], <short pause>, {laugh}) is for the voice, never for the screen.
+    // The closing ] and } stay escaped: Android's regex engine (ICU) rejects a bare } that the JVM accepts.
+    private val TAG = Regex("""\[[^\]]*\]|<[^>]*>|\{[^}]*\}""")
     private val SENTENCE_END = Regex("""(?<=[.!?…~])\s+""")
 
     /** [text] as it is shown: no tags, no doubled spaces. */
