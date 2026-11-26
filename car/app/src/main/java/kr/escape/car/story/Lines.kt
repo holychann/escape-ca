@@ -29,7 +29,8 @@ data class Scene(
  * fails or a check rejects its question, the app asks its own simple one made here.
  */
 object Lines {
-    const val SUCCESS = "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!"
+    // said in any story when its own result line is missing, so it names no place of the default star train story
+    const val SUCCESS = "해냈다! 목표에 한 걸음 더 가까워졌어. 우리 탐험대장 최고야!"
     const val TREASURE_BADGE = "기차가 다 고쳐졌어! 고마워, 탐험대장. 반짝이는 탐험 배지를 줄게!"
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
     /** 이어 하기: before the puzzle the family comes back to, after the car was switched off. */
@@ -105,7 +106,7 @@ object Lines {
         is Puzzle.Quiz -> (own?.first ?: question(p)).let { q -> quizScene(p, bubble(p), lead(p), own?.second ?: hint(p, q), q) }
         Puzzle.BeltMission -> Scene(
             bubble = "탐험대장, 벨트를 딸깍!",
-            speech = "다음 칸으로 가기 전에 준비! 탐험대장, 벨트를 딸깍! 이미 매고 있다면 버클을 짚고 딸깍 확인!",
+            speech = "다음 곳으로 가기 전에 준비! 탐험대장, 벨트를 딸깍! 이미 매고 있다면 버클을 짚고 딸깍 확인!",
             hint = "벨트를 버클에 끝까지 넣으면 딸깍 소리가 나!",
             pictures = listOf("scene_belt"),
             buttons = emptyList(),
@@ -333,12 +334,13 @@ object Lines {
 
     private fun lead(p: Puzzle.Quiz): String {
         // the situation itself tells the trouble; the story before it never gives the function away
-        if (p.kind == QuizKind.REASON) return "어, 기차 칸에서 곤란한 일이 생겼어. 잘 듣고 어떤 차 버튼이 나를 도와줄 수 있을지 생각해 봐!"
+        // also played inside an AI story whose scene was left out, so it names no place: "여기" is wherever the story is
+        if (p.kind == QuizKind.REASON) return "어, 곤란한 일이 생겼어. 잘 듣고 어떤 차 버튼이 나를 도와줄 수 있을지 생각해 봐!"
         return when (p.dial) {
             Dial.FAN -> "내가 키우는 새싹이 목말라서 축 늘어졌어. 문제를 풀면 바람을 보내 줄 수 있어!"
-            Dial.TEMP_DOWN -> "기차 칸이 너무 더워서 내가 땀을 뻘뻘 흘려! 문제를 풀면 시원하게 할 수 있어."
-            Dial.TEMP_UP -> "기차 칸이 너무 추워서 내가 덜덜 떨고 있어! 문제를 풀면 조금 따뜻하게 할 수 있어."
-            Dial.LIGHTS -> "기차 칸이 깜깜해서 내가 길을 못 찾고 있어! 문제를 풀면 작은 불을 밝힐 수 있어."
+            Dial.TEMP_DOWN -> "여기가 너무 더워서 내가 땀을 뻘뻘 흘려! 문제를 풀면 시원하게 할 수 있어."
+            Dial.TEMP_UP -> "여기가 너무 추워서 내가 덜덜 떨고 있어! 문제를 풀면 조금 따뜻하게 할 수 있어."
+            Dial.LIGHTS -> "여기가 깜깜해서 내가 길을 못 찾고 있어! 문제를 풀면 작은 불을 밝힐 수 있어."
             // the seat heat is the driver's seat
             else -> "안전 지킴이 의자가 얼음처럼 차가워! 문제를 풀면 의자를 따끈하게 데울 수 있어."
         }
