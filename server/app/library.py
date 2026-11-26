@@ -2,7 +2,7 @@
 
 A story is shelved as two objects in a folder named by its cell (friend, youngest age, minutes):
 ``library/{friend}/{youngest}/{minutes}m/{storyId}/draft.json`` (the writer's draft and the request it answered,
-without the install id) and ``story.json`` (what the car gets, with its meta). ``story.json`` is written last, so a
+without the install id, wish and context) and ``story.json`` (what the car gets, with its meta). ``story.json`` is written last, so a
 folder with only one of the two is never indexed. Nothing here is personal: no install id, IP, wish, season or time
 of day is stored.
 
@@ -26,6 +26,8 @@ log = logging.getLogger("story")
 ROOT = "library/"
 # the install id put back into a stored request when it is read: a shelved story belongs to no install
 SHELF_INSTALL = "0" * 16
+# a placeholder only, put back where the request needs a context: the checks never read it
+SHELF_CONTEXT = {"timeOfDay": "AFTERNOON", "season": "SPRING"}
 DEFAULT_MODELS = "claude"
 
 
@@ -158,7 +160,7 @@ class Library:
     def add(self, shelved: Shelved, draft: Draft, request: EpisodeRequest) -> None:
         base = f"{shelved.cell.path()}/{shelved.episode.storyId}"
         # the draft first and story.json last: a half-written folder is never indexed
-        draft_body = {"draft": draft.model_dump(), "request": request.model_dump(exclude={"installId"})}
+        draft_body = {"draft": draft.model_dump(), "request": request.model_dump(exclude={"installId", "wish", "context"})}
         self.storage.put(f"{base}/draft.json", json.dumps(draft_body, ensure_ascii=False).encode("utf-8"),
                          "application/json")
         self.storage.put(f"{base}/story.json", shelved.model_dump_json().encode("utf-8"), "application/json")
@@ -185,7 +187,7 @@ class Library:
                     continue
                 body = json.loads(raw)
                 draft = Draft.model_validate(body["draft"])
-                request = EpisodeRequest(installId=SHELF_INSTALL, **body["request"])
+                request = EpisodeRequest(installId=SHELF_INSTALL, context=SHELF_CONTEXT, **body["request"])
             except Exception as e:
                 log.warning("shelf: %s cannot be read, skipped: %s", path, e)
                 continue

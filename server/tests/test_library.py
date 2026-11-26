@@ -2,7 +2,7 @@
 import pytest
 from botocore.exceptions import ClientError
 
-from app.library import (SHELF_INSTALL, Cell, FolderStorage, Library, S3Storage, Shelved, ShelfMeta, make_library)
+from app.library import (SHELF_CONTEXT, SHELF_INSTALL, Cell, FolderStorage, Library, S3Storage, Shelved, ShelfMeta, make_library)
 from app.models import Episode, EpisodeRequest, SceneText
 from tests.fakes import BANK, FRIEND, MATH, REASON, filled
 
@@ -102,7 +102,9 @@ def test_a_shelved_story_is_laid_out_by_cell(tmp_path):
     Library(FolderStorage(tmp_path)).add(shelved(), filled(KEYS), request())
     base = tmp_path / "library/BANTE/CAPTAIN/10m" / STORY_ID
     assert {p.name for p in base.iterdir()} == {"story.json", "draft.json"}
-    assert INSTALL not in (base / "draft.json").read_text()
+    stored = (base / "draft.json").read_text()
+    for word in (INSTALL, "wish", "context", "season", "timeOfDay", "outsideTempC"):
+        assert word not in stored
 
 
 def test_a_new_library_reads_back_what_was_shelved(tmp_path):
@@ -117,7 +119,8 @@ def test_the_stored_request_gets_the_shelf_install_back(tmp_path):
     seen = []
     again = Library(FolderStorage(tmp_path))
     again.load(lambda sh, draft, req: seen.append((draft, req)) or [])
-    assert seen[0][0] == filled(KEYS) and seen[0][1] == request().model_copy(update={"installId": SHELF_INSTALL})
+    expected = EpisodeRequest(**{**request().model_dump(), "installId": SHELF_INSTALL, "context": SHELF_CONTEXT})
+    assert seen[0][0] == filled(KEYS) and seen[0][1] == expected
 
 
 def test_a_half_written_story_is_skipped(tmp_path):
