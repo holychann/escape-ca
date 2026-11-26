@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw
 
 from app import bank, quiz
 from app.bank import Bank, Entry
+from app.library import FolderStorage, Library, recheck
 from app.main import create_app
 from app.models import FRIEND_LABEL, Art, Draft, DraftScene
 from app.painter import to_webp
@@ -132,8 +133,11 @@ class TemplateWriter:
             hint = " ".join(group[0] for group in rule.hint_must) or "다시 들어 보자."
             scenes.append(DraftScene(key=key, bubble="[개발용] 장면", speech=f"[개발용] {words}.{ask}", hint=f"[개발용] {hint}",
                                      result="[개발용] 준비 끝, 다음으로 가자!"))
+        # with the shelf on the request names its theme in the prompt ("theme에 SEA_SUB"), and the checker drops a draft
+        # with another one
+        named = re.search(r"theme에 (STAR_TRAIN|SEA_SUB|FOREST_SHIP)", user)
         draft = Draft(
-            theme="STAR_TRAIN",
+            theme=named.group(1) if named else "STAR_TRAIN",
             world=world,
             title=f"[개발용] {world}"[:20],
             intro=f"[개발용] 나는 {friend}야. 서버에서 받은 이야기야.",
@@ -168,5 +172,15 @@ class CardPainter:
         return to_webp(out.getvalue())
 
 
+def dev_app():
+    """The dev app with a shelf on a local folder (STORY_LIBRARY_DIR, default data/library-dev). The dev writer is called
+    dev-template, which the default model list would not allow, so every writer is allowed here."""
+    dev = dev_bank()
+    folder = Path(os.environ.get("STORY_LIBRARY_DIR") or "data/library-dev")
+    library = Library(FolderStorage(folder), models=())
+    library.load(lambda s, d, r: recheck(s, d, r, dev))
+    return create_app(writer=TemplateWriter(), painter=CardPainter(), bank=dev, library=library)
+
+
 if __name__ == "__main__":
-    uvicorn.run(create_app(writer=TemplateWriter(), painter=CardPainter(), bank=dev_bank()), host="127.0.0.1", port=8787)
+    uvicorn.run(dev_app(), host="127.0.0.1", port=8787)

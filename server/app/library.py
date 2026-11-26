@@ -149,7 +149,8 @@ class Library:
         self.storage = storage
         self.models = models
         self.cap, self.min_fresh, self.fresh, self.offer, self.blocks_per_ip = cap, min_fresh, fresh, offer, blocks_per_ip
-        self.run = run or ThreadPoolExecutor(max_workers=1).submit
+        self._pool = None if run else ThreadPoolExecutor(max_workers=1)
+        self.run = run or self._pool.submit
         # request threads and the shelving job both touch the index
         self.lock = threading.Lock()
         self.stories: dict[str, Shelved] = {}
@@ -159,6 +160,12 @@ class Library:
         # reports that took a story off the shelf today, per hashed address
         self._block_day = date.today()
         self._blocks: dict[str, int] = {}
+
+    def drain(self, timeout: float) -> None:
+        """Waits until the default worker has finished the jobs it was given so far (for tests); nothing to wait for
+        when ``run`` was injected."""
+        if self._pool is not None:
+            self._pool.submit(lambda: None).result(timeout)
 
     def allows(self, model: str) -> bool:
         return not self.models or model.startswith(self.models)

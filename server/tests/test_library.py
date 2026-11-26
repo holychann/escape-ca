@@ -187,3 +187,23 @@ def test_a_library_that_cannot_load_is_turned_off(monkeypatch, tmp_path):
         raise OSError("down")
     monkeypatch.setattr(FolderStorage, "list", fail)
     assert make_library() is None
+
+
+def test_the_app_turns_the_library_on_from_the_environment(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.fakes import FakeWriter, draft
+    monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path / "shelf"))
+    monkeypatch.setenv("STORY_LIBRARY_MODELS", "")
+    body = {"installId": INSTALL, "ages": ["CAPTAIN"], "minutes": 10, "theme": "STAR_TRAIN",
+            "context": {"timeOfDay": "EVENING", "season": "WINTER"}, "puzzles": [[MATH], [REASON], ["BELT"]],
+            "friend": FRIEND}
+    first = create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path / "a", painter=None, bank=BANK)
+    story_id = TestClient(first).post("/v1/episode", json=body).json()["storyId"]
+    # the story is put on the shelf after the response
+    first.state.library.drain(10)
+    second = create_app(writer=FakeWriter(), data_dir=tmp_path / "b", painter=None, bank=BANK)
+    ask = {"ages": ["CAPTAIN"], "minutes": 10, "friend": FRIEND, "playable": [MATH, REASON], "allowFresh": False}
+    got = TestClient(second).post("/v1/library", json=ask).json()["stories"]
+    assert [s["episode"]["storyId"] for s in got] == [story_id]

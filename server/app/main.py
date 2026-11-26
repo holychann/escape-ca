@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 
 from .bank import Bank, load as load_bank
 from .checker import wish_problems
-from .library import Library
+from .library import Library, make_library, recheck
 from .models import Episode, EpisodeRequest, LibraryAnswer, LibraryRequest, Report, Shelf
 from .painter import Painter, make_painter
 from .service import make_episode, paint_pictures, timeless_request
@@ -45,12 +45,16 @@ def client_ip(request: Request, trust_proxy: bool) -> str:
 
 
 def create_app(writer: Writer | None = None, data_dir: Path | None = None, painter: Painter | None = _UNSET,
-               bank: Bank | None = None, library: Library | None = None) -> FastAPI:
+               bank: Bank | None = None, library: Library | None = _UNSET) -> FastAPI:
     app = FastAPI(title="차량탈출 이야기 서버", docs_url=None, redoc_url=None)
     writer = writer or make_writer()
     painter = make_painter() if painter is _UNSET else painter
     # the questions made once and checked (tools/make_bank.py); a broken bank stops the server here
     bank = bank or load_bank()
+    if library is _UNSET:
+        # the environment decides: no STORY_LIBRARY_BUCKET or STORY_LIBRARY_DIR means no shelf
+        library = make_library(lambda s, d, r: recheck(s, d, r, bank))
+    app.state.library = library
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
     images = folder / "images"
