@@ -6,19 +6,24 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.voice import GeminiVoice, to_wav
-from tests.fakes import FakeWriter, draft
+from app.models import Episode
+from app.service import voice_lines
+from tests.fakes import BANK, MATH, REASON, FakeWriter, draft
 
 BODY = {
     "installId": "0123456789abcdef0123",
     "ages": ["CAPTAIN"],
     "minutes": 10,
     "context": {"timeOfDay": "AFTERNOON", "season": "AUTUMN"},
-    "puzzles": [["ROOMS:LEFT", "ROOMS:RIGHT"], ["FOG"], ["BELT"]],
+    "puzzles": [[MATH], [REASON], ["BELT"]],
+    "friend": "BANTE",
 }
-KEYS = ["ROOMS:LEFT", "ROOMS:RIGHT", "FOG", "BELT"]
-LINES = {"intro", "success0", "success1", "success2", "treasureGift", "treasureBadge"} | {
-    f"{k}.{part}" for k in KEYS for part in ("speech", "hint")
-}
+KEYS = [MATH, REASON, "BELT"]
+
+
+def lines(ep: dict) -> set[str]:
+    """The names of the lines this episode has words for."""
+    return set(voice_lines(Episode.model_validate({**ep, "voices": {}})))
 
 
 def pcm(text: str) -> bytes:
@@ -38,18 +43,20 @@ class FakeVoice:
 
 
 def client(tmp_path, voice):
-    return TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, voice=voice))
+    return TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=voice))
 
 
 def test_every_line_is_read_aloud_and_served(tmp_path):
     v = FakeVoice()
     c = client(tmp_path, v)
     ep = c.post("/v1/episode", json=BODY).json()
-    assert set(ep["voices"]) == LINES
-    assert len(v.calls) == len(LINES)
+    names = lines(ep)
+    assert {"intro", "treasureBadge", f"{MATH}.speech", f"{MATH}.result", "BELT.speech", "BELT.hint"} <= names
+    assert set(ep["voices"]) == names
+    assert len(v.calls) == len(names)
     sid = ep["storyId"]
     # ':' in the answer keys does not go into file names
-    assert ep["voices"]["ROOMS:LEFT.speech"] == f"/v1/audio/{sid}/ROOMS_LEFT.speech.wav"
+    assert ep["voices"][f"{MATH}.speech"] == f"/v1/audio/{sid}/{MATH.replace(':', '_')}.speech.wav"
     for path in ep["voices"].values():
         r = c.get(path)
         assert r.status_code == 200 and r.headers["content-type"] == "audio/wav"
@@ -58,9 +65,9 @@ def test_every_line_is_read_aloud_and_served(tmp_path):
 
 
 def test_a_line_that_fails_is_left_out(tmp_path):
-    ep = client(tmp_path, FakeVoice(fail={"발자국이 오른쪽"})).post("/v1/episode", json=BODY).json()
-    assert "ROOMS:RIGHT.speech" not in ep["voices"]
-    assert set(ep["voices"]) == LINES - {"ROOMS:RIGHT.speech"}
+    ep = client(tmp_path, FakeVoice(fail={"이미 맸"})).post("/v1/episode", json=BODY).json()
+    assert "BELT.speech" not in ep["voices"]
+    assert set(ep["voices"]) == lines(ep) - {"BELT.speech"}
 
 
 def test_without_a_voice_there_are_no_recordings(tmp_path):
@@ -136,32 +143,31 @@ class QuotaVoice(FakeVoice):
 
 def test_a_line_said_again_is_not_made_again(tmp_path):
     v = FakeVoice()
-    c = TestClient(create_app(writer=FakeWriter(draft(KEYS), draft(KEYS)), data_dir=tmp_path, painter=None, voice=v))
+    c = TestClient(create_app(writer=FakeWriter(draft(KEYS), draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=v))
     first = c.post("/v1/episode", json=BODY).json()
     made = len(v.calls)
     second = c.post("/v1/episode", json=BODY).json()
     # the second story has the same words: every line comes from the cache, none is read again
     assert len(v.calls) == made
-    assert set(second["voices"]) == LINES and first["storyId"] != second["storyId"]
-    assert c.get(second["voices"]["success0"]).content == c.get(first["voices"]["success0"]).content
+    assert set(second["voices"]) == lines(second) and first["storyId"] != second["storyId"]
+    assert c.get(second["voices"]["intro"]).content == c.get(first["voices"]["intro"]).content
 
 
 def test_the_same_words_twice_in_one_story_are_read_once(tmp_path):
     ep = client(tmp_path, FakeVoice()).post("/v1/episode", json=BODY).json()
-    ep["scenes"]["FOG"]["hint"] = ep["scenes"]["ROOMS:LEFT"]["hint"]
-    from app.models import Episode
+    ep["treasureBadge"] = ep["intro"]
     v = FakeVoice()
     out = read_aloud(Episode.model_validate({**ep, "voices": {}}), v, tmp_path / "a", cache=tmp_path / "c")
-    assert len(v.calls) == len(LINES) - 1 and set(out.voices) == LINES
+    assert len(v.calls) == len(lines(ep)) - 1 and set(out.voices) == lines(ep)
 
 
 def test_a_used_up_quota_stops_the_calls_and_the_story_still_plays(tmp_path):
     v = QuotaVoice(ok=0)
-    r = TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, voice=v)).post("/v1/episode", json=BODY)
+    r = TestClient(create_app(writer=FakeWriter(draft(KEYS)), data_dir=tmp_path, painter=None, bank=BANK, voice=v)).post("/v1/episode", json=BODY)
     # no recordings: the car reads every line with its own voice
     assert r.status_code == 200 and r.json()["voices"] == {} and r.json()["scenes"]
     # after the first 429 the remaining lines are not tried (only the calls already on their way)
-    assert len(v.calls) <= 8 < len(LINES)
+    assert len(v.calls) <= 8
 
 
 def test_the_quota_guard():

@@ -6,7 +6,6 @@ bubble = 18
 hint = 70
 title = 20
 intro = 180
-success = 60
 treasure = 90
 
 # speech is shorter for the youngest age on board
@@ -14,6 +13,12 @@ treasure = 90
 LITTLE = 110
 CAPTAIN = 170
 DETECTIVE = 210
+
+# the line said the moment the answer is in
+[limits.result]
+LITTLE = 70
+CAPTAIN = 90
+DETECTIVE = 90
 
 # Words the car never says anywhere. A match is reported as '<label>: <matched text>',
 # or just the label when quote_match is false. Patterns are Python regular expressions.
@@ -101,135 +106,16 @@ patterns = [
 [prompt]
 everywhere_never = ["출발", "시동", "운전해", "운전하", "운전을", "기어", "핸들", "브레이크", "차 문", "창문을 열"]
 # The bubble sits next to the picture before the child has looked: it shows the trouble, never the button.
-bubble_never = ["독서등", "성에", "내기", "외기", "순환", "풍향", "풍량", "온도", "버튼", "켜기", "끄기"]
+bubble_never = ["독서등", "성에", "내기", "외기", "순환", "풍향", "풍량", "온도", "에어컨", "열선", "버튼", "켜기", "끄기"]
 
-# The friends the story may use, the same ones the pictures draw (에셋/차량탈출_그림, crew_*.png and the scene pictures).
-# The writer may not invent other animals or people, so the words never describe someone the screen does not show.
-[[cast]]
-name = "펭귄 선장"
-look = "남색 선장 모자, 하늘색 목도리, 작은 망원경"
-trait = "추운 곳을 좋아한다. 친구들을 이끄는 씩씩한 선장이고 얼음 미끄럼틀을 좋아한다."
-
-[[cast]]
-name = "사막여우"
-look = "커다란 귀, 모래색 털"
-trait = "따뜻한 곳을 좋아한다. 반짝이는 물건을 땅에 묻어 숨기는 장난꾸러기다."
-
-[[cast]]
-name = "토끼 기관사"
-look = "민트색 멜빵바지, 이마에 올린 동그란 고글, 작은 스패너"
-trait = "기계와 문을 고치는 솜씨꾼이다. 탈것의 엔진과 문을 맡는다."
-
-[[cast]]
-name = "수달 요리사"
-look = "하얀 요리사 모자, 산호색 앞치마, 국자"
-trait = "따끈한 수프를 끓인다. 수프 냄비에서 김이 모락모락 난다."
-
-[[cast]]
-name = "새싹 로봇"
-look = "머리에 초록 새싹이 자라는 작은 로봇"
-trait = "새싹 화분을 돌보고 낮잠을 좋아한다. 새싹이 목마르면 시든다."
-
-[[cast]]
-name = "투덜이 기계"
-look = "연보라색 네모난 로봇 기계, 빨간 안테나 공"
-trait = "바람을 싫어해서 바람이 불면 눈을 찡그리고 투덜거린다. 사실은 마음이 착하다."
-
-# One table per answer key the car app can send (car StoryKeys.kt).
+# The belt mission's table. Every other puzzle is a quiz (keys "Q:<KIND>:<DIAL>:<VALUE>"): the question and its
+# answer are checked by app/quiz.py, not by word lists.
 #   situation       what the writer is told about the scene
 #   must            groups of words; one word of every group must be in the speech
 #   never           none of these may be in the bubble, speech or hint
 #   hint_must       groups the hint must contain, so it points the same way
-#   needs_guardian  Lumi has the child point the found button out to the 안전 지킴이 (default true)
+#   needs_guardian  the friend has the child point the found button out to the 안전 지킴이 (default true)
 #   art_never       what the drawn picture of this puzzle must not show, because it would give one answer away
-
-[scene."WIND:FACE:GENTLE"]
-situation = "바람길 열기: 새싹 로봇이 돌보는 새싹 화분이 위쪽에 있고, 반대쪽에는 바람을 싫어하는 투덜이 기계가 있다. 투덜이 기계가 어느 쪽인지는 말하지 않는다. 바람을 위쪽으로 살살 보내야 한다. 정답 조작은 풍향 얼굴 쪽, 풍량 약하게."
-must = [["위쪽"], ["살살"]]
-never = ["아래쪽", "세게"]
-hint_must = [["위쪽"]]
-
-[scene."WIND:FACE:STRONG"]
-situation = "바람길 열기: 새싹 로봇이 돌보는 새싹 화분이 위쪽에 있고, 반대쪽에는 바람을 싫어하는 투덜이 기계가 있다. 투덜이 기계가 어느 쪽인지는 말하지 않는다. 바람을 위쪽으로 세게 보내야 한다. 정답 조작은 풍향 얼굴 쪽, 풍량 세게."
-must = [["위쪽"], ["세게"]]
-never = ["아래쪽", "살살"]
-hint_must = [["위쪽"]]
-
-[scene."WIND:FLOOR:GENTLE"]
-situation = "바람길 열기: 새싹 로봇이 돌보는 새싹 화분이 아래쪽에 있고, 반대쪽에는 바람을 싫어하는 투덜이 기계가 있다. 투덜이 기계가 어느 쪽인지는 말하지 않는다. 바람을 아래쪽으로 살살 보내야 한다. 정답 조작은 풍향 발 쪽, 풍량 약하게."
-must = [["아래쪽"], ["살살"]]
-never = ["위쪽", "세게"]
-hint_must = [["아래쪽"]]
-
-[scene."WIND:FLOOR:STRONG"]
-situation = "바람길 열기: 새싹 로봇이 돌보는 새싹 화분이 아래쪽에 있고, 반대쪽에는 바람을 싫어하는 투덜이 기계가 있다. 투덜이 기계가 어느 쪽인지는 말하지 않는다. 바람을 아래쪽으로 세게 보내야 한다. 정답 조작은 풍향 발 쪽, 풍량 세게."
-must = [["아래쪽"], ["세게"]]
-never = ["위쪽", "살살"]
-hint_must = [["아래쪽"]]
-
-[scene."DUST:OUTSIDE"]
-situation = "먼지 구름 피하기: 수달 요리사의 수프에 먼지가 들어갈까 봐 걱정이다. 먼지 구름이 밖에서 몰려온다. 바깥 공기가 들어오지 않게 막아야 한다. 정답 조작은 내기 순환 켜기."
-must = [["밖에서"]]
-never = ["안에서"]
-art_never = ["먼지", "김", "수증기", "연기", "구름", "안개"]
-
-[scene."DUST:INSIDE"]
-situation = "먼지 구름 피하기: 수달 요리사가 수프를 끓여서 안에서 김이 모락모락 피어오른다. 바깥의 맑은 공기를 들여보내야 한다. 정답 조작은 내기 순환 끄기(외기 유입)."
-must = [["안에서"]]
-never = ["밖에서"]
-art_never = ["먼지", "김", "수증기", "연기", "구름", "안개"]
-
-[scene."ROOMS:LEFT"]
-situation = "두 방 온도 맞추기: 추위를 좋아하는 펭귄 선장과 따뜻한 걸 좋아하는 사막여우가 두 방에 산다. 펭귄 방은 왼쪽이다. 펭귄 방은 시원하게, 여우 방은 따뜻하게 해야 한다. 여우 방이 어느 쪽인지는 말하지 않는다. 정답 조작은 좌우 온도 따로, 왼쪽을 반대쪽보다 2도 이상 낮게."
-must = [["펭귄"], ["왼쪽"]]
-never = ["오른쪽"]
-hint_must = [["왼쪽"]]
-
-[scene."ROOMS:RIGHT"]
-situation = "두 방 온도 맞추기: 추위를 좋아하는 펭귄 선장과 따뜻한 걸 좋아하는 사막여우가 두 방에 산다. 펭귄 방은 오른쪽이다. 펭귄 방은 시원하게, 여우 방은 따뜻하게 해야 한다. 여우 방이 어느 쪽인지는 말하지 않는다. 정답 조작은 좌우 온도 따로, 오른쪽을 반대쪽보다 2도 이상 낮게."
-must = [["펭귄"], ["오른쪽"]]
-never = ["왼쪽"]
-hint_must = [["오른쪽"]]
-
-[scene."FOG"]
-situation = "김 서린 창 닦기: 앞 유리가 뿌옇게 흐려 단서가 안 보여서 투덜이 기계가 투덜거린다. 유리를 향해 부는 바람이 닦아 준다. 정답 조작은 앞 유리 성에 제거 켜기."
-must = [["유리", "창"]]
-
-[scene."SEAT:DRIVER"]
-situation = "우리 자리 조사: 장난꾸러기 사막여우가 반짝이는 단서를 숨겼다. 단서는 우리 차 운전석 자리에 숨었다. 그 자리 독서등을 켜면 찾을 수 있다. 다른 자리 이름은 말하지 않는다. 정답 조작은 운전석 독서등 켜기."
-must = [["운전석"]]
-never = ["조수석", "뒷좌석 왼쪽", "뒷좌석 오른쪽"]
-hint_must = [["운전석"]]
-
-[scene."SEAT:PASSENGER"]
-situation = "우리 자리 조사: 장난꾸러기 사막여우가 반짝이는 단서를 숨겼다. 단서는 우리 차 조수석 자리에 숨었다. 그 자리 독서등을 켜면 찾을 수 있다. 다른 자리 이름은 말하지 않는다. 정답 조작은 조수석 독서등 켜기."
-must = [["조수석"]]
-never = ["운전석", "뒷좌석 왼쪽", "뒷좌석 오른쪽"]
-hint_must = [["조수석"]]
-
-[scene."SEAT:REAR_LEFT"]
-situation = "우리 자리 조사: 장난꾸러기 사막여우가 반짝이는 단서를 숨겼다. 단서는 우리 차 뒷좌석 왼쪽 자리에 숨었다. 그 자리 독서등을 켜면 찾을 수 있다. 다른 자리 이름은 말하지 않는다. 정답 조작은 뒷좌석 왼쪽 독서등 켜기."
-must = [["뒷좌석 왼쪽"]]
-never = ["운전석", "조수석", "뒷좌석 오른쪽"]
-hint_must = [["뒷좌석 왼쪽"]]
-
-[scene."SEAT:REAR_RIGHT"]
-situation = "우리 자리 조사: 장난꾸러기 사막여우가 반짝이는 단서를 숨겼다. 단서는 우리 차 뒷좌석 오른쪽 자리에 숨었다. 그 자리 독서등을 켜면 찾을 수 있다. 다른 자리 이름은 말하지 않는다. 정답 조작은 뒷좌석 오른쪽 독서등 켜기."
-must = [["뒷좌석 오른쪽"]]
-never = ["운전석", "조수석", "뒷좌석 왼쪽"]
-hint_must = [["뒷좌석 오른쪽"]]
-
-[scene."TOGETHER:SAME_TIME"]
-situation = "하나 둘 셋, 동시에!: 토끼 기관사가 고친 문은 탐험대장과 안전 지킴이가 함께해야 열린다. 탐험대장은 뒷자리 독서등, 안전 지킴이는 운전석 독서등을 하나, 둘, 셋에 맞춰 동시에 켠다."
-must = [["하나둘셋"]]
-
-[scene."TOGETHER:CHILD_ONCE_PARENT_TWICE"]
-situation = "하나 둘 셋, 동시에!: 토끼 기관사가 고친 문은 탐험대장과 안전 지킴이가 함께해야 열린다. 박자 문: 탐험대장이 뒷자리 독서등을 한 번 켜고, 이어서 안전 지킴이가 운전석 독서등을 두 번 켠다."
-must = [["한번"], ["두번"]]
-
-[scene."TOGETHER:FAN_WHILE_LIT"]
-situation = "하나 둘 셋, 동시에!: 토끼 기관사가 고친 문은 탐험대장과 안전 지킴이가 함께해야 열린다. 탐험대장이 뒷자리 독서등을 켜 둔 동안 안전 지킴이가 바람을 세게 올린다."
-must = [["바람"]]
 
 [scene."BELT"]
 situation = "벨트 딸깍 미션: 탐험대장이 스스로 안전벨트를 딸깍 맨다. 이미 매고 있다면 버클을 손으로 짚고 \"딸깍 확인!\"이라고 말한다. 안전 지킴이는 보고 확인 버튼만 누른다. 차는 주차 중이므로 \"출발\" 대신 \"탐험 준비\"처럼 말한다."

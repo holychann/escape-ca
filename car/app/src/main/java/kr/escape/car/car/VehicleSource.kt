@@ -14,6 +14,8 @@ import ai.pleos.playground.vehicle.constant.control.VehicleGear
 import ai.pleos.playground.vehicle.constant.unit.TemperatureUnit
 import ai.pleos.playground.vehicle.listener.DoorPositionListener
 import ai.pleos.playground.vehicle.listener.GearSelectionListener
+import ai.pleos.playground.vehicle.listener.HvacAcStateListener
+import ai.pleos.playground.vehicle.listener.HvacSeatTemperatureListener
 import ai.pleos.playground.vehicle.listener.HvacDefrosterStateListener
 import ai.pleos.playground.vehicle.listener.HvacDualStateListener
 import ai.pleos.playground.vehicle.listener.HvacFanSpeedListener
@@ -63,6 +65,8 @@ class VehicleSource(private val context: Context) : CarRestorer {
     private var tempLeftArea: SeatArea? = null
     private var tempRightArea: SeatArea? = null
     private var frontDefrostArea: WindowArea? = null
+    private var acArea: SeatArea? = null
+    private var seatHeatArea: SeatArea? = null
     private val doorsOpen = mutableMapOf<DoorValue, Boolean>()
 
     private val seats = mapOf(
@@ -109,6 +113,7 @@ class VehicleSource(private val context: Context) : CarRestorer {
         guarded("운전석") { registerDriverSeat(v) }
         guarded("공조") { registerHvac(v) }
         guarded("독서등") { registerReadingLights(v) }
+        guarded("시트 열선") { registerSeatHeat(v) }
     }
 
     private fun registerGear(v: Vehicle) {
@@ -188,9 +193,16 @@ class VehicleSource(private val context: Context) : CarRestorer {
             powerAreas += a
         }, fail("풍량 check"))
 
-        hvac.checkHvacFanDirectionCapabilities({ map ->
-            if (map.isNotEmpty()) addDevice(Device.FAN_DIRECTION)
-        }, fail("풍향 check"))
+        hvac.checkHvacAcCapabilities({ areas ->
+            val a = areas.firstOrNull() ?: return@checkHvacAcCapabilities
+            acArea = a
+            addDevice(Device.AC)
+            hvac.registerHvacAcState(a, object : HvacAcStateListener {
+                override fun onHvacAcStateUpdated(state: Boolean?) = set { it.copy(acOn = state) }
+                override fun onFailed(e: Exception) = fail("에어컨")(e)
+            })
+            hvac.getHvacAcState(a, { s -> set { it.copy(acOn = s) } }, fail("에어컨"))
+        }, fail("에어컨 check"))
 
         hvac.checkHvacDualCapabilities({ areas ->
             val a = areas.firstOrNull() ?: return@checkHvacDualCapabilities
@@ -207,7 +219,7 @@ class VehicleSource(private val context: Context) : CarRestorer {
             val front = areas.firstOrNull { it.values.contains(WindowValue.FRONT_WINDSHIELD) }
                 ?: return@checkHvacDefrosterCapabilities
             frontDefrostArea = front
-            addDevice(Device.DEFROSTER)
+            addDevice(Device.DEFROST)
             hvac.registerHvacDefrosterState(front, object : HvacDefrosterStateListener {
                 override fun onHvacDefrosterStateUpdated(state: Boolean?) = set { it.copy(defrostFront = state) }
                 override fun onFailed(e: Exception) = fail("성에 제거")(e)
@@ -226,7 +238,7 @@ class VehicleSource(private val context: Context) : CarRestorer {
             if (left == null || right == null || left == right) return@checkHvacTemperatureCapabilities
             tempLeftArea = left
             tempRightArea = right
-            addDevice(Device.DUAL_TEMPERATURE)
+            addDevice(Device.TEMPERATURE)
             val onLeft: (Float?) -> Unit = { c -> set { it.copy(tempLeft = c) } }
             val onRight: (Float?) -> Unit = { c -> set { it.copy(tempRight = c) } }
             hvac.getHvacTemperature(left, TemperatureUnit.CELSIUS, onLeft, fail("운전석 온도"))
@@ -260,6 +272,24 @@ class VehicleSource(private val context: Context) : CarRestorer {
             })
             light.getCurrentReadingLightState(area, onLight, fail("독서등 ${seat.label}"))
         }
+    }
+
+    /** The driver seat's heating; its cooling steps (below 0) are never an answer. */
+    private fun registerSeatHeat(v: Vehicle) {
+        val seat = v.getSeat()
+        seat.checkSeatTemperatureCapabilities({ map ->
+            val (a, bounds) = map.entries.firstOrNull { it.key.values.contains(SeatValue.ROW_1_LEFT) }?.toPair()
+                ?: return@checkSeatTemperatureCapabilities
+            if (bounds.maxValue < 1) return@checkSeatTemperatureCapabilities
+            seatHeatArea = a
+            addDevice(Device.SEAT_HEAT)
+            set { it.copy(seatHeatMax = bounds.maxValue) }
+            seat.registerHvacSeatTemperature(a, object : HvacSeatTemperatureListener {
+                override fun onHvacSeatTemperatureUpdated(value: Int?) = set { it.copy(seatHeat = value) }
+                override fun onFailed(e: Exception) = fail("시트 열선")(e)
+            })
+            seat.getHvacSeatTemperature(a, { t -> set { it.copy(seatHeat = t) } }, fail("시트 열선"))
+        }, fail("시트 열선 check"))
     }
 
     /** Areas to try for the climate power, whole cabin first; one that the car refuses is dropped. */
@@ -345,6 +375,16 @@ class VehicleSource(private val context: Context) : CarRestorer {
         }
         target.defrostFront?.takeIf { it != now.defrostFront }?.let { on ->
             hvacStep<WindowArea, Boolean>("앞 유리 성에 제거", frontDefrostArea) { a, ok, fail -> hvac.setHvacDefroster(a, on, { x, y -> ok(x, y) }, fail) }
+        }
+        target.acOn?.takeIf { it != now.acOn }?.let { on ->
+            hvacStep<SeatArea, Boolean>(if (on) "에어컨 켜기" else "에어컨 끄기", acArea) { a, ok, fail ->
+                hvac.setHvacAc(a, on, { x, y -> ok(x, y) }, fail)
+            }
+        }
+        target.seatHeat?.takeIf { it != now.seatHeat }?.let { step ->
+            hvacStep<SeatArea, Int>("운전석 열선", seatHeatArea) { a, ok, fail ->
+                v.getSeat().setHvacSeatTemperature(a, step, { x, y -> ok(x, y) }, fail)
+            }
         }
         for ((seat, on) in target.readingLights) {
             if (now.readingLights[seat] == on) continue

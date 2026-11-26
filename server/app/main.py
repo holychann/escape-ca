@@ -2,7 +2,7 @@
 
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
-GET  /v1/images/{storyId}/{name}    one of those pictures (WebP), or today's new friend's portrait
+GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
 GET  /v1/audio/{storyId}/{name}.wav one of Lumi's lines read aloud (WAV)
 POST /v1/report                     a parent reports a story (이야기 신고)
 GET  /health
@@ -21,6 +21,7 @@ from .painter import Painter, make_painter
 from .service import make_episode, paint_pictures, read_aloud
 from .store import DailyLimit, Store
 from .voice import Voice, make_voice
+from .bank import Bank, load as load_bank
 from .writer import Writer, make_writer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -33,11 +34,14 @@ def create_app(
     writer: Writer | None = None,
     data_dir: Path | None = None,
     painter: Painter | None = _UNSET,
+    bank: Bank | None = None,
     voice: Voice | None = _UNSET,
 ) -> FastAPI:
     app = FastAPI(title="차량탈출 이야기 서버", docs_url=None, redoc_url=None)
     writer = writer or make_writer()
     painter = make_painter() if painter is _UNSET else painter
+    # the questions made once and checked (tools/make_bank.py); a broken bank stops the server here
+    bank = bank or load_bank()
     voice = make_voice() if voice is _UNSET else voice
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
@@ -64,14 +68,13 @@ def create_app(
         ip = request.client.host if request.client else "unknown"
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        made = make_episode(req, writer)
+        made = make_episode(req, writer, bank)
         if made is None:
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
         ep, draft = made
-        # today's new friend gets its portrait for the friend book on every story; the scenes only when asked
-        if painter is not None and (req.pictures or ep.friend is not None):
-            ep = paint_pictures(ep, draft, req, painter, images, scenes=req.pictures)
+        if painter is not None and req.pictures:
+            ep = paint_pictures(ep, draft, req, painter, images)
         # Lumi's lines read aloud; a line without a recording is read by the car's own voice
         if voice is not None:
             ep = read_aloud(ep, voice, audio, cache=audio_cache)
@@ -80,7 +83,7 @@ def create_app(
 
     @app.get("/v1/images/{story_id}/{name}.webp")
     def image(story_id: str, name: str) -> FileResponse:
-        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|friend|p[1-6]", name):
+        if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|p[1-6]", name):
             raise HTTPException(status_code=404)
         path = images / story_id / f"{name}.webp"
         if not path.is_file():
@@ -104,4 +107,9 @@ def create_app(
     return app
 
 
-app = create_app()
+def __getattr__(name: str):
+    # the served app (uvicorn app.main:app) is made on first use, so importing create_app reads no question bank
+    if name == "app":
+        made = globals()["app"] = create_app()
+        return made
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -5,24 +5,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kr.escape.car.engine.CarRestorer
 import kr.escape.car.engine.CarState
+import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Friend
 import kr.escape.car.engine.FriendBook
-import kr.escape.car.engine.Guest
 import kr.escape.car.engine.HoldJudge
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
+import kr.escape.car.engine.Questions
+import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Safety
 import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
-import kr.escape.car.engine.TogetherJudge
 import kr.escape.car.story.Lines
+import kr.escape.car.story.Question
+import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.Scene
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryKeys
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.voice.Lumi
-import java.io.File
+import kotlin.random.Random
 
 enum class Phase { SETUP, INTRO, PLAYING, SOLVED, TREASURE, RESTORE }
 
@@ -39,21 +42,23 @@ data class GameUi(
     val held: Boolean = false,
     val hintHeard: Boolean = false,
     val recirculationWarning: Boolean = false,
-    /** Something left on from before keeps this puzzle from counting; the parent screen says what to turn off. */
-    val resetNeeded: String? = null,
+    /**
+     * Next to the parent's 정답 보기: where a temperature or fan answer counts from (and for a number, where it should
+     * end), or whose reading light it is.
+     */
+    val answerNote: String? = null,
+    /**
+     * The app's own question for each quiz (answer key), drawn from its copy of the bank when the game began, or
+     * when a puzzle was swapped as it started.
+     */
+    val own: Map<String, Pair<Question, String>> = emptyMap(),
     val snapshot: Snapshot? = null,
     /** Words from the story server for this episode; null means the app's own [Lines]. */
     val story: Story? = null,
-    /** The friend the puzzle just solved put in the book for the first time. */
-    val newFriend: Friend? = null,
-    /** A friend already in the book that the puzzle just solved helped again (one heart more). */
-    val closer: Friend? = null,
-    /** How many puzzles [closer] has helped with now. */
-    val closerTimes: Int = 0,
-    /** Today's new friend from the story, put in the book when the treasure is found. */
-    val newGuest: Guest? = null,
-    /** Friends first met in this episode, in order, for the treasure screen. */
-    val metToday: List<Friend> = emptyList(),
+    /** The friend's hearts after this episode, set when the treasure is found. */
+    val heartsNow: Int? = null,
+    /** A rare friend opened from the friend book just now, shown until the next touch. */
+    val invited: Friend? = null,
     /** 처음 설정으로: the app is putting the car back right now. */
     val restoring: Boolean = false,
     /** The app has tried to put the car back at least once (what is still different is left to the parent). */
@@ -64,7 +69,15 @@ data class GameUi(
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
 
-    fun scene(p: Puzzle): Scene = story?.scene(p) ?: Lines.scene(p)
+    fun scene(p: Puzzle): Scene =
+        own[StoryKeys.key(p)].let { mine -> story?.scene(p, mine) ?: Lines.scene(p, mine) }
+
+    /**
+     * What Lumi says once the puzzle being played is solved: the story's line for that very puzzle (a quiz swapped as
+     * it started has its own), or the app's own when the scene is played from [Lines] or the line was dropped.
+     */
+    val solvedLine: String
+        get() = puzzle?.let { scene(it).result }?.takeIf { it.isNotBlank() } ?: Lines.SUCCESS
 }
 
 /**
@@ -77,16 +90,38 @@ class Game(
     private val stories: StoryRepo? = null,
     private val book: FriendBook? = null,
     private val restorer: CarRestorer? = null,
+    private val bank: QuestionBank? = null,
+    private val rnd: Random = Random.Default,
 ) {
     private val _ui = MutableStateFlow(GameUi())
     val ui: StateFlow<GameUi> = _ui
 
     private var hold: HoldJudge? = null
-    private var together: TogetherJudge? = null
     private var lastTickMs: Long? = null
     private var recirculationSince: Long? = null
 
     fun setup(change: (Setup) -> Setup) = _ui.update { it.copy(setup = change(it.setup)) }
+
+    /** A friend picked in the book goes through the next episode; a rare one only once it is open. */
+    fun pick(f: Friend) {
+        if (book?.book?.value?.isOpen(f) == false) return
+        _ui.update { it.copy(setup = it.setup.copy(friend = f), invited = null) }
+    }
+
+    /** "새로운 친구를 만나러 가자": [by] at full hearts opens the next rare friend. */
+    fun invite(by: Friend) {
+        val rare = book?.invite(by) ?: return
+        _ui.update { it.copy(invited = rare) }
+        lumi.say(Lines.invited(rare))
+    }
+
+    fun closeInvite() = _ui.update { it.copy(invited = null) }
+
+    /** What the planner may ask: the app's copy of the question bank, or without one its own built-in questions. */
+    private val questions: Questions = bank?.questions ?: Questions.ANY
+
+    /** Whether this car can play an episode for the parent's choices right now (the setup screen's start button). */
+    fun playable(s: CarState): Boolean = Planner.plan(_ui.value.setup, s, Random(0), questions).isNotEmpty()
 
     /**
      * The start button (이 이야기로 시작하기 / 기본 이야기로 시작하기): plays the episode the story server already wrote for this setup, or plans one and plays
@@ -96,44 +131,97 @@ class Game(
         val s = car.value
         val setup = _ui.value.setup
         val ready = stories?.take(setup, s)
-        val puzzles = ready?.puzzles ?: Planner.plan(setup, s)
-        if (puzzles.isEmpty()) return
-        _ui.update { GameUi(phase = Phase.INTRO, setup = setup, puzzles = puzzles, snapshot = Snapshot.of(s), story = ready?.story) }
+        var ui = GameUi(
+            phase = Phase.INTRO, setup = setup, puzzles = ready?.puzzles ?: Planner.plan(setup, s, rnd, questions),
+            snapshot = Snapshot.of(s), story = ready?.story,
+        )
+        // an episode kept since an earlier drive may hold a quiz the car now already answers
+        var i = 0
+        while (i < ui.puzzles.size) {
+            val size = ui.puzzles.size
+            ui = fitted(ui, i, s)
+            if (ui.puzzles.size == size) i++
+        }
+        if (ui.puzzles.isEmpty()) return
+        // the youngest child on board sets how hard the app's own questions are
+        val youngest = Planner.youngest(setup)
+        val own = ui.puzzles.filterIsInstance<Puzzle.Quiz>().mapNotNull { q -> bank?.pick(q, youngest, rnd)?.let { StoryKeys.key(q) to it } }.toMap()
+        _ui.value = ui.copy(own = own)
         lastTickMs = null
-        lumi.say(ready?.story?.intro ?: Lines.INTRO, ready?.story?.voice("intro"))
+        lumi.say(ready?.story?.intro ?: Lines.intro(setup.friend), ready?.story?.voice("intro"), then = Lines.AUTO_OFF)
         stories?.prepare(setup, s)
     }
 
     fun startPuzzle(index: Int) {
-        val planned = _ui.value.puzzles.getOrNull(index) ?: return
-        val p = Planner.refresh(planned, car.value)
-        hold = if (p is Puzzle.Together || p is Puzzle.BeltMission) null else HoldJudge(p)
-        together = (p as? Puzzle.Together)?.let { TogetherJudge(it) }
-        _ui.update { ui ->
-            val puzzles = ui.puzzles.toMutableList().also { it[index] = p }
-            ui.copy(phase = Phase.PLAYING, puzzles = puzzles, index = index, hintHeard = false, newFriend = null, closer = null, resetNeeded = null)
+        if (_ui.value.puzzles.getOrNull(index) == null) return
+        // a temperature or fan answer counts from the car as it is now
+        val start = car.value
+        // the parent may have changed the car during an earlier puzzle: never start one whose answer already shows
+        var ui = _ui.value
+        while (true) {
+            val size = ui.puzzles.size
+            ui = fitted(ui, index, start)
+            if (ui.puzzles.size == size) break
         }
+        val p = ui.puzzles.getOrNull(index)
+        if (p == null) {
+            // the last puzzle had nothing the car allows now: the episode ends here
+            _ui.value = ui
+            treasure()
+            return
+        }
+        val quiz = p as? Puzzle.Quiz
+        hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start, ui.setup.childSeat) }) }
+        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start, ui.setup) })
         lumi.say(_ui.value.scene(p).speech, voice(p, "speech"))
     }
 
-    /** The recording of puzzle [p]'s [part] ("speech" or "hint"); null plays the app's own lines with the car's voice. */
-    private fun voice(p: Puzzle, part: String): String? = _ui.value.story?.voice("${StoryKeys.key(p)}.$part")
+    /**
+     * The server's recording of puzzle [p]'s [part], only where the words spoken are the server's own: the belt
+     * mission's speech and hint (a quiz scene also says the question and the app's instruction).
+     */
+    private fun voice(p: Puzzle, part: String): String? =
+        if (p is Puzzle.Quiz) null else _ui.value.story?.voice("${StoryKeys.key(p)}.$part")
+
+    /**
+     * [ui] with the quiz at [index] fitting the car [s]: one whose answer the car already shows, or whose story no
+     * longer fits the car, is swapped for one that does (its question from the app's own bank, its words the app's
+     * own lines), or dropped when the car allows nothing.
+     */
+    private fun fitted(ui: GameUi, index: Int, s: CarState): GameUi {
+        val puzzles = Planner.fitted(ui.puzzles, index, s, ui.setup, rnd, questions)
+        if (puzzles == ui.puzzles) return ui
+        val swap = if (puzzles.size == ui.puzzles.size) puzzles[index] as? Puzzle.Quiz else null
+        val own = swap?.let { bank?.pick(it, Planner.youngest(ui.setup), rnd) }
+        return ui.copy(puzzles = puzzles, own = if (swap == null || own == null) ui.own else ui.own + (StoryKeys.key(swap) to own))
+    }
+
+    /** Where a temperature or fan answer counts from, or whose reading light it is. */
+    private fun note(q: Puzzle.Quiz, start: CarState, setup: Setup): String? = when (q.dial) {
+        Dial.TEMP_UP, Dial.TEMP_DOWN -> start.tempLeft?.let { from ->
+            if (q.kind == QuizKind.REASON) "지금 ${degrees(from)}도보다 ${if (q.dial == Dial.TEMP_UP) "높게" else "낮게"}"
+            else "지금 ${degrees(from)}도에서 ${degrees(q.tempTarget(from))}도로"
+        }
+        Dial.FAN_UP, Dial.FAN_DOWN -> start.fanSpeed?.let { "지금 ${it}단에서" }
+        Dial.LIGHT_CHILD -> "${setup.childSeat.label} 자리"
+        else -> null
+    }
+
+    private fun degrees(c: Float) = if (c % 1f == 0f) c.toInt().toString() else c.toString()
 
     fun next() {
         val ui = _ui.value
-        if (ui.index + 1 < ui.puzzles.size) startPuzzle(ui.index + 1) else {
-            val story = ui.story
-            // today's new friend joins the book only once the adventure is done
-            val guest = story?.friend?.let { f ->
-                book?.welcome(story.storyId, f, story.title, story.picture("friend")?.removePrefix(Story.FILE)?.let(::File))
-            }
-            _ui.update { it.copy(phase = Phase.TREASURE, newGuest = guest, closer = null) }
-            val (treasure, audio) = when {
-                ui.setup.giftReady -> (story?.treasureGift ?: Lines.TREASURE_GIFT) to story?.voice("treasureGift")
-                else -> (story?.treasureBadge ?: Lines.TREASURE_BADGE) to story?.voice("treasureBadge")
-            }
-            lumi.say(treasure, audio, then = guest?.let { Lines.newGuest(it.name) })
-        }
+        if (ui.index + 1 < ui.puzzles.size) startPuzzle(ui.index + 1) else treasure()
+    }
+
+    /** The end of the episode: a whole episode with this friend is one heart more. */
+    private fun treasure() {
+        val ui = _ui.value
+        val friend = ui.setup.friend
+        val hearts = book?.played(friend)
+        _ui.update { it.copy(phase = Phase.TREASURE, heartsNow = hearts) }
+        val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
+        lumi.say(treasure, ui.story?.voice("treasureBadge"), then = if (hearts == null) null else Lines.CLOSER)
     }
 
     fun hint() {
@@ -185,21 +273,11 @@ class Game(
 
     private fun solved() {
         hold = null
-        together = null
         val ui = _ui.value
-        val helper = ui.puzzle?.let(Friend::of)
-        val first = helper != null && book?.meet(helper) == true
-        val friend = helper?.takeIf { first }
-        val closer = helper?.takeIf { !first && book != null }
-        _ui.update {
-            it.copy(
-                phase = Phase.SOLVED, stars = it.stars + 1, newFriend = friend, metToday = it.metToday + listOfNotNull(friend),
-                closer = closer, closerTimes = closer?.let { c -> book?.book?.value?.crew?.get(c) } ?: 0,
-                resetNeeded = null,
-            )
-        }
-        val praise = ui.story?.success(ui.stars) ?: Lines.SUCCESS
-        lumi.say(praise, ui.story?.successVoice(ui.stars), then = friend?.let(Lines::newFriend))
+        _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
+        val line = ui.solvedLine
+        // the story's own line for this puzzle has a recording; the app's praise does not
+        lumi.say(line, ui.puzzle?.let { p -> ui.story?.voice("${StoryKeys.key(p)}.result")?.takeIf { line != Lines.SUCCESS } })
     }
 
     /** 이야기 신고 from the parent's screen. */
@@ -235,9 +313,6 @@ class Game(
         _ui.update { it.copy(playedMs = it.playedMs + dt, recirculationWarning = warn) }
 
         if (ui.phase != Phase.PLAYING) return
-        val done = hold?.update(s, nowMs) == true || together?.update(s, nowMs) == true
-        val reset = hold?.resetNeeded(s) ?: together?.resetNeeded()
-        if (reset != ui.resetNeeded) _ui.update { it.copy(resetNeeded = reset) }
-        if (done) solved()
+        if (hold?.update(s, nowMs) == true) solved()
     }
 }

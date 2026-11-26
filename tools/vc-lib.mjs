@@ -1,5 +1,4 @@
-// Talks to the Pleos emulator's Virtual Console the way its own page does. Used by tools/vc.mjs (one command)
-// and tools/remote/server.mjs (the puzzle remote window).
+// Talks to the Pleos emulator's Virtual Console the way its own page does. Used by tools/vc.mjs (one command).
 // The emulator only passes a console change on to the car (and so to the app) while a console session is alive,
 // so a connection keeps sending the session signal until it is closed.
 import { execFile, execFileSync } from 'node:child_process';
@@ -16,7 +15,6 @@ export const ADB = process.env.ADB || join(SDK, 'platform-tools', WIN ? 'adb.exe
 export const VC = 'http://127.0.0.1:8088';
 /** Reading lights name their areas by position; the seat sensor uses driver/passenger/rear_*. */
 export const LIGHT_AREA = { driver: 'front_left', passenger: 'front_right', rear_left: 'rear_left', rear_right: 'rear_right' };
-export const RHYTHMS = ['same_time', 'child_once_parent_twice', 'fan_while_lit'];
 export const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 export function seatName(s) {
@@ -72,41 +70,15 @@ export async function connect({ log = console.log } = {}) {
 
   const light = (seat, on) => set('reading-lights-switch', on, LIGHT_AREA[seatName(seat)]);
 
-  /** ⑥ 하나 둘 셋, 동시에!: both lights start off so every step is a fresh "turned on". */
-  async function together(rhythm, child) {
-    if (!RHYTHMS.includes(rhythm)) throw new Error(`박자: ${RHYTHMS.join(', ')}`);
-    await light(child, false);
-    await light('driver', false);
-    await sleep(1500);
-    if (rhythm === 'same_time') {
-      await light(child, true);
-      await light('driver', true);
-    } else if (rhythm === 'child_once_parent_twice') {
-      await light(child, true);
-      await sleep(700);
-      await light('driver', true);
-      await sleep(700);
-      await light('driver', false);
-      await sleep(700);
-      await light('driver', true);
-    } else {
-      await set('hvac-fan-speed', 2);
-      await sleep(1000);
-      await light(child, true);
-      await sleep(700);
-      await set('hvac-fan-speed', 6);
-    }
-  }
-
-  /** ③ 두 방 온도: the driver side first, then the passenger side, which also uncouples the zones (HVAC_DUAL_ON off). */
-  async function rooms(cold) {
-    if (cold !== 'left' && cold !== 'right') throw new Error('시원한 쪽: left 또는 right');
-    await set('hvac-temperature-set', cold === 'left' ? 18 : 24, 'driver');
-    await sleep(500);
-    await set('hvac-temperature-set', cold === 'left' ? 24 : 18, 'passenger');
+  /** 독서등 퀴즈: exactly [count] lights on, from the driver's seat back, the rest off. */
+  async function lights(count) {
+    const n = Number(count);
+    if (!Number.isInteger(n) || n < 0 || n > 4) throw new Error('켤 독서등 수: 0~4');
+    const order = Object.keys(LIGHT_AREA);
+    for (const [i, seat] of order.entries()) await light(seat, i < n);
   }
 
   const state = async () => (await call('/vehicle/state')).json();
   const close = () => clearInterval(keep);
-  return { catalog, set, light, together, rooms, state, close };
+  return { catalog, set, light, lights, state, close };
 }

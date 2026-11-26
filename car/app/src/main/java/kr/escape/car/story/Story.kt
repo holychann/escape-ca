@@ -1,9 +1,39 @@
 package kr.escape.car.story
 
 import kr.escape.car.engine.Puzzle
-import kr.escape.car.engine.StoryFriend
+import kr.escape.car.engine.QuizKind
 import org.json.JSONArray
 import org.json.JSONObject
+
+/**
+ * A quiz question as Lumi asks it. The story server wrote it and worked its answer out again (server app/quiz.py),
+ * or the app made it itself ([Lines.question]). The parts besides [text] are what the child's screen shows; a
+ * situation (REASON) has none, the child hears it.
+ */
+data class Question(
+    val kind: QuizKind,
+    val text: String,
+    val expr: String = "",
+    val word: String = "",
+    val terms: List<Int> = emptyList(),
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("kind", kind.name).put("text", text).put("expr", expr).put("word", word).put("terms", JSONArray(terms))
+
+    companion object {
+        /** Null for a question this app cannot ask (an unknown kind, no text): the scene then asks the app's own. */
+        fun parse(o: JSONObject): Question? = runCatching {
+            val terms = o.optJSONArray("terms") ?: JSONArray()
+            Question(
+                kind = QuizKind.valueOf(o.getString("kind")),
+                text = o.getString("text").also { require(it.isNotBlank()) },
+                expr = o.optString("expr", ""),
+                word = o.optString("word", ""),
+                terms = List(terms.length()) { terms.getInt(it) },
+            )
+        }.getOrNull()
+    }
+}
 
 /**
  * Words the story server wrote and checked for one planned episode, and the pictures it drew for it when the family
@@ -15,8 +45,6 @@ data class Story(
     val theme: String,
     val title: String,
     val intro: String,
-    val success: List<String>,
-    val treasureGift: String,
     val treasureBadge: String,
     val scenes: Map<String, Words>,
     /** The day's world in one line ("공룡이 사는 화산섬"); empty for older stories. */
@@ -25,16 +53,24 @@ data class Story(
     val images: Map<String, String> = emptyMap(),
     /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
     val scenePictures: Map<String, String> = emptyMap(),
-    /** Today's new friend, who joins the friend book at the treasure; its portrait is [picture] "friend". */
-    val friend: StoryFriend? = null,
     /**
-     * Line name ("intro", "success0", "treasureGift", "ROOMS:LEFT.speech", "FOG.hint", ..) -> the server's recording,
-     * and after [StoryRepo] downloads it, a local WAV file. A line without one is read by the car's own voice.
+     * Line name ("intro", "treasureBadge", "BELT.speech", "<key>.result", ..) -> the server's recording, and after
+     * [StoryRepo] downloads it, a local WAV file. A line without one is read by the car's own voice.
      */
     val voices: Map<String, String> = emptyMap(),
 ) {
-    /** [picture] names this scene's picture in [images]. */
-    data class Words(val bubble: String, val speech: String, val hint: String, val picture: String? = null)
+    /**
+     * [picture] names this scene's picture in [images]; [speech] is only the story before the question; [result] is
+     * said once the child puts in the right answer, empty when the server dropped it.
+     */
+    data class Words(
+        val bubble: String,
+        val speech: String,
+        val hint: String,
+        val picture: String? = null,
+        val question: Question? = null,
+        val result: String = "",
+    )
 
     val themePicture: String
         get() = when (theme) {
@@ -49,30 +85,34 @@ data class Story(
     /** A recorded line as a file on the device, or null when there is none (same rule as [picture], no prefix). */
     fun voice(line: String): String? = voices[line]?.takeIf { it.startsWith("/") && !it.startsWith("/v1/") }
 
-    /** The recording of the praise [success] (n) plays. */
-    fun successVoice(n: Int): String? = if (success.isEmpty()) null else voice("success${n % success.size}")
-
-    fun scene(p: Puzzle): Scene {
+    /**
+     * [own] is the app's question for this puzzle, used where the server's words or question are missing.
+     */
+    fun scene(p: Puzzle, own: Pair<Question, String>? = null): Scene {
         val key = StoryKeys.key(p)
         val words = scenes[key]
         // the drawn picture shows today's world, never the answer, so it goes with the app's own lines too
         val drawn = (words?.picture ?: scenePictures[key])?.let(::picture)
-        val base = Lines.scene(p).let { if (drawn != null) it.copy(pictures = listOf(drawn)) else it }
+        val base = Lines.scene(p, own).let { if (drawn != null) it.copy(pictures = listOf(drawn)) else it }
         if (words == null) return base
-        return base.copy(bubble = words.bubble, speech = words.speech, hint = words.hint)
+        if (p is Puzzle.Quiz) {
+            // the server's story goes with the server's question; without a matching one the app asks its own
+            val q = words.question?.takeIf { it.kind == p.kind } ?: return base
+            return Lines.quizScene(p, words.bubble, words.speech, words.hint, q).copy(pictures = base.pictures, result = words.result)
+        }
+        return base.copy(bubble = words.bubble, speech = words.speech, hint = words.hint, result = words.result)
     }
-
-    fun success(n: Int): String = if (success.isEmpty()) Lines.SUCCESS else success[n % success.size]
 
     fun toJson(): JSONObject = JSONObject()
         .put("storyId", storyId).put("theme", theme).put("title", title).put("intro", intro)
-        .put("success", JSONArray(success)).put("treasureGift", treasureGift).put("treasureBadge", treasureBadge)
+        .put("treasureBadge", treasureBadge)
         .put("world", world).put("images", JSONObject(images)).put("pictures", JSONObject(scenePictures))
         .put("voices", JSONObject(voices))
-        .put("friend", friend?.let { JSONObject().put("name", it.name).put("look", it.look).put("trait", it.trait).put("hello", it.hello) } ?: JSONObject.NULL)
         .put("scenes", JSONObject().also { o ->
             scenes.forEach { (k, w) ->
-                o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint).put("picture", w.picture ?: JSONObject.NULL))
+                o.put(k, JSONObject().put("bubble", w.bubble).put("speech", w.speech).put("hint", w.hint)
+                    .put("picture", w.picture ?: JSONObject.NULL).put("question", w.question?.toJson() ?: JSONObject.NULL)
+                    .put("result", w.result))
             }
         })
 
@@ -80,9 +120,11 @@ data class Story(
         /** Stage pictures that start with this are files on the device, not assets. */
         const val FILE = "file:"
 
-        /** Throws JSONException when a field is missing: a half story is no story. */
+        /**
+         * Throws JSONException when a field is missing: a half story is no story. A scene without a [Words.result]
+         * (one kept on disk since an older app) gets an empty one.
+         */
         fun parse(o: JSONObject): Story {
-            val s = o.getJSONArray("success")
             val sc = o.getJSONObject("scenes")
             val im = o.optJSONObject("images")
             return Story(
@@ -90,25 +132,21 @@ data class Story(
                 theme = o.getString("theme"),
                 title = o.getString("title"),
                 intro = o.getString("intro"),
-                success = List(s.length()) { s.getString(it) },
-                treasureGift = o.getString("treasureGift"),
                 treasureBadge = o.getString("treasureBadge"),
                 scenes = sc.keys().asSequence().associateWith { k ->
                     sc.getJSONObject(k).let {
                         Words(
                             it.getString("bubble"), it.getString("speech"), it.getString("hint"),
                             if (it.has("picture") && !it.isNull("picture")) it.getString("picture") else null,
+                            it.optJSONObject("question")?.let(Question::parse),
+                            if (it.isNull("result")) "" else it.getString("result"),
                         )
                     }
                 },
                 world = o.optString("world", ""),
                 images = im?.keys()?.asSequence()?.associateWith { im.getString(it) } ?: emptyMap(),
                 scenePictures = o.optJSONObject("pictures")?.let { sp -> sp.keys().asSequence().associateWith { sp.getString(it) } } ?: emptyMap(),
-                // a friend with a missing field is no friend; the story still plays
                 voices = o.optJSONObject("voices")?.let { v -> v.keys().asSequence().associateWith { v.getString(it) } } ?: emptyMap(),
-                friend = o.optJSONObject("friend")?.let { f ->
-                    runCatching { StoryFriend(f.getString("name"), f.getString("look"), f.getString("trait"), f.getString("hello")) }.getOrNull()
-                },
             )
         }
     }

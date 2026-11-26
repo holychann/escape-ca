@@ -16,6 +16,8 @@
     <!-- writes, only for 처음 설정으로 at the end (normal permissions, granted at install) -->
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
     <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
+    <!-- the driver seat's heating is a seat write in the Pleos SDK, not a climate one -->
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_SEATS" />
     <!-- AAOS gear, speed and driving restrictions -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
@@ -24,7 +26,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="차량탈출"
+        android:label="차근차근 탐험단"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="${cleartext}">

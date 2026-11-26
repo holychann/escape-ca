@@ -9,8 +9,8 @@ enum class Seat(val label: String) {
     DRIVER("운전석"), PASSENGER("조수석"), REAR_LEFT("뒷좌석 왼쪽"), REAR_RIGHT("뒷좌석 오른쪽")
 }
 
-/** Car devices a puzzle reads. A car that lacks one gets a different puzzle. */
-enum class Device { FAN_DIRECTION, FAN_SPEED, RECIRCULATION, DUAL_TEMPERATURE, DEFROSTER, READING_LIGHT }
+/** Car devices a quiz answer can go into. A car that lacks one gets a different puzzle. */
+enum class Device { FAN_SPEED, TEMPERATURE, READING_LIGHT, SEAT_HEAT, AC, RECIRCULATION, DEFROST }
 
 /**
  * One snapshot of everything the game reads from the car. Null means "not known yet" (the SDK has not answered,
@@ -33,6 +33,10 @@ data class CarState(
     val tempRight: Float? = null,
     val defrostFront: Boolean? = null,
     val readingLights: Map<Seat, Boolean> = emptyMap(),
+    val acOn: Boolean? = null,
+    /** The driver seat's heating step (0 is off). */
+    val seatHeat: Int? = null,
+    val seatHeatMax: Int = 3,
     val devices: Set<Device> = emptySet(),
 )
 
@@ -96,6 +100,8 @@ data class Snapshot(
     val tempRight: Float?,
     val defrostFront: Boolean?,
     val readingLights: Map<Seat, Boolean>,
+    val acOn: Boolean? = null,
+    val seatHeat: Int? = null,
 ) {
     /** What differs now, as short lines for the "처음 설정으로" screen. */
     fun changes(now: CarState): List<String> = buildList {
@@ -107,10 +113,12 @@ data class Snapshot(
         if (tempRight != null && now.tempRight != tempRight) add("조수석 온도 ${tempRight}도")
         if (defrostFront != null && now.defrostFront != defrostFront) add(if (defrostFront) "앞 유리 성에 제거 켜기" else "앞 유리 성에 제거 끄기")
         for ((seat, on) in readingLights) if (now.readingLights[seat] != on) add("${seat.label} 독서등 ${if (on) "켜기" else "끄기"}")
+        if (acOn != null && now.acOn != acOn) add(if (acOn) "에어컨 켜기" else "에어컨 끄기")
+        if (seatHeat != null && now.seatHeat != seatHeat) add(if (seatHeat == 0) "운전석 열선 끄기" else "운전석 열선 ${seatHeat}단")
     }
 
     companion object {
         fun of(s: CarState) = Snapshot(s.recirculation, s.fanSpeed, s.fanDirection, s.dual, s.tempLeft, s.tempRight,
-            s.defrostFront, s.readingLights)
+            s.defrostFront, s.readingLights, s.acOn, s.seatHeat)
     }
 }

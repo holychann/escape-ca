@@ -9,8 +9,10 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Device
+import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Gear
 import kr.escape.car.engine.Puzzle
+import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Setup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -28,14 +30,21 @@ class StoryRepoTest {
 
     private val parked = CarState(gear = Gear.PARK, driverSeated = true, devices = Device.entries.toSet())
 
-    // the shape the app writes, as saved on the emulator
+    // the shape the app writes
     private val stored = """
         {"setup":{"ages":["CAPTAIN"],"minutes":10,"childSeat":"REAR_RIGHT"},
-         "keys":["SEAT:REAR_RIGHT","WIND:FLOOR:STRONG","BELT","DUST:OUTSIDE"],
+         "keys":["Q:MATH:FAN:5","Q:ENGLISH:LIGHTS:2","BELT","Q:REASON:AC:1"],
          "story":{"storyId":"7b7c564a6a284c9881821fe55b9ae1a5","theme":"SEA_SUB","title":"잠수함","intro":"안녕!",
           "success":["최고!"],"treasureGift":"선물!","treasureBadge":"배지!",
-          "scenes":{"BELT":{"bubble":"딸깍!","speech":"벨트를 딸깍!","hint":"딸깍 소리!"}}}}
+          "scenes":{"BELT":{"bubble":"딸깍!","speech":"벨트를 딸깍!","hint":"딸깍 소리!"},
+           "Q:MATH:FAN:5":{"bubble":"바람!","speech":"새싹이 목말라.","hint":"세어 봐!","picture":null,
+            "question":{"kind":"MATH","text":"조개 2개에 3개를 더하면?","expr":"2+3","word":"","terms":[],"choices":[]}}}}}
     """.trimIndent()
+
+    private val storedPuzzles = listOf(
+        Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5), Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 2),
+        Puzzle.BeltMission, Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1),
+    )
 
     private fun repo() = StoryRepo(
         tmp.root.resolve("next_episode.json").apply { writeText(stored) },
@@ -48,9 +57,9 @@ class StoryRepoTest {
     fun storedEpisodeIsPlayedAfterARestart() {
         val ready = repo().take(Setup(), parked)
         assertNotNull(ready)
-        assertEquals(4, ready!!.puzzles.size)
-        assertEquals(Puzzle.BeltMission, ready.puzzles[2])
+        assertEquals(storedPuzzles, ready!!.puzzles)
         assertEquals("벨트를 딸깍!", ready.story.scene(Puzzle.BeltMission).speech)
+        assertEquals("2+3", ready.story.scene(storedPuzzles[0]).question?.expr)
     }
 
     @Test
@@ -58,8 +67,7 @@ class StoryRepoTest {
         val r = repo()
         assertNull(r.take(Setup(minutes = 5), parked))
         assertNull(r.take(Setup(), parked.copy(devices = Device.entries.toSet() - Device.READING_LIGHT)))
-        // the gift does not change the puzzles
-        assertNotNull(r.take(Setup(giftReady = true), parked))
+        assertNotNull(r.take(Setup(), parked))
         // used up
         assertNull(r.take(Setup(), parked))
     }
@@ -143,7 +151,7 @@ class StoryRepoTest {
             "intro" to "/v1/audio/b/intro.wav",
             "BELT.speech" to "/v1/audio/b/BELT.speech.wav",
             "DUST:OUTSIDE.hint" to "/v1/audio/b/DUST_OUTSIDE.hint.wav",
-            "success0" to "/v1/audio/broken/success0.wav",
+            "treasureBadge" to "/v1/audio/broken/treasureBadge.wav",
         ))
         val r = repoWith(FakeClient { read }, keep = null)
         r.prepare(Setup(), parked)
@@ -156,7 +164,6 @@ class StoryRepoTest {
         assertEquals("DUST_OUTSIDE.hint.wav", hint.name)
         assertEquals("voice", hint.parentFile!!.name)
         assertEquals("/v1/audio/b/DUST_OUTSIDE.hint.wav", hint.readText())
-        assertNull(story.successVoice(0))
         val afterRestart = StoryRepo(
             tmp.root.resolve("next_episode.json"), "00000000-0000-0000-0000-000000000000", FakeClient { read },
             CoroutineScope(Dispatchers.Unconfined),
@@ -171,6 +178,26 @@ class StoryRepoTest {
         advanceUntilIdle()
         assertEquals(StoryRepo.Status.REJECTED, r.status.value)
         assertEquals(listOf("무서운 말: 귀신"), r.rejection.value)
+    }
+
+    @Test
+    fun anEpisodeWithKeysThisAppCannotPlayIsWrittenAgain() = runTest {
+        // kept by an older app, whose puzzles are gone
+        val old = stored.replace("\"Q:MATH:FAN:5\",\"Q:ENGLISH", "\"WIND:FLOOR:STRONG\",\"Q:ENGLISH")
+        val story = Story.parse(JSONObject(stored).getJSONObject("story"))
+        val client = FakeClient { story }
+        val r = repoWith(client, keep = old)
+        assertNull(r.take(Setup(), parked))
+        r.prepare(Setup(), parked)
+        advanceUntilIdle()
+        assertEquals(1, client.calls)
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+        // the planned answer key first in each slot, and the episode plays exactly the puzzles it was written for
+        val asked = client.lastRequest!!.getJSONArray("puzzles")
+        val ready = r.take(Setup(), parked)!!
+        val keys = List(asked.length()) { i -> asked.getJSONArray(i).getString(0) }
+        assertEquals(keys, ready.puzzles.map(StoryKeys::key))
+        assertEquals("BANTE", client.lastRequest!!.getString("friend"))
     }
 
     @Test

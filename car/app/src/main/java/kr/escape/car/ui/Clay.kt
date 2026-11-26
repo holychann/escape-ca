@@ -237,7 +237,7 @@ fun ChoiceTile(big: String, small: String, selected: Boolean, modifier: Modifier
     }
 }
 
-/** 안전 지킴이 · 부모님 / 부모님 준비: a navy pill on the cream card. */
+/** 안전 지킴이 · 부모님: a navy pill on the cream card. */
 @Composable
 fun Badge(text: String) {
     Text(

@@ -18,7 +18,7 @@ from textgate.rules import Strict as _Strict
 RULES_FILE = Path(__file__).with_name("story_rules.toml")
 
 
-class SpeechLimits(_Strict):
+class AgeLimits(_Strict):
     LITTLE: PositiveInt
     CAPTAIN: PositiveInt
     DETECTIVE: PositiveInt
@@ -29,20 +29,14 @@ class Limits(_Strict):
     hint: PositiveInt
     title: PositiveInt
     intro: PositiveInt
-    success: PositiveInt
     treasure: PositiveInt
-    speech: SpeechLimits
+    speech: AgeLimits
+    result: AgeLimits
 
 
 class Prompt(_Strict):
     everywhere_never: list[Word]
     bubble_never: list[Word]
-
-
-class Friend(_Strict):
-    name: Word
-    look: Word
-    trait: Word
 
 
 class Rule(_Strict):
@@ -53,7 +47,7 @@ class Rule(_Strict):
     never: list[Word] = []
     # the hint must point the same way as the speech
     hint_must: list[Group] = []
-    # Lumi has the child point the found button out to the 안전 지킴이 (the belt mission needs no car button)
+    # the friend has the child point the found button out to the 안전 지킴이 (the belt mission needs no car button)
     needs_guardian: bool = True
     # things the picture of this puzzle must not show, because they would tell one answer from another
     # (the dust puzzle's picture shows neither dust nor steam); the writer is told, and the checker holds art to it
@@ -64,7 +58,6 @@ class StoryRules(_Strict):
     limits: Limits
     forbid: Annotated[list[Forbid], Field(min_length=1)]
     prompt: Prompt
-    cast: Annotated[list[Friend], Field(min_length=1)]
     scene: Annotated[dict[str, Rule], Field(min_length=1)]
 
 
@@ -78,7 +71,6 @@ LIMITS = RULES.limits
 FORBID = RULES.forbid
 EVERYWHERE_NEVER = RULES.prompt.everywhere_never
 BUBBLE_NEVER = RULES.prompt.bubble_never
-CAST = RULES.cast
 
 
 def rule_for(key: str) -> Rule:
