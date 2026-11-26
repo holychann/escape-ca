@@ -164,7 +164,6 @@ class Art(BaseModel):
 
     cover: str
     puzzles: list[str]
-    ending: str
 
 
 class Draft(BaseModel):
@@ -215,9 +214,8 @@ DRAFT_SCHEMA = {
             "properties": {
                 "cover": _text("오늘의 모험 표지 그림 설명 1~2문장"),
                 "puzzles": {"type": "array", "items": _text("퍼즐 순서대로 한 장씩, 곤란한 친구와 장소 설명 1~2문장")},
-                "ending": _text("목표를 이룬 마지막 장면 그림 설명 1~2문장"),
             },
-            "required": ["cover", "puzzles", "ending"],
+            "required": ["cover", "puzzles"],
             "additionalProperties": False,
         },
     },
@@ -238,7 +236,7 @@ class Episode(BaseModel):
     scenes: dict[str, SceneText]
     dropped: list[str] = []
     world: str = ""
-    # picture name -> path on this server ("cover", "p1".."p6", "ending"); empty when nothing was drawn
+    # picture name -> path on this server ("cover", "p1".."p6"); empty when nothing was drawn
     images: dict[str, str] = {}
     # answer key -> its puzzle's picture name, also for a key whose words were dropped (it plays the app's own lines)
     pictures: dict[str, str] = {}

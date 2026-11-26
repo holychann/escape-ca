@@ -100,8 +100,8 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], pick
 
 
 def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path) -> Episode:
-    """Draw the cover, one picture per puzzle and the ending, side by side. A picture that is refused or fails is left
-    out and the app shows its own picture there."""
+    """Draw the cover and one picture per puzzle, side by side. A picture that is refused or fails is left out and the
+    app shows its own picture there."""
     wanted: dict[str, str] = {}
     art = draft.art
     skip = art_problems(draft, req)
@@ -109,7 +109,6 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
         log.info("pictures not drawn: %s", skip)
     if art is not None:
         wanted["cover"] = art.cover
-        wanted["ending"] = art.ending
         for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
             # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
             avoid = sorted({w for key in req.puzzles[i - 1] if quiz.parse(key) is None for w in rule_for(key).art_never})

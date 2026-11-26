@@ -24,7 +24,6 @@ KEYS = [MATH, REASON, "BELT"]
 ART = Art(
     cover="공룡 섬에 도착한 반테가 활짝 웃는다",
     puzzles=["반테가 멈춘 바람개비 옆에서 사과 바구니를 든다", "반테가 모래 언덕 위에서 뿌연 유리를 바라본다", "탐험대장 자리 옆에서 반테가 손짓한다"],
-    ending="반테가 보물을 찾고 활짝 웃는다",
 )
 
 
@@ -101,7 +100,7 @@ def test_pictures_are_drawn_served_and_tied_to_their_scenes(tmp_path):
     painter = FakePainter()
     c = client(tmp_path, FakeWriter(draft(KEYS, art=ART, world="공룡 섬")), painter)
     ep = c.post("/v1/episode", json={**BODY, "wish": "공룡 섬에서 보물찾기", "pictures": True}).json()
-    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending"} and len(painter.calls) == 5
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3"} and len(painter.calls) == 4
     assert ep["world"] == "공룡 섬"
     assert ep["pictures"] == {MATH: "p1", REASON: "p2", "BELT": "p3"}
     assert ep["scenes"][MATH]["picture"] == "p1" and ep["scenes"][REASON]["picture"] == "p2"

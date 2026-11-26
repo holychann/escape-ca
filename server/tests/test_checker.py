@@ -129,8 +129,7 @@ def test_the_banks_hint_is_not_held_to_one_way():
 def test_a_situation_picture_shows_the_trouble_but_no_button():
     req = request([[MATH], [REASON], ["BELT"]])
     d = filled(req.keys)
-    d.art = Art(cover="별빛 기차 앞의 루미", puzzles=["새싹 로봇", "펭귄 선장이 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"],
-                ending="모두 함께 웃는다")
+    d.art = Art(cover="별빛 기차 앞의 반테", puzzles=["새싹 로봇", "펭귄 선장이 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"])
     # a situation has no number to give away, so its trouble may be drawn
     assert art_problems(d, req) == {}
     d.art = d.art.model_copy(update={"puzzles": ["새싹 로봇", "펭귄 선장이 성에 낀 앞 유리를 본다", "탐험대장 자리"]})

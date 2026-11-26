@@ -197,7 +197,7 @@ object Lines {
             else -> "scene_dust_ok"
         }
         Puzzle.BeltMission -> "scene_belt_ok"
-        null -> "badge_explorer"
+        null -> "ending_bante"
     }
 
     // ------------------------------------------------------------ the app's own questions

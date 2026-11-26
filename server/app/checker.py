@@ -129,10 +129,10 @@ def answer_words(slot: list[str]) -> list[str]:
 
 
 def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
-    """Problems per picture name ("cover", "p1".., "ending"); a picture with problems is simply not drawn."""
+    """Problems per picture name ("cover", "p1"..); a picture with problems is simply not drawn."""
     art = draft.art
     if art is None:
-        return {"cover": ["설명 없음"], "ending": ["설명 없음"], **{f"p{i}": ["설명 없음"] for i in range(1, len(req.puzzles) + 1)}}
+        return {"cover": ["설명 없음"], **{f"p{i}": ["설명 없음"] for i in range(1, len(req.puzzles) + 1)}}
     out: dict[str, list[str]] = {}
 
     def look(name: str, text: str, extra: list[str]) -> None:
@@ -143,7 +143,6 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
             out[name] = problems
 
     look("cover", art.cover, [])
-    look("ending", art.ending, [])
     for i, slot in enumerate(req.puzzles, start=1):
         text = art.puzzles[i - 1] if i <= len(art.puzzles) else ""
         look(f"p{i}", text, answer_words(slot))
