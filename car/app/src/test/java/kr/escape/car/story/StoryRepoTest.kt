@@ -15,8 +15,10 @@ import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Setup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.json.JSONObject
 import org.junit.Test
@@ -180,5 +182,53 @@ class StoryRepoTest {
         advanceUntilIdle()
         assertEquals(StoryRepo.Status.OFFLINE, r.status.value)
         assertNull(r.take(Setup(), parked))
+    }
+
+    // ------------------------------------------------------------ 이어 하기: the pictures of the episode in progress
+
+    private val playedId = "b".repeat(32)
+
+    /** The cover of the episode the family was playing when the car went off, still on the device. */
+    private fun playedCover() = tmp.root.resolve("story_images/$playedId/cover.webp").apply {
+        parentFile.mkdirs()
+        writeText("cover")
+    }
+
+    /** A new story with a picture of its own arrives for the setup screen. */
+    private fun TestScope.nextStoryArrives(r: StoryRepo) {
+        r.prepare(Setup(wish = "공룡 섬에서 보물찾기"), parked)
+        advanceUntilIdle()
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+    }
+
+    private fun drawnStory() = Story.parse(JSONObject(stored).getJSONObject("story"))
+        .copy(storyId = "a".repeat(32), images = mapOf("cover" to "/v1/images/a/cover.webp"))
+
+    @Test
+    fun theStoryBeingPlayedKeepsItsPicturesAfterARestart() = runTest {
+        val cover = playedCover()
+        val r = repoWith(FakeClient { drawnStory() }, keep = null)
+        r.keepPlaying(playedId)
+        nextStoryArrives(r)
+        assertTrue(cover.isFile)
+        assertTrue(tmp.root.resolve("story_images/${"a".repeat(32)}/cover.webp").isFile)
+    }
+
+    @Test
+    fun anOldStorysPicturesGoWhenNothingKeepsThem() = runTest {
+        val cover = playedCover()
+        val r = repoWith(FakeClient { drawnStory() }, keep = null)
+        nextStoryArrives(r)
+        assertFalse(cover.parentFile.exists())
+    }
+
+    @Test
+    fun lettingGoOfAStoryRemovesItsPictures() = runTest {
+        val cover = playedCover()
+        val r = repoWith(FakeClient { drawnStory() }, keep = null)
+        r.keepPlaying(playedId)
+        r.letGo(playedId)
+        advanceUntilIdle()
+        assertFalse(cover.parentFile.exists())
     }
 }

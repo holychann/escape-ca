@@ -49,7 +49,7 @@ data class Story(
     val scenes: Map<String, Words>,
     /** The day's world in one line ("공룡이 사는 화산섬"); empty for older stories. */
     val world: String = "",
-    /** Picture name ("cover", "p1".., "ending") -> the server path, and after [StoryRepo] downloads it, a local file. */
+    /** Picture name ("cover", "p1"..) -> the server path, and after [StoryRepo] downloads it, a local file. */
     val images: Map<String, String> = emptyMap(),
     /** Answer key -> its puzzle's picture name, also for a scene the server dropped (its words are the app's own). */
     val scenePictures: Map<String, String> = emptyMap(),

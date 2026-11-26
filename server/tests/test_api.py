@@ -141,7 +141,51 @@ def test_daily_limit(tmp_path, monkeypatch):
     assert c.post("/v1/episode", json=BODY).status_code == 429
 
 
-def test_report_is_kept(tmp_path):
+def test_global_daily_cap_and_restart_persistence_without_storing_raw_ids(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORY_DAILY_TOTAL", "2")
+    c1 = client(FakeWriter(draft(KEYS), draft(KEYS)), tmp_path)
+    assert c1.post("/v1/episode", json=BODY).status_code == 200
+
+    # simulate server restart on the same data_dir
+    c2 = client(FakeWriter(draft(KEYS), draft(KEYS)), tmp_path)
+    assert c2.post("/v1/episode", json={**BODY, "installId": "abcdef0123456789abcd"}).status_code == 200
+    assert c2.post("/v1/episode", json={**BODY, "installId": "fedcba9876543210fedc"}).status_code == 429
+
+    saved = (tmp_path / "daily_limit.json").read_text(encoding="utf-8")
+    assert BODY["installId"] not in saved
+
+
+def test_trusted_proxy_ip_separates_users_only_when_enabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORY_DAILY_PER_IP", "1")
+    monkeypatch.setenv("STORY_TRUST_PROXY", "0")
+    untrusted = client(FakeWriter(draft(KEYS), draft(KEYS)), tmp_path / "direct")
+    assert untrusted.post("/v1/episode", json=BODY, headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    # spoofed header is ignored when STORY_TRUST_PROXY=0, so the second call shares the socket IP and hits 429
+    assert untrusted.post(
+        "/v1/episode",
+        json={**BODY, "installId": "abcdef0123456789abcd"},
+        headers={"X-Forwarded-For": "2.2.2.2"},
+    ).status_code == 429
+
+    monkeypatch.setenv("STORY_TRUST_PROXY", "1")
+    trusted = client(FakeWriter(draft(KEYS), draft(KEYS)), tmp_path / "proxied")
+    assert trusted.post("/v1/episode", json=BODY, headers={"X-Forwarded-For": "1.1.1.1, 10.0.0.1"}).status_code == 200
+    assert trusted.post(
+        "/v1/episode",
+        json={**BODY, "installId": "abcdef0123456789abcd"},
+        headers={"X-Forwarded-For": "2.2.2.2, 10.0.0.1"},
+    ).status_code == 200
+
+
+def test_report_is_kept_deduplicated_and_rate_limited(tmp_path, monkeypatch):
+    monkeypatch.setenv("STORY_REPORT_PER_IP", "3")
     c = client(FakeWriter(), tmp_path)
-    assert c.post("/v1/report", json={"storyId": "a" * 32, "reason": "SCARY"}).status_code == 204
-    assert "SCARY" in (tmp_path / "reports.jsonl").read_text(encoding="utf-8")
+    payload = {"storyId": "a" * 32, "reason": "SCARY"}
+    assert c.post("/v1/report", json=payload).status_code == 204
+    assert c.post("/v1/report", json=payload).status_code == 204
+    assert c.post("/v1/report", json={"storyId": "b" * 32, "reason": "OTHER"}).status_code == 204
+    assert c.post("/v1/report", json={"storyId": "c" * 32, "reason": "OTHER"}).status_code == 429
+
+    lines = (tmp_path / "reports.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2 and "SCARY" in lines[0]
+

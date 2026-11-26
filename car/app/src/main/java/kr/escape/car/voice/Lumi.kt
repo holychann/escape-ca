@@ -17,7 +17,7 @@ import java.util.concurrent.Executors
  * with no recording (no server, no key, every key refused) is shown at reading pace and [noSound] says so.
  * The screen shows "말하는 중" while [speaking] is true and offers [repeat] for the parent.
  */
-class Lumi(private val cache: VoiceCache?) {
+class Lumi(private val cache: VoiceCache?) : Voice {
     private val main = Handler(Looper.getMainLooper())
     /** say() fetches here, one line at a time; prefetch() has its own thread so it never holds a line up. */
     private val now = Executors.newSingleThreadExecutor()
@@ -28,7 +28,7 @@ class Lumi(private val cache: VoiceCache?) {
     private var turn = 0
 
     private val _speaking = MutableStateFlow(false)
-    val speaking: StateFlow<Boolean> = _speaking
+    override val speaking: StateFlow<Boolean> = _speaking
 
     /** The piece of the line on screen now (no speech tags in it); null when Lumi is not saying anything. */
     private val _subtitle = MutableStateFlow<String?>(null)
@@ -49,7 +49,7 @@ class Lumi(private val cache: VoiceCache?) {
     val reading: StateFlow<Boolean> = _reading
 
     /** Says [text], cutting off whatever Lumi was saying. Call on the main thread. */
-    fun say(text: String) {
+    override fun say(text: String) {
         queue.clear()
         _reading.value = false
         start(text)
@@ -104,18 +104,25 @@ class Lumi(private val cache: VoiceCache?) {
     }
 
     /** Fetches lines that are coming (the episode's story, questions and praise), so they play without a wait. */
-    fun prefetch(lines: Collection<String>) {
+    override fun prefetch(lines: Collection<String>) {
         val c = cache ?: return
         val todo = lines.map(VoiceCache::tidy).filter { it.isNotEmpty() }.distinct()
         ahead.execute { todo.forEach { line -> if (c.cached(line) == null) c.get(line) } }
     }
 
+    /** Says [text] like [say], but 다시 듣기 still repeats the line before it (the puzzle, not "다시 생각해 볼까?"). */
+    override fun aside(text: String) {
+        val keep = last
+        say(text)
+        last = keep
+    }
+
     /** 다시 듣기. */
-    fun repeat() {
+    override fun repeat() {
         last?.let { say(it) }
     }
 
-    fun stop() {
+    override fun stop() {
         queue.clear()
         _reading.value = false
         turn++

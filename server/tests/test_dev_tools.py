@@ -88,7 +88,7 @@ def test_the_dev_server_answers_the_car(tmp_path, monkeypatch):
     assert ep["model"] == "dev-template" and ep["dropped"] == [] and "이오" in ep["intro"]
     assert ep["scenes"]["Q:MATH:FAN:3"]["question"]["expr"] == "1+2"
     assert ep["scenes"]["Q:REASON:AC:0"]["question"]["kind"] == "REASON"
-    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending"}
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3"}
     assert ep["scenes"]["Q:MATH:FAN:3"]["result"]
 
 

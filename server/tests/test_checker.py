@@ -129,8 +129,7 @@ def test_the_banks_hint_is_not_held_to_one_way():
 def test_a_situation_picture_shows_the_trouble_but_no_button():
     req = request([[MATH], [REASON], ["BELT"]])
     d = filled(req.keys)
-    d.art = Art(cover="별빛 기차 앞의 루미", puzzles=["새싹 로봇", "펭귄 선장이 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"],
-                ending="모두 함께 웃는다")
+    d.art = Art(cover="별빛 기차 앞의 반테", puzzles=["새싹 로봇", "펭귄 선장이 뿌연 앞 유리 앞에서 입김을 분다", "탐험대장 자리"])
     # a situation has no number to give away, so its trouble may be drawn
     assert art_problems(d, req) == {}
     d.art = d.art.model_copy(update={"puzzles": ["새싹 로봇", "펭귄 선장이 성에 낀 앞 유리를 본다", "탐험대장 자리"]})
@@ -280,3 +279,44 @@ def test_a_bad_result_line_is_left_out_not_the_scene(line):
     # the scene still plays; the car says its own praise instead of the line
     assert ep.scenes[MATH].result == "" and ep.scenes[MATH].speech == GOOD[MATH][1]
     assert ep.scenes["BELT"].result == GOOD["BELT"][4]
+
+
+@pytest.mark.parametrize("text", [
+    "귀.신이 나타났어!",
+    "귀_신 이야기",
+    "귀*신 놀이",
+    "귀\u200b신이 숨었어",
+    "창.문.을 열.어 봐",
+    "창 문 열 어 봐",
+    "벨 트 를 풀 어",
+    "전 화 번 호 알려 줘",
+    "비.밀.번.호 맞히기",
+    "ＨＴＴＰＳ://example.com",
+    "Ｌｅｔ us go",
+])
+def test_obfuscated_bad_words_are_still_caught(text):
+    assert bad_words(text)
+
+
+@pytest.mark.parametrize("text", [
+    "합창 문을 열려면 다 함께 노래하자",
+    "우주 소리를 들어 볼까",
+    "복귀 신호가 반짝였어",
+    "저 주에 보았던 별자리야",
+])
+def test_tightened_patterns_keep_ordinary_phrases_clean(text):
+    assert bad_words(text) == []
+
+
+def test_norm_and_leak_checks_handle_symbols_invisible_chars_and_fullwidth():
+    from app.text_guard import missing, norm, present
+
+    assert norm("Ｔ-Ｒｅｘ_탐/험*대\u200b!") == "trex탐험대"
+    assert present("에/어/컨 바람", ["에어컨"]) == ["에어컨"]
+    assert missing("안_전_지_킴_이에게 알려 줘", [["안전 지킴이"]]) == []
+
+    req = request([[MATH]])
+    d = filled(req.keys)
+    d.scenes[0].speech = "사과 ５개만 모으면 된대!"
+    assert "이야기에 정답 수" in check(d, req).items[MATH]
+

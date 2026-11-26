@@ -28,9 +28,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import anthropic
-from textgate import norm
 
 from app import bank, quiz
+from app.text_guard import norm
 from app.writer import DEFAULT_MODEL, SOLVER_CLAUDE, SOLVER_TOKENS, picked, solver_prompt
 
 log = logging.getLogger("bank")

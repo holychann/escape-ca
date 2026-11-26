@@ -7,6 +7,7 @@ Reads keys from .env (ANTHROPIC_API_KEY or GEMINI_API_KEY, see .env.example). Ea
 drawn from the question bank (app/question_bank.json), as the server does, and saved with them. Drafts and verdicts
 go to data/sample-<time>.jsonl for reading through.
 """
+import os
 import random
 
 from dotenv import load_dotenv
@@ -18,13 +19,29 @@ from app.checker import check
 from app.models import FRIEND_LABEL, Draft, EpisodeRequest
 from app.prompt import SYSTEM, user_message
 from app.service import pick_questions, put_questions
-from app.writer import Writer, make_writer
+from app.writer import DEFAULT_MODEL, Writer, make_writer
 
 # the free tier allows 5 requests a minute; failures come back fast, so pace by start time
 MIN_GAP_S = 15
 AFTER_FAILURE_S = 30
 # gemini-3.6-flash paid prices in USD per 1M tokens until 2026-12-31 (thinking is billed as output); doubled from 2027
 PRICE_IN, PRICE_OUT = 0.75, 3.75
+CLAUDE_PRICES: dict[str, tuple[float, float]] = {
+    "claude-haiku": (1.00, 5.00),
+    "claude-sonnet": (3.00, 15.00),
+    "claude-opus": (5.00, 25.00),
+}
+
+
+def configured_price() -> tuple[float, float]:
+    load_dotenv()
+    provider = os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
+    if provider == "claude" and (os.environ.get("STORY_PROVIDER") == "claude" or os.environ.get("ANTHROPIC_API_KEY")):
+        model = os.environ.get("STORY_MODEL", DEFAULT_MODEL)
+        for prefix, price in CLAUDE_PRICES.items():
+            if model.startswith(prefix):
+                return price
+    return (PRICE_IN, PRICE_OUT)
 
 # quizzes per waiting time, as the car plans them (car Planner.puzzleCount, less the belt mission)
 PUZZLES = {5: 2, 10: 3, 15: 4}
@@ -114,12 +131,10 @@ def write(req: EpisodeRequest) -> Written:
     draft, model = _writer.write(SYSTEM, user_message(req, picks))
     # the draft is saved with its questions, so a recheck holds the same ones to the rules of the day
     put_questions(draft, picks)
-    # only the Gemini writer keeps token counts
-    u = getattr(_writer, "last_usage", None)
-    if u is None:
+    tokens = getattr(_writer, "last_tokens", None)
+    if tokens is None:
         return Written(draft, model)
-    return Written(draft, model, tokens_in=u.prompt_token_count or 0,
-                   tokens_out=(u.candidates_token_count or 0) + (u.thoughts_token_count or 0))
+    return Written(draft, model, tokens_in=tokens[0], tokens_out=tokens[1])
 
 
 SPEC = Spec(
@@ -130,5 +145,5 @@ SPEC = Spec(
     read_draft=Draft.model_validate,
     min_gap_s=MIN_GAP_S,
     after_failure_s=AFTER_FAILURE_S,
-    price=(PRICE_IN, PRICE_OUT),
+    price=configured_price(),
 )

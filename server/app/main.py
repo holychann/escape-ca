@@ -15,19 +15,33 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
+from .bank import Bank, load as load_bank
 from .checker import wish_problems
 from .models import Episode, EpisodeRequest, Report, SpeakRequest
 from .painter import Painter, make_painter
 from .service import make_episode, paint_pictures, speak_line
-from .store import DailyLimit, Store
+from .store import DailyLimit, ReportLimit, Store, prune_images
 from .voice import Voice, make_voice
-from .bank import Bank, load as load_bank
 from .writer import Writer, make_writer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("story")
 
 _UNSET = object()
+
+
+def client_ip(request: Request, trust_proxy: bool) -> str:
+    """Real client address behind a trusted cloud reverse proxy, or the direct socket address otherwise."""
+    if trust_proxy:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+        real_ip = request.headers.get("x-real-ip", "").strip()
+        if real_ip:
+            return real_ip
+    return request.client.host if request.client else "unknown"
 
 
 def create_app(
@@ -46,19 +60,30 @@ def create_app(
     folder = data_dir or Path(os.environ.get("STORY_DATA_DIR", "data"))
     store = Store(folder)
     images = folder / "images"
+    image_ttl_hours = float(os.environ.get("STORY_IMAGE_TTL_HOURS", "24"))
+    trust_proxy = os.environ.get("STORY_TRUST_PROXY", "").lower() in ("1", "true", "yes")
     # recordings by words, voice and style, shared by every story and every car
     audio_cache = folder / "audio_cache"
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
+        per_day=int(os.environ.get("STORY_DAILY_TOTAL", "300")),
+        state_file=folder / "daily_limit.json",
     )
     # lines read aloud a day: an episode is a few dozen; the paid key has no limit of its own, so this one guards it
     speak_limit = DailyLimit(
         per_install=int(os.environ.get("SPEAK_DAILY_PER_INSTALL", "400")),
         per_ip=int(os.environ.get("SPEAK_DAILY_PER_IP", "2000")),
+        per_day=int(os.environ.get("SPEAK_DAILY_TOTAL", "20000")),
+        state_file=folder / "speak_limit.json",
     )
-    log.info("writer=%s painter=%s voice=%s", type(writer).__name__, type(painter).__name__ if painter else "none",
-             type(voice).__name__ if voice else "none")
+    report_limit = ReportLimit(
+        per_ip=int(os.environ.get("STORY_REPORT_PER_IP", "30")),
+        per_day=int(os.environ.get("STORY_REPORT_DAILY_TOTAL", "500")),
+    )
+    prune_images(images, image_ttl_hours)
+    log.info("writer=%s painter=%s voice=%s trust_proxy=%s", type(writer).__name__,
+             type(painter).__name__ if painter else "none", type(voice).__name__ if voice else "none", trust_proxy)
 
     @app.get("/health")
     def health() -> dict:
@@ -69,7 +94,7 @@ def create_app(
         if req.wish and (problems := wish_problems(req.wish)):
             # the parent sees why and can write the wish another way; nothing is sent to a model
             raise HTTPException(status_code=422, detail={"error": "wish_rejected", "reasons": problems})
-        ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request, trust_proxy)
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
         made = make_episode(req, writer, bank)
@@ -78,6 +103,7 @@ def create_app(
             raise HTTPException(status_code=502, detail="story_rejected")
         ep, draft = made
         if painter is not None and req.pictures:
+            prune_images(images, image_ttl_hours)
             ep = paint_pictures(ep, draft, req, painter, images)
         store.episode(ep, req)
         return ep
@@ -93,7 +119,7 @@ def create_app(
 
     @app.post("/v1/speak")
     def speak(req: SpeakRequest, request: Request) -> Response:
-        ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request, trust_proxy)
         if not speak_limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
         data = speak_line(req.text, voice, audio_cache)
@@ -103,8 +129,13 @@ def create_app(
         return Response(content=data, media_type="audio/wav")
 
     @app.post("/v1/report", status_code=204)
-    def report(r: Report) -> Response:
-        store.report(r)
+    def report(r: Report, request: Request) -> Response:
+        ip = client_ip(request, trust_proxy)
+        allowed, should_write = report_limit.allow(ip, r.storyId, r.reason)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="report_limit")
+        if should_write:
+            store.report(r)
         return Response(status_code=204)
 
     return app

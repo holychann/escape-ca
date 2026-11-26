@@ -14,11 +14,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from textgate import find_forbidden, norm, too_long
+from textgate import too_long
 
 from . import quiz
 from .models import DraftQuestion
 from .rules import FORBID, LIMITS
+from .text_guard import find_forbidden, norm
 
 log = logging.getLogger("story")
 BANK_FILE = Path(__file__).with_name("question_bank.json")
