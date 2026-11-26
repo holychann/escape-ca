@@ -29,10 +29,23 @@ AMBIGUOUS_STEP = re.compile(r"단\s+(내렸|내리|올렸|올리|줄였|줄이|�
 DEVICE_NEVER = {"SEAT_HEAT": ("뜨거", "낮잠", "잠을 자", "오래 켜"), "SEAT_HEAT_ON": ("뜨거", "낮잠", "잠을 자", "오래 켜")}
 # a hint for a number-word question that tells the number's place ("ONE은 맨 처음 나오는 말") gives the answer away
 PLACE_WORDS = ("맨 처음", "가장 처음", "제일 처음", "바로 다음", "바로 앞", "다음에 오는", "앞에 오는", "손가락 모두", "한 손 전부")
-# A situation (REASON) is 루미 speaking to the child, ends asking for the car's buttons ("차 버튼으로 ○○를 도와줘!")
-# and never names its own button. The app asks it only while the car fits it (quiz.REASON_WHEN) and knows neither the
-# season nor the light, so a situation states nothing else about the car or the world it cannot check.
-REASON_SPEAKER = re.compile(r"(?<![가-힣])(나를|나는|나도|나한테|나에게|내가|내 |우리)")
+# A situation (REASON) is the friend the child picked speaking as "나", whichever friend that is and wherever the
+# story is: it names nobody, no body part only some friends have, nothing tied to one place, and no cause (the story
+# before it tells why). It ends asking for the car's buttons ("차 버튼으로 나를 도와줘!", for the driver's seat "차 버튼으로
+# 안전 지킴이를 도와줘!") and never names its own button. The app asks it only while the car fits it (quiz.REASON_WHEN)
+# and knows neither the season nor the light, so a situation states nothing else about the car or the world it cannot
+# check.
+REASON_NAMES = ("루미", "펭귄", "새싹 로봇", "토끼 기관사", "수달", "사막여우", "투덜이", "반테", "코냥", "리아", "투부기",
+                "파삐", "포또", "이오", "쏠랑이", "캐스핀")
+REASON_BODY = ("꼬리", "날개", "수염", "털", "발톱", "부리", "등껍질", "지느러미", "앞발", "뒷발", "귀를", "귀가", "귀에")
+REASON_PLACE = ("버스", "쓰레기차", "트럭", "꽃밭", "공사장", "기차", "바다", "바닷", "숲", "놀이터", "학교", "부엌", "식당",
+                "수영장", "운동장")
+REASON_CAUSE = ("감기", "뛰어놀", "줄넘기", "매운", "얼음 주머니", "물병", "수영", "비옷", "입김", "코코아", "춤", "달리기",
+                "자전거", "물풍선", "젖은")
+REASON_ENDING = {"SEAT_HEAT_ON": "차 버튼으로 안전 지킴이를 도와줘!", "SEAT_HEAT_OFF": "차 버튼으로 안전 지킴이를 도와줘!"}
+REASON_ENDING_DEFAULT = "차 버튼으로 나를 도와줘!"
+# 존댓말 at the end of a sentence: every question and hint is said to the child in 반말
+POLITE = re.compile(r"(요|니다)[.!?,]|(요|니다)$")
 REASON_LEVEL = re.compile(r"(제일|가장)\s*(낮|높|세|약|차갑|뜨겁|따뜻)|(모두|다|전부|빠짐없이)\s*켜|세게\s*(잘\s*)?나오|하나도 빠짐")
 REASON_CLAIM = re.compile(r"넉넉|잘 나오|잘 불어|손을 대|닫혀 있")
 REASON_CABIN = re.compile(r"차 안이?\s*(추워|춥|쌀쌀|서늘|더워|덥|후끈|찜통)")
@@ -130,6 +143,7 @@ def problems(e: Entry) -> list[str]:
     if re.search(r"(단계|개수|세기|온도)(이)?라면", e.text):
         out.append("다른 수를 장치 값으로 갖다 붙임")
     out += [f"이 장치에 맞지 않는 말: {w}" for w in DEVICE_NEVER.get(e.dial, ()) if w in e.text]
+    out += [f"존댓말: {name}" for name, s in [("문제", e.text), ("힌트", e.hint)] if POLITE.search(s.strip())]
     if e.kind == "REASON":
         return out + reason_problems(e)
     # the question is the car instruction itself ("ONE만큼 온도를 내려 줘!"), not a question answered first
@@ -179,9 +193,13 @@ def reason_problems(e: Entry) -> list[str]:
     if "몇" in e.text or e.text.strip()[-1:] not in ".!":
         out.append("묻는 문장이 아니라 상황을 말하고 부탁하는 문장이어야 함")
     out += [f"정답 버튼 이름: {w}" for w in quiz.REASON_OWN[e.dial] if w in both]
-    out += [f"루미 말이 아님(나, 우리): {name}" for name, s in [("문제", e.text), ("힌트", e.hint)] if REASON_SPEAKER.search(s)]
-    out += [f"존댓말: {name}" for name, s in [("문제", e.text), ("힌트", e.hint)]
-            if re.search(r"(요|니다)[.!?,]|(요|니다)$", s.strip())]
+    out += [f"이름: {w}" for w in REASON_NAMES if w in both]
+    out += [f"몸 특징: {w}" for w in REASON_BODY if w in both]
+    out += [f"장소에 묶인 말: {w}" for w in REASON_PLACE if w in both]
+    out += [f"까닭(이야기가 정함): {w}" for w in REASON_CAUSE if w in e.text]
+    ending = REASON_ENDING.get(e.dial, REASON_ENDING_DEFAULT)
+    if not e.text.strip().endswith(ending):
+        out.append(f"끝맺음이 '{ending}'가 아님")
     for name, rx in [("단계나 개수를 단정", REASON_LEVEL), ("차 상태를 단정", REASON_CLAIM), ("차 안 온도를 단정", REASON_CABIN),
                      ("날씨, 계절, 밤낮을 단정", REASON_OUTSIDE)]:
         if m := rx.search(e.text):

@@ -8,7 +8,8 @@ import kotlin.random.Random
 
 /**
  * What one puzzle looks and sounds like: Lumi's line, the hint, the stage picture (assets/img), the parent's buttons
- * and the answer, and for a quiz the question the child's screen shows.
+ * and the answer, and for a quiz the question the child's screen shows. [result] is the story's line for when the
+ * puzzle is solved; the app's own lines have none and say [Lines.SUCCESS].
  */
 data class Scene(
     val bubble: String,
@@ -18,6 +19,7 @@ data class Scene(
     val buttons: List<String>,
     val answer: String,
     val question: Question? = null,
+    val result: String = "",
 )
 
 /**
@@ -26,7 +28,7 @@ data class Scene(
  */
 object Lines {
     const val SUCCESS = "고쳤다! 기차 칸 하나가 반짝 살아났어. 우리 탐험대장 최고야!"
-    const val TREASURE_BADGE = "기차가 다 고쳐졌어! 기차 친구들이 고맙다며 반짝이는 탐험 배지를 줬어!"
+    const val TREASURE_BADGE = "기차가 다 고쳐졌어! 고마워, 탐험대장. 반짝이는 탐험 배지를 줄게!"
     const val PAUSED = "잠깐 쉬어 갈게. 다시 준비되면 이어서 하자!"
 
     /**
@@ -39,7 +41,8 @@ object Lines {
     fun intro(f: Friend) = "안녕, 탐험대장! 나는 ${isName(f.label)}. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. " +
         "나랑 같이 문제를 풀어서 기차를 고쳐 보자! 답을 찾으면, 그 답으로 버튼을 어떻게 바꿀지 안전 지킴이에게 알려 줘."
 
-    fun closer(f: Friend) = "${withAnd(f.label)} 한층 더 친해졌어!"
+    /** After the treasure, in the friend's own words. */
+    const val CLOSER = "우리 한층 더 친해졌어!"
 
     fun invited(rare: Friend) = "새로운 친구 ${subject(rare.label)} 탐험단에 들어왔어!"
 
@@ -65,10 +68,10 @@ object Lines {
 
     /**
      * [own] is a question the app drew from its copy of the question bank, with its hint; without one, a built-in one.
-     * [with] is the friend going through the episode, who is in trouble in every scene.
+     * The friend the child picked says every line as "나".
      */
-    fun scene(p: Puzzle, own: Pair<Question, String>? = null, with: Friend = Friend.BANTE): Scene = when (p) {
-        is Puzzle.Quiz -> (own?.first ?: question(p)).let { q -> quizScene(p, bubble(p), lead(p, with), own?.second ?: hint(p, q), q) }
+    fun scene(p: Puzzle, own: Pair<Question, String>? = null): Scene = when (p) {
+        is Puzzle.Quiz -> (own?.first ?: question(p)).let { q -> quizScene(p, bubble(p), lead(p), own?.second ?: hint(p, q), q) }
         Puzzle.BeltMission -> Scene(
             bubble = "탐험대장, 벨트를 딸깍!",
             speech = "다음 칸으로 가기 전에 준비! 탐험대장, 벨트를 딸깍! 이미 매고 있다면 버클을 짚고 딸깍 확인!",
@@ -100,7 +103,7 @@ object Lines {
 
     /**
      * What to do with the answer. The app says this itself, so a written question can never send the child wrong. A
-     * situation already ends by asking for help with a car button ("차 버튼으로 수달 요리사를 도와줘!"), so nothing
+     * situation already ends by asking for help with a car button ("차 버튼으로 나를 도와줘!"), so nothing
      * follows it.
      */
     fun ask(p: Puzzle.Quiz, q: Question): String {
@@ -200,24 +203,24 @@ object Lines {
     }
 
     /**
-     * A situation that only one function solves, in the bank's form: the trouble, then a request for help with a car
-     * button. It never names the button itself.
+     * A situation that only one function solves, in the bank's form: the trouble as "나", then a request for help with
+     * a car button. It never names the button itself. Each is the first of its function in the question bank.
      */
     private fun situation(p: Puzzle.Quiz): String = when (p.dial) {
-        Dial.AC -> if (p.value == 1) "뛰어놀고 온 친구들이 땀을 뻘뻘 흘려. 바람은 나오는데 하나도 안 시원하대. 차 버튼으로 친구들을 도와줘!"
-            else "감기 걸린 친구들이 더울 때 켜는 시원한 바람이 켜져 있어서 떨어. 온도 숫자는 그대로 두고 차 버튼으로 도와줘!"
-        Dial.RECIRC -> if (p.value == 1) "옆 버스의 연기 냄새가 바람 구멍으로 솔솔 들어와. 창문은 닫아 둔 채로 차 버튼으로 친구들을 도와줘!"
-            else "같은 공기만 빙글빙글 돌아서 친구들이 숨이 답답하대. 창문은 닫아 둔 채로 차 버튼으로 친구들을 도와줘!"
-        Dial.DEFROST -> "친구들 입김에 앞 유리 안쪽이 뿌예지려고 해. 와이퍼는 바깥만 닦아서 안 돼. 차 버튼으로 친구들을 도와줘!"
-        Dial.TEMP_UP -> "감기 걸린 친구들이 으슬으슬 떨어. 의자 말고 차 안을 따뜻하게, 차 버튼으로 친구들을 도와줘!"
-        Dial.TEMP_DOWN -> "뛰어놀고 온 친구들이 에어컨이 켜져 있는데도 아직 조금 덥대. 바람이 세지면 그림책이 날아가니까 차 버튼으로 친구들을 도와줘!"
-        Dial.FAN_UP -> "바람 나오는 구멍 앞의 작은 깃발이 살짝만 흔들려. 깃발이 펄럭펄럭 날리게 차 버튼으로 친구들을 도와줘!"
-        Dial.FAN_DOWN -> "바람이 너무 세게 불어서 친구들의 그림 종이가 훨훨 날아가. 바람은 조금 나와야 하니까 차 버튼으로 친구들을 도와줘!"
-        Dial.SEAT_HEAT_ON -> "누가 얼음 주머니를 올려 둬서 안전 지킴이 의자가 차가워. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!"
-        Dial.SEAT_HEAT_OFF -> "안전 지킴이 의자가 계속 뜨끈뜨끈해서 땀이 나. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!"
-        Dial.LIGHT_CHILD -> "보물 지도 그림이 개미만큼 작아서 네 자리가 더 밝아야 해. 차 버튼으로 보물 찾기를 도와줘!"
-        Dial.LIGHTS_OFF -> "친구들이 낮잠을 자려는데 작은 불이 하나도 안 켜져 있어야 잠이 온대. 차 버튼으로 친구들을 도와줘!"
-        Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "차 버튼으로 친구들을 도와줘!"
+        Dial.AC -> if (p.value == 1) "나 땀이 뻘뻘 나, 바람은 나오는데 안 시원해. 창문은 닫아 둔 채로 차 버튼으로 나를 도와줘!"
+            else "나 담요를 덮어도 오들오들 추운데 더울 때 켜는 시원한 바람이 켜져 있어. 온도 숫자는 그대로 두고 차 버튼으로 나를 도와줘!"
+        Dial.RECIRC -> if (p.value == 1) "바람 구멍 앞에만 가면 이상한 냄새가 나서 콜록콜록 기침이 나와. 냄새는 차 밖에서 오는 것 같으니 바람은 계속 나오게 두고 차 버튼으로 나를 도와줘!"
+            else "같은 공기만 빙글빙글 돌아서 나는 숨이 답답해. 창문은 닫아 둔 채로, 차 버튼으로 나를 도와줘!"
+        Dial.DEFROST -> "앞 유리 안쪽이 뿌예지려고 해, 와이퍼는 바깥만 닦아. 차 버튼으로 나를 도와줘!"
+        Dial.TEMP_UP -> "내 몸이 으슬으슬 떨려. 의자 말고 차 안 공기를 따뜻하게, 차 버튼으로 나를 도와줘!"
+        Dial.TEMP_DOWN -> "에어컨은 켜져 있는데 나는 아직 조금 더워. 바람이 세지면 맞춰 둔 퍼즐 조각이 흩어지니까 차 버튼으로 나를 도와줘!"
+        Dial.FAN_UP -> "내 바람개비가 느릿느릿 돌아. 덥지도 춥지도 않은데, 빙글빙글 빨리 돌게 차 버튼으로 나를 도와줘!"
+        Dial.FAN_DOWN -> "바람이 쌩쌩 불어서 내 그림 종이가 날아가. 바람은 조금 나와야 하니까 차 버튼으로 나를 도와줘!"
+        Dial.SEAT_HEAT_ON -> "안전 지킴이 의자가 차가워졌어. 차 안 공기 말고 의자를 데우게 차 버튼으로 안전 지킴이를 도와줘!"
+        Dial.SEAT_HEAT_OFF -> "안전 지킴이 의자가 찐빵처럼 계속 뜨끈해. 의자가 그만 데워지게 차 버튼으로 안전 지킴이를 도와줘!"
+        Dial.LIGHT_CHILD -> "내가 준 그림 지도가 개미만큼 작아서 네 자리에 빛이 더 있어야 잘 보여. 창문은 깨끗해, 차 버튼으로 나를 도와줘!"
+        Dial.LIGHTS_OFF -> "나 반짝 별 스티커를 보고 싶어. 하나만 말고 작은 불이 하나도 안 켜져 있게 차 버튼으로 나를 도와줘!"
+        Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "차 버튼으로 나를 도와줘!"
     }
 
     /** The car instruction with the amount as a little puzzle: "TWO만큼 온도를 내려 줘!". */
@@ -231,16 +234,16 @@ object Lines {
         else -> amount
     }
 
-    private fun lead(p: Puzzle.Quiz, f: Friend): String {
-        val name = f.label
+    private fun lead(p: Puzzle.Quiz): String {
         // the situation itself tells the trouble; the story before it never gives the function away
-        if (p.kind == QuizKind.REASON) return "${subject(name)} 기차 칸에서 곤란한 친구를 만났어. 잘 듣고 어떤 차 버튼이 도와줄 수 있을지 생각해 봐!"
+        if (p.kind == QuizKind.REASON) return "어, 기차 칸에서 곤란한 일이 생겼어. 잘 듣고 어떤 차 버튼이 나를 도와줄 수 있을지 생각해 봐!"
         return when (p.dial) {
-            Dial.FAN -> "${subject(name)} 키우는 새싹이 목말라서 축 늘어졌어. 문제를 풀면 바람을 보내 줄 수 있어!"
-            Dial.TEMP_DOWN -> "기차 칸이 너무 더워서 ${subject(name)} 땀을 뻘뻘 흘려! 문제를 풀면 시원하게 할 수 있어."
-            Dial.TEMP_UP -> "기차 칸이 너무 추워서 ${subject(name)} 덜덜 떨고 있어! 문제를 풀면 조금 따뜻하게 할 수 있어."
-            Dial.LIGHTS -> "기차 칸이 깜깜해서 ${subject(name)} 길을 못 찾고 있어! 문제를 풀면 작은 불을 밝힐 수 있어."
-            else -> "${of(name)} 의자가 얼음처럼 차가워! 문제를 풀면 의자를 따끈하게 데울 수 있어."
+            Dial.FAN -> "내가 키우는 새싹이 목말라서 축 늘어졌어. 문제를 풀면 바람을 보내 줄 수 있어!"
+            Dial.TEMP_DOWN -> "기차 칸이 너무 더워서 내가 땀을 뻘뻘 흘려! 문제를 풀면 시원하게 할 수 있어."
+            Dial.TEMP_UP -> "기차 칸이 너무 추워서 내가 덜덜 떨고 있어! 문제를 풀면 조금 따뜻하게 할 수 있어."
+            Dial.LIGHTS -> "기차 칸이 깜깜해서 내가 길을 못 찾고 있어! 문제를 풀면 작은 불을 밝힐 수 있어."
+            // the seat heat is the driver's seat
+            else -> "안전 지킴이 의자가 얼음처럼 차가워! 문제를 풀면 의자를 따끈하게 데울 수 있어."
         }
     }
 
@@ -255,14 +258,14 @@ object Lines {
             Dial.FAN_DOWN -> "바람이 너무 세!"
             Dial.SEAT_HEAT_ON -> "의자가 차가워!"
             Dial.SEAT_HEAT_OFF -> "의자가 뜨끈뜨끈!"
-            Dial.LIGHT_CHILD -> "글씨가 안 보여!"
+            Dial.LIGHT_CHILD -> "그림이 너무 작아!"
             Dial.LIGHTS_OFF -> "잠이 안 와!"
             Dial.FAN, Dial.LIGHTS, Dial.SEAT_HEAT -> "친구를 도와줘!"
         }
     } else {
         when (p.dial) {
             Dial.FAN -> "새싹이 목말라!"
-            Dial.TEMP_DOWN -> "얼음이 녹아!"
+            Dial.TEMP_DOWN -> "땀이 뻘뻘!"
             Dial.TEMP_UP -> "방이 너무 추워!"
             Dial.LIGHTS -> "깜깜해서 안 보여!"
             else -> "의자가 차가워!"
@@ -274,7 +277,7 @@ object Lines {
         QuizKind.ENGLISH -> "원, 투, 쓰리, 손가락으로 하나씩 세면서 영어로 말해 봐!"
         QuizKind.PATTERN -> if (q.terms.size >= 2 && q.terms[1] < q.terms[0]) "수가 얼마씩 작아지는지 손가락으로 세어 봐!"
             else "수가 얼마씩 커지는지 손가락으로 세어 봐!"
-        QuizKind.REASON -> "어떤 차 버튼이 친구를 도울 수 있을지 하나씩 떠올려 봐!"
+        QuizKind.REASON -> "어떤 차 버튼이 나를 도울 수 있을지 하나씩 떠올려 봐!"
     }
 
     /** The stage picture with the scene's friend in it, by the device the puzzle is about. */

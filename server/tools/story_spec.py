@@ -15,7 +15,7 @@ from textgate import Spec, Written
 from app import quiz
 from app.bank import Bank, load as load_bank
 from app.checker import check
-from app.models import Draft, EpisodeRequest
+from app.models import FRIEND_LABEL, Draft, EpisodeRequest
 from app.prompt import SYSTEM, user_message
 from app.service import pick_questions, put_questions
 from app.writer import Writer, make_writer
@@ -94,6 +94,7 @@ def random_request(r: random.Random) -> EpisodeRequest:
             "outsideTempC": r.choice([None, -3, 8, 18, 31]),
         },
         puzzles=picks,
+        friend=r.choice(list(FRIEND_LABEL)),
     )
 
 

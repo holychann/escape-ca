@@ -6,7 +6,6 @@ bubble = 18
 hint = 70
 title = 20
 intro = 180
-success = 60
 treasure = 90
 
 # speech is shorter for the youngest age on board
@@ -14,6 +13,12 @@ treasure = 90
 LITTLE = 110
 CAPTAIN = 170
 DETECTIVE = 210
+
+# the line said the moment the answer is in
+[limits.result]
+LITTLE = 70
+CAPTAIN = 90
+DETECTIVE = 90
 
 # Words the car never says anywhere. A match is reported as '<label>: <matched text>',
 # or just the label when quote_match is false. Patterns are Python regular expressions.
@@ -103,45 +108,13 @@ everywhere_never = ["출발", "시동", "운전해", "운전하", "운전을", "
 # The bubble sits next to the picture before the child has looked: it shows the trouble, never the button.
 bubble_never = ["독서등", "성에", "내기", "외기", "순환", "풍향", "풍량", "온도", "에어컨", "열선", "버튼", "켜기", "끄기"]
 
-# The friends the story may use, the same ones the pictures draw (에셋/차량탈출_그림, crew_*.png and the scene pictures).
-# The writer may not invent other animals or people, so the words never describe someone the screen does not show.
-[[cast]]
-name = "펭귄 선장"
-look = "남색 선장 모자, 하늘색 목도리, 작은 망원경"
-trait = "추운 곳을 좋아한다. 친구들을 이끄는 씩씩한 선장이고 얼음 미끄럼틀을 좋아한다."
-
-[[cast]]
-name = "사막여우"
-look = "커다란 귀, 모래색 털"
-trait = "따뜻한 곳을 좋아한다. 반짝이는 물건을 땅에 묻어 숨기는 장난꾸러기다."
-
-[[cast]]
-name = "토끼 기관사"
-look = "민트색 멜빵바지, 이마에 올린 동그란 고글, 작은 스패너"
-trait = "기계와 문을 고치는 솜씨꾼이다. 탈것의 엔진과 문을 맡는다."
-
-[[cast]]
-name = "수달 요리사"
-look = "하얀 요리사 모자, 산호색 앞치마, 국자"
-trait = "따끈한 수프를 끓인다. 수프 냄비에서 김이 모락모락 난다."
-
-[[cast]]
-name = "새싹 로봇"
-look = "머리에 초록 새싹이 자라는 작은 로봇"
-trait = "새싹 화분을 돌보고 낮잠을 좋아한다. 새싹이 목마르면 시든다."
-
-[[cast]]
-name = "투덜이 기계"
-look = "연보라색 네모난 로봇 기계, 빨간 안테나 공"
-trait = "바람을 싫어해서 바람이 불면 눈을 찡그리고 투덜거린다. 사실은 마음이 착하다."
-
 # The belt mission's table. Every other puzzle is a quiz (keys "Q:<KIND>:<DIAL>:<VALUE>"): the question and its
 # answer are checked by app/quiz.py, not by word lists.
 #   situation       what the writer is told about the scene
 #   must            groups of words; one word of every group must be in the speech
 #   never           none of these may be in the bubble, speech or hint
 #   hint_must       groups the hint must contain, so it points the same way
-#   needs_guardian  Lumi has the child point the found button out to the 안전 지킴이 (default true)
+#   needs_guardian  the friend has the child point the found button out to the 안전 지킴이 (default true)
 #   art_never       what the drawn picture of this puzzle must not show, because it would give one answer away
 
 [scene."BELT"]

@@ -70,7 +70,14 @@ data class GameUi(
     val paused: Boolean get() = stopped != null || held
 
     fun scene(p: Puzzle): Scene =
-        own[StoryKeys.key(p)].let { mine -> story?.scene(p, mine, setup.friend) ?: Lines.scene(p, mine, setup.friend) }
+        own[StoryKeys.key(p)].let { mine -> story?.scene(p, mine) ?: Lines.scene(p, mine) }
+
+    /**
+     * What Lumi says once the puzzle being played is solved: the story's line for that very puzzle (a quiz swapped as
+     * it started has its own), or the app's own when the scene is played from [Lines] or the line was dropped.
+     */
+    val solvedLine: String
+        get() = puzzle?.let { scene(it).result }?.takeIf { it.isNotBlank() } ?: Lines.SUCCESS
 }
 
 /**
@@ -207,7 +214,7 @@ class Game(
         val hearts = book?.played(friend)
         _ui.update { it.copy(phase = Phase.TREASURE, heartsNow = hearts) }
         val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
-        lumi.say(if (hearts == null) treasure else "$treasure ${Lines.closer(friend)}")
+        lumi.say(if (hearts == null) treasure else "$treasure ${Lines.CLOSER}")
     }
 
     fun hint() {
@@ -261,7 +268,7 @@ class Game(
         hold = null
         val ui = _ui.value
         _ui.update { it.copy(phase = Phase.SOLVED, stars = it.stars + 1) }
-        lumi.say(ui.story?.success(ui.stars) ?: Lines.SUCCESS)
+        lumi.say(ui.solvedLine)
     }
 
     /** 이야기 신고 from the parent's screen. */

@@ -184,13 +184,24 @@ class StoryRepo(
                 9, 10, 11 -> "AUTUMN"
                 else -> "WINTER"
             }
+            val youngest = Planner.youngest(setup)
+            // the server refuses a request that names a key twice
+            val named = puzzles.map(StoryKeys::key).toMutableSet()
             val body = JSONObject()
                 .put("installId", installId)
                 .put("ages", JSONArray(setup.ages.map { it.name }))
                 .put("minutes", setup.minutes)
                 .put("context", JSONObject().put("timeOfDay", timeOfDay).put("season", season))
-                // one key per puzzle: a quiz's answer is fixed, so the server writes exactly one question for it
-                .put("puzzles", JSONArray(puzzles.map { p -> JSONArray(listOf(StoryKeys.key(p))) }))
+                // the friend the child picked tells the story
+                .put("friend", setup.friend.name)
+                // one slot per puzzle: the planned answer first, then the quiz the app switches to when the car no
+                // longer allows the planned one as the puzzle starts (Planner.replacement tries the opposite first)
+                .put("puzzles", JSONArray(puzzles.map { p ->
+                    val other = (p as? Puzzle.Quiz)?.let(Planner::opposite)
+                        ?.takeIf { Planner.allowed(it, youngest) }?.let(StoryKeys::key)
+                        ?.takeIf { named.add(it) }
+                    JSONArray(listOfNotNull(StoryKeys.key(p), other))
+                }))
                 .put("lesson", lesson)
             val wish = setup.wish.trim().take(WISH_MAX)
             if (wish.isNotEmpty()) body.put("wish", wish).put("pictures", true)

@@ -165,11 +165,12 @@ class StoryRepoTest {
         advanceUntilIdle()
         assertEquals(1, client.calls)
         assertEquals(StoryRepo.Status.READY, r.status.value)
-        // one answer key per puzzle, and the episode plays exactly the puzzles it was written for
+        // the planned answer key first in each slot, and the episode plays exactly the puzzles it was written for
         val asked = client.lastRequest!!.getJSONArray("puzzles")
         val ready = r.take(Setup(), parked)!!
-        val keys = List(asked.length()) { i -> asked.getJSONArray(i).also { assertEquals(1, it.length()) }.getString(0) }
+        val keys = List(asked.length()) { i -> asked.getJSONArray(i).getString(0) }
         assertEquals(keys, ready.puzzles.map(StoryKeys::key))
+        assertEquals("BANTE", client.lastRequest!!.getString("friend"))
     }
 
     @Test

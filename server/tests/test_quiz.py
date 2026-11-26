@@ -6,7 +6,7 @@ from app import quiz
 from app.checker import check, check_quiz_scene, to_episode, to_question
 from app.models import DraftScene, EpisodeRequest, Question
 from app.prompt import user_message
-from tests.fakes import AC, COOL, ENGLISH, FOG, GOOD, MATH, PATTERN, REASON, filled, question
+from tests.fakes import AC, COOL, ENGLISH, FOG, FRIEND, GOOD, MATH, PATTERN, REASON, filled, question
 
 AGES = ("LITTLE", "CAPTAIN", "DETECTIVE")
 
@@ -18,6 +18,7 @@ def request(slots, ages=("CAPTAIN",)):
         minutes=10,
         context={"timeOfDay": "EVENING", "season": "WINTER"},
         puzzles=slots,
+        friend=FRIEND,
     )
 
 
@@ -26,8 +27,8 @@ def problems(key, q, age="CAPTAIN"):
 
 
 def scene(key, **change) -> DraftScene:
-    bubble, speech, hint, q = GOOD[key]
-    return DraftScene(key=key, bubble=bubble, speech=speech, hint=hint, question=q).model_copy(update=change)
+    bubble, speech, hint, q, result = GOOD[key]
+    return DraftScene(key=key, bubble=bubble, speech=speech, hint=hint, question=q, result=result).model_copy(update=change)
 
 
 def every_key():
@@ -94,7 +95,7 @@ def test_every_key_the_car_can_send_is_explained_to_the_writer(age):
         q = quiz.parse(key)
         req = request([[key]], ages=(age,))
         msg = user_message(req, {key: (stand_in(q), "")})
-        assert f"[key={key}]" in msg and "주인공 친구:" in msg and f"«{stand_in(q).text}»" in msg
+        assert f"[key={key}]" in msg and f"«{stand_in(q).text}»" in msg
         said = f"정답 조작: {quiz.REASON_ACTIONS[(q.dial, q.value)]} (" if q.kind == "REASON" else f"정답: {q.value} ("
         assert said in msg, key
         # without a bank question the car asks its own, and the writer is told so
@@ -103,42 +104,33 @@ def test_every_key_the_car_can_send_is_explained_to_the_writer(age):
 
 def test_the_writer_is_told_the_question_and_the_answer_to_keep_quiet():
     lines = quiz.scene_lines(quiz.parse(MATH), GOOD[MATH][3])
-    assert lines[2].endswith(f"«{GOOD[MATH][3].text}»")
-    assert "  정답: 5 (답만큼 바람 세기(풍량)를 맞춘다). 이 수는 어디에도 쓰지 않는다" in lines
+    assert lines[0].endswith(f"«{GOOD[MATH][3].text}»")
+    assert ("  정답: 5 (답만큼 바람 세기(풍량)를 맞춘다). 이 수는 bubble, speech, art에 쓰지 않는다. "
+            "result에서는 써도 된다") in lines
+    # the story gives the device a reason, never one for the number
+    assert "  speech: 이 장치가 이야기에서 왜 필요한지까지만 쓴다. 왜 그 수인지는 지어내지 않는다" in lines
     cool = quiz.scene_lines(quiz.parse("Q:MATH:TEMP_DOWN:2"), GOOD[ENGLISH][3])
-    assert cool[-1] == "  반대로 들리는 말은 쓰지 않는다: 따뜻하게, 데워, 따끈하게"
+    assert cool[-1] == "  반대로 들리는 말은 bubble과 speech에 쓰지 않는다: 따뜻하게, 데워, 따끈하게"
 
 
 def test_the_writer_is_told_a_situation_and_the_action_to_keep_quiet():
     lines = quiz.scene_lines(quiz.parse(AC), GOOD[AC][3])
-    assert lines[2].endswith(f"«{COOL.text}»")
+    assert lines[0].endswith(f"«{COOL.text}»")
     assert ("  정답 조작: 에어컨 켜기 (아이가 상황을 듣고 스스로 찾는다). "
-            "버튼 이름과 할 일은 bubble, speech, art 어디에도 쓰지 않는다") in lines
-    # the story leads into the question's own trouble, not one made up for the device
-    assert "  상황: 아래 문제 문장에 나온 상황 그대로다. 다른 상황이나 다른 까닭을 새로 만들지 않는다" in lines
+            "bubble, speech, art에는 버튼 이름과 할 일을 쓰지 않는다. result에서는 써도 된다") in lines
+    # the question tells the trouble; the story gives it a cause from what the friend was doing
+    assert "  speech: 문제 문장의 상황이 생긴 까닭을, 친구가 목표를 위해 하던 일에서 만든다" in lines
     assert quiz.trouble(quiz.parse(AC)) not in "\n".join(lines)
     assert not any(line.startswith("  정답: ") for line in lines)
 
 
-@pytest.mark.parametrize("key,q,friend,default", [
-    # the question names another friend than the device's own: the story is about the question's friend
-    (AC, COOL, "새싹 로봇", "투덜이 기계"),
-    (REASON, FOG, "펭귄 선장", "투덜이 기계"),
-])
-def test_a_situation_scene_is_about_the_friend_its_question_names(key, q, friend, default):
-    k = quiz.parse(key)
-    assert quiz.friend(k) == default and quiz.question_friend(k, q.text) == friend
-    lines = quiz.scene_lines(k, GOOD[key][3])
-    assert lines[0] == f"  주인공 친구: {friend}"
-    assert not any(default in line for line in lines)
-
-
-def test_the_first_friend_a_situation_names_leads_and_none_falls_back_to_the_devices():
-    k = quiz.parse("Q:REASON:DEFROST:1")
-    assert quiz.question_friend(k, "수달 요리사와 펭귄 선장이 노래를 불러서 앞 유리가 뿌예지려고 해.") == "수달 요리사"
-    assert quiz.question_friend(k, "앞 유리 안쪽이 뿌예지려고 해.") == "투덜이 기계"
-    # a number question's scene always has the device's friend
-    assert quiz.scene_lines(quiz.parse(MATH), GOOD[MATH][3])[0] == "  주인공 친구: 새싹 로봇"
+def test_no_scene_names_a_friend_of_its_own():
+    # the chosen friend tells every scene; the fallback troubles speak as "나" and name nobody
+    for key in (AC, REASON, MATH):
+        assert not any("주인공 친구" in line for line in quiz.scene_lines(quiz.parse(key), GOOD[key][3]))
+    for (dial, value) in quiz.REASON_ACTIONS:
+        told = quiz.trouble(quiz.parse(f"Q:REASON:{dial}:{value}"))
+        assert not any(name in told for name in ("펭귄", "새싹", "토끼", "수달", "사막여우", "투덜이", "루미")), told
 
 
 # ---------------------------------------------------------------- math

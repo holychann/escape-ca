@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app import bank, quiz
 from app.bank import Bank
-from app.checker import art_problems, check, friend_problems
+from app.checker import art_problems, check
 from app.main import create_app
 from app.models import EpisodeRequest
 from app.prompt import SYSTEM, user_message
@@ -61,7 +61,8 @@ def test_dev_server_stories_pass_the_real_checker(age):
     dev, writer = Bank(TEMPLATE_ENTRIES), TemplateWriter()
     for key in every_key():
         req = EpisodeRequest(installId="0123456789abcdef0123", ages=["DETECTIVE", age], minutes=10,
-                             context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[key], ["BELT"]])
+                             context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[key], ["BELT"]],
+                             friend="KONYANG")
         picks = pick_questions(req, dev, random.Random(0))
         if never_told(quiz.parse(key), age):
             assert key not in picks, key
@@ -71,7 +72,7 @@ def test_dev_server_stories_pass_the_real_checker(age):
         put_questions(d, picks)
         v = check(d, req)
         assert model == "dev-template" and v.clean, (key, v.whole, v.items)
-        assert art_problems(d, req) == {} and friend_problems(d.friend, req) == []
+        assert art_problems(d, req) == {}
 
 
 def test_the_dev_server_answers_the_car(tmp_path, monkeypatch):
@@ -80,14 +81,15 @@ def test_the_dev_server_answers_the_car(tmp_path, monkeypatch):
                      bank=dev_bank(tmp_path / "no_bank.json"))
     body = {"installId": "0123456789abcdef0123", "ages": ["LITTLE"], "minutes": 10, "pictures": True,
             "context": {"timeOfDay": "NIGHT", "season": "SUMMER"},
-            "puzzles": [["Q:MATH:FAN:3"], ["Q:REASON:AC:0"], ["BELT"]]}
+            "puzzles": [["Q:MATH:FAN:3"], ["Q:REASON:AC:0"], ["BELT"]], "friend": "IO"}
     r = TestClient(app).post("/v1/episode", json=body)
     assert r.status_code == 200
     ep = r.json()
-    assert ep["model"] == "dev-template" and ep["dropped"] == [] and ep["friend"] is not None
+    assert ep["model"] == "dev-template" and ep["dropped"] == [] and "이오" in ep["intro"]
     assert ep["scenes"]["Q:MATH:FAN:3"]["question"]["expr"] == "1+2"
     assert ep["scenes"]["Q:REASON:AC:0"]["question"]["kind"] == "REASON"
-    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending", "friend"}
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending"}
+    assert ep["scenes"]["Q:MATH:FAN:3"]["result"]
 
 
 def test_sampled_requests_look_like_the_cars_plan():
@@ -128,7 +130,8 @@ def test_the_sampler_writes_around_bank_questions_and_keeps_them_with_the_draft(
     monkeypatch.setattr(story_spec, "_writer", writer)
     monkeypatch.setattr(story_spec, "_bank", BANK)
     req = EpisodeRequest(installId="00000000-0000-0000-0000-000000000000", ages=["CAPTAIN"], minutes=5,
-                         context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[MATH], ["BELT"]])
+                         context={"timeOfDay": "NIGHT", "season": "SUMMER"}, puzzles=[[MATH], ["BELT"]],
+                         friend="BANTE")
     written = story_spec.write(req)
     assert f"«{SUM.text}»" in writer.messages[0]
     # saved with its questions, a recheck later holds the same questions to the rules of the day

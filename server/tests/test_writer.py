@@ -46,8 +46,11 @@ def test_gemini_draft_is_read_with_the_same_schema_and_rules():
 
 def test_the_writer_is_not_asked_for_questions():
     scene = DRAFT_SCHEMA["properties"]["scenes"]["items"]
-    assert set(scene["properties"]) == {"key", "bubble", "speech", "hint"}
-    assert scene["required"] == ["key", "bubble", "speech", "hint"]
+    # the story around the bank's question and the line said once it is solved
+    assert set(scene["properties"]) == {"key", "bubble", "speech", "result", "hint"}
+    assert scene["required"] == ["key", "bubble", "speech", "result", "hint"]
+    # no generic praise, gift line or made-up friend any more
+    assert not {"success", "treasureGift", "friend"} & set(DRAFT_SCHEMA["properties"])
 
 
 @pytest.mark.parametrize("kwargs", [

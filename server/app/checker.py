@@ -5,13 +5,11 @@ personal, foreign), and the answer (each scene says its own answer and never the
 episode-wide lines rejects the whole draft; a problem in one scene drops only that scene, and the car plays its
 own reviewed lines there instead.
 """
-import re
-
 from textgate import Verdict, find_forbidden, missing, norm, present, too_long
 
 from . import quiz
-from .models import Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, NewFriend, Question, SceneText
-from .rules import BUBBLE_NEVER, CAST, FORBID, LIMITS, Rule, rule_for
+from .models import FRIEND_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest, Question, SceneText
+from .rules import BUBBLE_NEVER, EVERYWHERE_NEVER, FORBID, LIMITS, Rule, rule_for
 
 
 def bad_words(text: str) -> list[str]:
@@ -24,9 +22,23 @@ def wish_problems(wish: str) -> list[str]:
     return find_forbidden(wish, [f for f in FORBID if f.quote_match])
 
 
-def usable_success(lines: list[str]) -> list[str]:
-    """Praise lines stand alone, so a bad one is left out instead of losing the whole draft."""
-    return [x for x in lines if not too_long("success", x, LIMITS.success) and not bad_words(x)][:3]
+# the chosen friend is the only one in the story: Lumi and the old crew are gone, and the other book friends stay out
+GONE = ("루미", "펭귄 선장", "사막여우", "토끼 기관사", "수달 요리사", "새싹 로봇", "투덜이 기계")
+
+
+def other_names(text: str, req: EpisodeRequest) -> list[str]:
+    mine = FRIEND_LABEL[req.friend][0]
+    names = [n for n, *_ in FRIEND_LABEL.values() if n != mine] + list(GONE)
+    return [f"다른 인물: {n}" for n in names if n in text]
+
+
+def result_problems(scene: DraftScene, req: EpisodeRequest) -> list[str]:
+    """The line said once the answer is in may name the answer, since the child has just put it in. A bad one is
+    left out on its own (the car says its own praise there) instead of losing the scene."""
+    text = scene.result
+    problems = too_long("result", text, getattr(LIMITS.result, req.youngest)) + bad_words(text)
+    problems += [f"쓰지 말 말: {w}" for w in present(text, EVERYWHERE_NEVER)]
+    return problems + other_names(text, req)
 
 
 def check_scene(rule: Rule, scene: SceneText, youngest: str) -> list[str]:
@@ -73,13 +85,14 @@ def check_quiz_scene(q: quiz.QuizKey, scene: DraftScene, youngest: str) -> list[
     return problems
 
 
-def scene_text(key: str, scene: DraftScene) -> SceneText:
-    """What the car gets for one checked scene."""
+def scene_text(key: str, scene: DraftScene, req: EpisodeRequest) -> SceneText:
+    """What the car gets for one checked scene; its result line only when that passes too."""
     q = quiz.parse(key)
     question = None
     if q is not None and scene.question is not None:
         question = to_question(q, scene.question)
-    return SceneText(bubble=scene.bubble, speech=scene.speech, hint=scene.hint, question=question)
+    result = scene.result.strip() if not result_problems(scene, req) else ""
+    return SceneText(bubble=scene.bubble, speech=scene.speech, hint=scene.hint, result=result, question=question)
 
 
 def to_question(q: quiz.QuizKey, dq: DraftQuestion) -> Question:
@@ -136,46 +149,19 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
     return out
 
 
-FRIEND_MAX = {"name": 10, "look": 60, "trait": 60, "hello": 40}
-# names the new friend cannot take: the book friends, Lumi and the two people in the car
-TAKEN = {norm(f.name) for f in CAST} | {norm(n) for n in ("루미", "탐험대장", "안전 지킴이")}
-
-
-def friend_problems(friend: NewFriend | None, req: EpisodeRequest) -> list[str]:
-    """A new friend stays in the book for good and its portrait sits on screen during every puzzle, so its words
-    hold to the bubble's rules: nothing scary, no button words and no word that tells one answer from another."""
-    if friend is None:
-        return ["새 친구 없음"]
-    fields = {"name": friend.name, "look": friend.look, "trait": friend.trait, "hello": friend.hello}
-    # too_long also reports an empty field
-    problems = [p for name, text in fields.items() for p in too_long(name, text, FRIEND_MAX[name])]
-    if not re.fullmatch(r"[가-힣 ]{2,10}", friend.name.strip()):
-        problems.append("이름은 우리말 2~10자")
-    if norm(friend.name) in TAKEN:
-        problems.append("이미 있는 이름")
-    text = "|".join(fields.values())
-    problems += bad_words(text)
-    answers = sorted({w for slot in req.puzzles for w in answer_words(slot)})
-    problems += [f"정답이 보이는 말: {w}" for w in present(text, answers)]
-    problems += [f"버튼 말: {w}" for w in present(text, BUBBLE_NEVER)]
-    return problems
-
-
 def check(draft: Draft, req: EpisodeRequest) -> Verdict:
     """Episode-wide problems go to ``whole``, scene problems to ``items`` under the scene's key."""
     v = Verdict(checked=req.keys)
     v.whole += too_long("title", draft.title, LIMITS.title)
     v.whole += too_long("intro", draft.intro, LIMITS.intro)
-    v.whole += too_long("treasureGift", draft.treasureGift, LIMITS.treasure)
     v.whole += too_long("treasureBadge", draft.treasureBadge, LIMITS.treasure)
-    if len(usable_success(draft.success)) < 2:
-        v.whole.append("칭찬 문장 부족")
     if req.theme and draft.theme != req.theme:
         v.whole.append("고른 테마와 다름")
-    if "안전지킴이" not in norm(draft.treasureGift):
-        v.whole.append("선물 문장에 안전 지킴이 빠짐")
-    episode_text = " ".join([draft.title, draft.intro, draft.treasureGift, draft.treasureBadge, draft.world])
+    if FRIEND_LABEL[req.friend][0] not in draft.intro:
+        v.whole.append("첫인사에 고른 친구 소개 빠짐")
+    episode_text = " ".join([draft.title, draft.intro, draft.treasureBadge, draft.world])
     v.whole += bad_words(episode_text)
+    v.whole += other_names(episode_text, req)
 
     written = {}
     for s in draft.scenes:
@@ -188,6 +174,10 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
             problems = check_quiz_scene(q, scene, req.youngest)
         else:
             problems = check_scene(rule_for(key), scene, req.youngest)
+        if scene is not None:
+            # a quiz scene's hint is the bank's, checked when the bank was made
+            written_here = [scene.bubble, scene.speech] + ([scene.hint] if quiz.parse(key) is None else [])
+            problems += other_names(" ".join(written_here), req)
         if problems:
             v.items[key] = problems
     return v
@@ -195,19 +185,15 @@ def check(draft: Draft, req: EpisodeRequest) -> Verdict:
 
 def to_episode(draft: Draft, verdict: Verdict, req: EpisodeRequest, story_id: str, model: str) -> Episode:
     written = {s.key: s for s in reversed(draft.scenes)}
-    scenes = {k: scene_text(k, written[k]) for k in req.keys if k not in verdict.items}
+    scenes = {k: scene_text(k, written[k], req) for k in req.keys if k not in verdict.items}
     return Episode(
         storyId=story_id,
         model=model,
         theme=draft.theme,
         title=draft.title,
         intro=draft.intro,
-        success=usable_success(draft.success),
-        treasureGift=draft.treasureGift,
         treasureBadge=draft.treasureBadge,
         scenes=scenes,
         dropped=[k for k in req.keys if k in verdict.items],
         world=draft.world,
-        # a friend with a problem is left out; the story itself still plays
-        friend=None if friend_problems(draft.friend, req) else draft.friend,
     )

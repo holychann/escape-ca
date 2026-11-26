@@ -29,6 +29,20 @@ LESSON_LABEL = {
 }
 Lesson = Literal["COURAGE", "CARE", "CREATIVITY", "GRIT", "TEAMWORK", "SHARING", "HONESTY", "THANKS", "PROMISE",
                  "FRIENDSHIP"]
+# the friend book (car engine/Friends.kt): the friend the child picks tells the whole story as "나".
+# name, animal, what it stands for, catchphrase (none yet for the three rare friends)
+FRIEND_LABEL = {
+    "BANTE": ("반테", "강아지", "용기", "먼저 해볼래!"),
+    "KONYANG": ("코냥", "고양이", "관찰력", "자세히 보면 보여"),
+    "RIA": ("리아", "토끼", "상상력", "이렇게 생각해 보면 어때?"),
+    "TUBUGI": ("투부기", "거북이", "끈기", "천천히 해도 괜찮아"),
+    "PAPPI": ("파삐", "뱁새", "협동", "같이 하면 할 수 있어"),
+    "POTTO": ("포또", "판다", "배려", "나눠 먹자"),
+    "IO": ("이오", "여우", "재치", ""),
+    "SSOLRANG": ("쏠랑이", "호랑이", "따뜻한 리더십", ""),
+    "CASPIN": ("캐스핀", "상어", "편견 없는 우정", ""),
+}
+FriendCode = Literal["BANTE", "KONYANG", "RIA", "TUBUGI", "PAPPI", "POTTO", "IO", "SSOLRANG", "CASPIN"]
 MAX_VARIANTS = 16
 WISH_MAX = 60
 
@@ -63,6 +77,8 @@ class EpisodeRequest(BaseModel):
     wish: str | None = Field(default=None, max_length=WISH_MAX)
     # the lesson the story carries; None leaves it out
     lesson: Lesson | None = None
+    # the friend the child picked: it tells the story and asks every question as "나"
+    friend: FriendCode
     # draw this episode's pictures too (only when the server has a painter)
     pictures: bool = False
 
@@ -100,7 +116,7 @@ class EpisodeRequest(BaseModel):
 
 
 class Question(BaseModel):
-    """A checked quiz question as the car plays it. Lumi reads ``text``; the app says what to do with the answer."""
+    """A checked quiz question as the car plays it. The friend reads ``text``; the app says what to do with the answer."""
 
     kind: str
     text: str
@@ -113,6 +129,9 @@ class SceneText(BaseModel):
     bubble: str
     speech: str
     hint: str
+    # said the moment the answer is in: what changed in the car and in the story; empty when it failed the checks
+    # (the car says its own praise then)
+    result: str = ""
     # name of this scene's picture in Episode.images ("p1".."p6"); None plays the app's own picture
     picture: str | None = None
     # the quiz question of this scene; None for the belt mission
@@ -135,30 +154,17 @@ class DraftScene(BaseModel):
     bubble: str
     speech: str
     hint: str
+    result: str
     # put in by the server from the question bank after the writer has written the story (service.put_questions)
     question: DraftQuestion | None = None
 
 
 class Art(BaseModel):
-    """What the painter is asked to draw. Never the answer: the answer is only in Lumi's words."""
+    """What the painter is asked to draw. Never the answer: the answer is only in the friend's words."""
 
     cover: str
     puzzles: list[str]
     ending: str
-
-
-class NewFriend(BaseModel):
-    """Today's new friend: someone who lives in today's world and joins the friend book when the treasure is found.
-
-    The six book friends stay the heroes of the puzzles; this one comes along on the adventure. The look is what the
-    painter draws the friend's portrait from, so it never names an answer either.
-    """
-
-    name: str
-    look: str
-    trait: str
-    # what the friend says when it joins the book
-    hello: str
 
 
 class Draft(BaseModel):
@@ -167,15 +173,13 @@ class Draft(BaseModel):
     theme: Theme
     title: str
     intro: str
-    success: list[str]
-    treasureGift: str
+    # the last line, when the goal is reached and the child gets the badge
     treasureBadge: str
     scenes: list[DraftScene]
-    # the day's world in one line ("공룡이 사는 화산섬"); empty in drafts written before wishes existed
+    # the writer's own one-line summary of the place, kind and season it was given; never shown to the child, only
+    # told again when a failed scene is rewritten
     world: str = ""
     art: Art | None = None
-    # None in drafts written before every story brought a new friend
-    friend: NewFriend | None = None
 
 
 def _text(description: str) -> dict:
@@ -188,10 +192,8 @@ DRAFT_SCHEMA = {
         "theme": {"type": "string", "enum": list(THEME_LABEL)},
         "world": _text("오늘의 세계를 한 줄로. 예: 공룡이 사는 화산섬"),
         "title": _text("오늘의 탐험 카드 제목. 15자 이내"),
-        "intro": _text("루미의 첫인사와 오늘의 사건. 2~3문장"),
-        "success": {"type": "array", "items": _text("퍼즐을 풀었을 때 루미의 칭찬 한 문장"), "description": "서로 다른 칭찬 3개"},
-        "treasureGift": _text("모든 퍼즐을 마치고 안전 지킴이가 글로브박스에서 선물을 꺼내 줄 때의 말"),
-        "treasureBadge": _text("선물 없이 탐험 배지를 받을 때의 말"),
+        "intro": _text("고른 친구의 첫인사와 오늘의 장소, 목표. 2~3문장"),
+        "treasureBadge": _text("끝 인사: 목표를 이루고 탐험대장에게 탐험 배지를 줄 때의 말"),
         "scenes": {
             "type": "array",
             "items": {
@@ -199,10 +201,11 @@ DRAFT_SCHEMA = {
                 "properties": {
                     "key": _text("주어진 장면 key를 그대로"),
                     "bubble": _text("화면 말풍선 한 줄"),
-                    "speech": _text("루미가 문제 앞에 들려주는 이야기 1~2문장. 문제와 정답은 쓰지 않는다"),
+                    "speech": _text("고른 친구가 문제 앞에 들려주는 이야기 1~2문장. 문제와 정답은 쓰지 않는다"),
+                    "result": _text("정답을 넣은 순간의 말 1~2문장: 차에서 바뀐 것, 이야기 속 결과, 목표까지 남은 것"),
                     "hint": _text("벨트 미션의 힌트 한 문장. 퀴즈 장면은 빈 문자열(문제은행의 힌트를 쓴다)"),
                 },
-                "required": ["key", "bubble", "speech", "hint"],
+                "required": ["key", "bubble", "speech", "result", "hint"],
                 "additionalProperties": False,
             },
         },
@@ -217,20 +220,8 @@ DRAFT_SCHEMA = {
             "required": ["cover", "puzzles", "ending"],
             "additionalProperties": False,
         },
-        "friend": {
-            "type": "object",
-            "description": "오늘의 세계에 사는 새 친구 한 명. 보물을 찾으면 친구 도감에 들어온다",
-            "properties": {
-                "name": _text("짧은 우리말 이름 2~8자. 예: 아기 공룡 뽀득"),
-                "look": _text("얼굴 그림을 그릴 생김새 한 줄: 무엇인지, 색, 소품 하나"),
-                "trait": _text("성격과 좋아하는 것 한 문장"),
-                "hello": _text("도감에 들어올 때 새 친구가 하는 인사 한마디"),
-            },
-            "required": ["name", "look", "trait", "hello"],
-            "additionalProperties": False,
-        },
     },
-    "required": ["theme", "world", "title", "intro", "success", "treasureGift", "treasureBadge", "scenes", "art", "friend"],
+    "required": ["theme", "world", "title", "intro", "treasureBadge", "scenes", "art"],
     "additionalProperties": False,
 }
 
@@ -243,8 +234,6 @@ class Episode(BaseModel):
     theme: Theme
     title: str
     intro: str
-    success: list[str]
-    treasureGift: str
     treasureBadge: str
     scenes: dict[str, SceneText]
     dropped: list[str] = []
@@ -253,8 +242,6 @@ class Episode(BaseModel):
     images: dict[str, str] = {}
     # answer key -> its puzzle's picture name, also for a key whose words were dropped (it plays the app's own lines)
     pictures: dict[str, str] = {}
-    # today's new friend, its portrait in images["friend"]; None when the draft had none or it failed the checks
-    friend: NewFriend | None = None
 
 
 class Report(BaseModel):

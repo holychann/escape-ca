@@ -421,54 +421,32 @@ def hint_without_english(hint: str, word: str | None) -> str:
 
 # ---------------------------------------------------------------- what the writer is told
 
-FRIEND_OF_DIAL = {
-    "FAN": "새싹 로봇",
-    "FAN_UP": "새싹 로봇",
-    "FAN_DOWN": "새싹 로봇",
-    "TEMP_UP": "펭귄 선장",
-    "TEMP_DOWN": "펭귄 선장",
-    "LIGHTS": "토끼 기관사",
-    "LIGHT_CHILD": "토끼 기관사",
-    "LIGHTS_OFF": "토끼 기관사",
-    "SEAT_HEAT": "수달 요리사",
-    "SEAT_HEAT_ON": "수달 요리사",
-    "SEAT_HEAT_OFF": "수달 요리사",
-    "RECIRC": "수달 요리사",
-    "AC": "투덜이 기계",
-    "DEFROST": "투덜이 기계",
-}
-
-
-def friend(q: QuizKey) -> str:
-    """The book friend the scene is about."""
-    return FRIEND_OF_DIAL[q.dial]
-
-
+# the trouble a scene is about, told to the writer only when the bank has no question for the key (the car then asks
+# its own); the friend speaks as "나", and the cause is the story's, never the season or the light, which the car
+# does not know
 _TROUBLE = {
-    "FAN": "새싹 로봇의 새싹이 목말라서 시든다. 바람이 필요하다",
-    "TEMP_UP": "펭귄 선장의 방이 너무 추워져서 조금 따뜻하게 해야 한다",
-    "TEMP_DOWN": "펭귄 선장의 방이 더워서 얼음이 녹으려 한다. 시원하게 해야 한다",
-    "LIGHTS": "토끼 기관사가 고치는 기차 칸이 깜깜해서 작은 불이 필요하다",
-    "SEAT_HEAT": "수달 요리사의 의자가 차가워서 따뜻하게 데워야 한다",
+    "FAN": "바람이 필요한 까닭이 생긴다(예: 바람개비를 돌려야 한다)",
+    "TEMP_UP": "차 안 공기를 조금 따뜻하게 해야 하는 까닭이 생긴다",
+    "TEMP_DOWN": "차 안 공기를 조금 시원하게 해야 하는 까닭이 생긴다",
+    "LIGHTS": "작은 불빛이 필요한 까닭이 생긴다",
+    "SEAT_HEAT": "안전 지킴이 의자를 데워야 하는 까닭이 생긴다",
 }
 
 # a situation's trouble, by the function it needs
-# (used only when the bank has no question for the key; the causes sit with a friend, never the season or the light,
-# since the car does not know either)
 _REASON_TROUBLE = {
-    ("AC", 1): "투덜이 기계가 뛰어놀고 와서 덥다. 바람은 나오는데 시원하지 않다",
-    ("AC", 0): "감기 걸린 투덜이 기계가, 더울 때 켜는 시원한 바람이 켜져 있어서 덜덜 떤다",
-    ("RECIRC", 1): "밖의 냄새가 바람 구멍으로 들어와서 수달 요리사가 코를 막는다",
-    ("RECIRC", 0): "같은 공기만 빙글빙글 돌아서 수달 요리사가 숨이 답답하다",
-    ("DEFROST", 1): "투덜이 기계의 입김 때문에 앞 유리 안쪽이 뿌예지려고 한다",
-    ("TEMP_UP", 1): "감기 걸린 펭귄 선장이 으슬으슬 추워한다",
-    ("TEMP_DOWN", 1): "뛰어놀고 온 펭귄 선장이, 에어컨이 켜져 있는데도 아직 조금 덥다",
-    ("FAN_UP", 1): "새싹 로봇의 바람개비가 느릿느릿 돈다. 바람이 지금보다 더 필요하다",
-    ("FAN_DOWN", 1): "바람이 너무 세게 불어서 새싹 로봇의 잎이 마구 흔들린다. 바람은 조금 나와야 한다",
-    ("SEAT_HEAT_ON", 1): "수달 요리사가 안전 지킴이 의자에 얼음 주머니를 올려 둬서 의자가 차갑다",
-    ("SEAT_HEAT_OFF", 0): "안전 지킴이 의자가 계속 데워져서 엉덩이가 뜨끈뜨끈하다",
-    ("LIGHT_CHILD", 1): "토끼 기관사가 준 지도의 그림이 개미만큼 작아서 아이 자리가 더 밝아야 한다",
-    ("LIGHTS_OFF", 0): "토끼 기관사가 잘 시간인데 작은 불이 하나라도 켜져 있으면 잠이 안 온다",
+    ("AC", 1): "내가 덥다. 바람은 나오는데 시원하지 않다",
+    ("AC", 0): "내가 덜덜 떨리는데, 더울 때 켜는 시원한 바람이 켜져 있다",
+    ("RECIRC", 1): "바람 구멍으로 차 밖의 냄새가 들어온다",
+    ("RECIRC", 0): "같은 공기만 빙글빙글 돌아서 숨이 답답하다",
+    ("DEFROST", 1): "앞 유리 안쪽이 뿌예지려고 한다",
+    ("TEMP_UP", 1): "내 몸이 으슬으슬 떨린다",
+    ("TEMP_DOWN", 1): "에어컨이 켜져 있는데도 내가 아직 조금 덥다",
+    ("FAN_UP", 1): "바람이 약해서 바람개비가 느릿느릿 돈다. 바람이 지금보다 더 필요하다",
+    ("FAN_DOWN", 1): "바람이 너무 세서 종이가 날아가려 한다. 바람은 조금 나와야 한다",
+    ("SEAT_HEAT_ON", 1): "안전 지킴이 의자만 차갑다",
+    ("SEAT_HEAT_OFF", 0): "안전 지킴이 의자가 계속 데워져서 뜨끈뜨끈하다",
+    ("LIGHT_CHILD", 1): "내가 준 그림 지도가 작아서 아이 자리가 더 밝아야 잘 보인다",
+    ("LIGHTS_OFF", 0): "작은 불이 하나라도 켜져 있으면 마음이 안 놓인다",
 }
 
 
@@ -512,33 +490,20 @@ def other_way(q: QuizKey) -> list[str]:
     return _OTHER_WAY.get(q.dial, [])
 
 
-BOOK_FRIENDS = ("펭귄 선장", "새싹 로봇", "토끼 기관사", "수달 요리사", "사막여우", "투덜이 기계")
-
-
-def question_friend(q: QuizKey, text: str) -> str:
-    """The friend a situation is about: the first book friend its sentence names, so the story leading into it is
-    about the same friend; the device's friend when it names none."""
-    named = [(text.find(f), f) for f in BOOK_FRIENDS if f in text]
-    return min(named)[1] if named else friend(q)
-
-
 def scene_lines(q: QuizKey, question) -> list[str]:
     """The lines about one quiz scene in the writer's message. ``question`` is the DraftQuestion the bank gave this
-    scene: the writer only writes the story that leads to it."""
-    if q.kind == "REASON":
-        # the situation is the question's own: the story only leads into it, with the same friend and trouble
-        lines = [f"  주인공 친구: {question_friend(q, question.text)}",
-                 "  상황: 아래 문제 문장에 나온 상황 그대로다. 다른 상황이나 다른 까닭을 새로 만들지 않는다"]
-    else:
-        lines = [f"  주인공 친구: {friend(q)}", f"  상황: {trouble(q)}"]
-    lines.append(f"  이 장면의 문제 (정해져 있음, 루미가 speech 바로 뒤에 읽는다): «{question.text}»")
+    scene: the writer writes the story that leads to it and the line said once it is solved."""
+    lines = [f"  이 장면의 문제 (정해져 있음, 친구가 speech 바로 뒤에 읽는다): «{question.text}»"]
     if q.kind == "REASON":
         lines.append(f"  정답 조작: {REASON_ACTIONS[(q.dial, q.value)]} (아이가 상황을 듣고 스스로 찾는다). "
-                     "버튼 이름과 할 일은 bubble, speech, art 어디에도 쓰지 않는다")
+                     "bubble, speech, art에는 버튼 이름과 할 일을 쓰지 않는다. result에서는 써도 된다")
+        lines.append("  speech: 문제 문장의 상황이 생긴 까닭을, 친구가 목표를 위해 하던 일에서 만든다")
     else:
-        lines.append(f"  정답: {q.value} ({what_the_answer_does(q)}). 이 수는 어디에도 쓰지 않는다")
+        lines.append(f"  정답: {q.value} ({what_the_answer_does(q)}). 이 수는 bubble, speech, art에 쓰지 않는다. "
+                     "result에서는 써도 된다")
+        lines.append("  speech: 이 장치가 이야기에서 왜 필요한지까지만 쓴다. 왜 그 수인지는 지어내지 않는다")
     if words := other_way(q):
-        lines.append(f"  반대로 들리는 말은 쓰지 않는다: {', '.join(words)}")
+        lines.append(f"  반대로 들리는 말은 bubble과 speech에 쓰지 않는다: {', '.join(words)}")
     return lines
 
 

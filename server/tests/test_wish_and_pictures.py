@@ -18,35 +18,25 @@ BODY = {
     "minutes": 10,
     "context": {"timeOfDay": "AFTERNOON", "season": "AUTUMN"},
     "puzzles": [[MATH], [REASON], ["BELT"]],
+    "friend": "BANTE",
 }
 KEYS = [MATH, REASON, "BELT"]
 ART = Art(
-    cover="공룡 섬에 도착한 루미와 친구들이 활짝 웃는다",
-    puzzles=["새싹 로봇이 시든 새싹 화분 옆에서 사과 바구니를 든다", "사막여우가 모래 언덕 위에서 꼬리를 흔들며 웃는다", "탐험대장 자리 옆에서 루미가 손짓한다"],
-    ending="공룡 친구들과 보물을 찾고 다 함께 웃는다",
+    cover="공룡 섬에 도착한 반테가 활짝 웃는다",
+    puzzles=["반테가 멈춘 바람개비 옆에서 사과 바구니를 든다", "반테가 모래 언덕 위에서 뿌연 유리를 바라본다", "탐험대장 자리 옆에서 반테가 손짓한다"],
+    ending="반테가 보물을 찾고 활짝 웃는다",
 )
 
 
 class FakePainter:
-    """Scenes go to ``calls``, portraits to ``portraits``; ``with_friend`` lists the scenes drawn with the portrait."""
+    """Every picture it is asked for goes to ``calls``."""
 
     def __init__(self, fail: set[str] = frozenset()):
         self.calls: list[str] = []
-        self.portraits: list[str] = []
-        self.with_friend: list[str] = []
         self.fail = fail
 
-    def paint(self, description: str, friend: bytes | None = None) -> bytes:
+    def paint(self, description: str) -> bytes:
         self.calls.append(description)
-        if friend:
-            self.with_friend.append(description)
-        return self._picture(description)
-
-    def portrait(self, description: str) -> bytes:
-        self.portraits.append(description)
-        return self._picture(description)
-
-    def _picture(self, description: str) -> bytes:
         if any(f in description for f in self.fail):
             raise RuntimeError("refused")
         out = io.BytesIO()
@@ -98,7 +88,7 @@ def test_answer_words_are_the_answer_number():
 
 def test_a_picture_that_would_show_the_answer_is_not_drawn():
     req = EpisodeRequest.model_validate(BODY)
-    for leak, word in (("사과 다섯 개를 든 새싹 로봇", "다섯"), ("사과 5개를 든 새싹 로봇", "5")):
+    for leak, word in (("사과 다섯 개를 든 반테", "다섯"), ("사과 5개를 든 반테", "5")):
         leaky = ART.model_copy(update={"puzzles": [leak, *ART.puzzles[1:]]})
         problems = art_problems(filled(KEYS, art=leaky), req)
         assert list(problems) == ["p1"] and f"정답이 보이는 말: {word}" in problems["p1"]
@@ -109,7 +99,7 @@ def test_pictures_are_drawn_served_and_tied_to_their_scenes(tmp_path):
     painter = FakePainter()
     c = client(tmp_path, FakeWriter(draft(KEYS, art=ART, world="공룡 섬")), painter)
     ep = c.post("/v1/episode", json={**BODY, "wish": "공룡 섬에서 보물찾기", "pictures": True}).json()
-    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending", "friend"} and len(painter.calls) == 5
+    assert set(ep["images"]) == {"cover", "p1", "p2", "p3", "ending"} and len(painter.calls) == 5
     assert ep["world"] == "공룡 섬"
     assert ep["pictures"] == {MATH: "p1", REASON: "p2", "BELT": "p3"}
     assert ep["scenes"][MATH]["picture"] == "p1" and ep["scenes"][REASON]["picture"] == "p2"
@@ -151,7 +141,7 @@ def test_a_failed_picture_is_left_to_the_app(tmp_path):
 
 def test_no_scene_pictures_unless_asked(tmp_path):
     painter = FakePainter()
-    ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART, friend=None)), painter).post("/v1/episode", json=BODY).json()
-    assert ep["images"] == {} and painter.calls == [] and painter.portraits == []
+    ep = client(tmp_path, FakeWriter(draft(KEYS, art=ART)), painter).post("/v1/episode", json=BODY).json()
+    assert ep["images"] == {} and painter.calls == []
     record = json.loads((tmp_path / "episodes.jsonl").read_text(encoding="utf-8"))
     assert record["wish"] is False

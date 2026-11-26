@@ -3,8 +3,7 @@
 The writer only describes each picture (Draft.art) and the checker has already removed any description that
 would show an answer, so a picture can set the scene but never tell the child which button to press.
 Every call gets the same two reference pictures (the nine friends' model sheet, one finished scene), so a new world
-still has the same characters drawn the same way. Today's new friend is drawn first as a square portrait for the
-friend book, and that portrait goes along as a third reference for the cover and the ending.
+still has the same characters drawn the same way.
 """
 import io
 import logging
@@ -48,14 +47,6 @@ STYLE = LOOK + (
     "any other character outside the model sheet appears unless the scene asks for it. The second reference picture "
     "shows the drawing style: copy its felt texture, light and colours, but not its place, props or composition. "
 ) + NOT_AI
-# added when today's new friend has been drawn already, so the cover and the ending show the same friend
-WITH_FRIEND = "The third reference picture shows today's new friend; wherever they appear, draw them exactly like that. "
-PORTRAIT = LOOK + (
-    "A portrait for a children's friend collection card: one new character, alone, centered, head and upper body, "
-    "facing the viewer with a friendly smile, on a plain soft pastel background, square picture. Give it the same "
-    "proportions and felt texture as the nine friends in the first reference picture, but as a new character, not one "
-    "of them. The second reference picture shows the drawing style to copy. "
-) + NOT_AI
 
 
 class PainterError(Exception):
@@ -63,11 +54,8 @@ class PainterError(Exception):
 
 
 class Painter(Protocol):
-    def paint(self, description: str, friend: bytes | None = None) -> bytes:
-        """WebP bytes of one landscape picture for this scene description; [friend] is today's new friend's portrait."""
-
-    def portrait(self, description: str) -> bytes:
-        """WebP bytes of one square portrait of today's new friend."""
+    def paint(self, description: str) -> bytes:
+        """WebP bytes of one landscape picture for this scene description."""
 
 
 def to_webp(png_or_jpeg: bytes, width: int = 1536) -> bytes:
@@ -99,14 +87,8 @@ class GeminiPainter:
             for n in ("ref_friends", "ref_style")
         ]
 
-    def paint(self, description: str, friend: bytes | None = None) -> bytes:
-        from google.genai import types
-        refs = self.refs + ([types.Part.from_bytes(data=friend, mime_type="image/webp")] if friend else [])
-        prompt = STYLE + (WITH_FRIEND if friend else "") + "Scene: " + description
-        return to_webp(self._draw(prompt, refs, "3:2"))
-
-    def portrait(self, description: str) -> bytes:
-        return to_webp(self._draw(PORTRAIT + "Character: " + description, self.refs, "1:1"), width=640)
+    def paint(self, description: str) -> bytes:
+        return to_webp(self._draw(STYLE + "Scene: " + description, self.refs, "3:2"))
 
     def _draw(self, prompt: str, refs: list, aspect: str) -> bytes:
         from google.genai import types

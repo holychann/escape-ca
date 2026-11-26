@@ -7,7 +7,7 @@ import pytest
 from app import quiz
 from app.models import EpisodeRequest
 from app.service import make_episode, pick_questions, put_questions
-from tests.fakes import (AC, BANK, COLD, COOL, ENGLISH, FOG, MATH, REASON, RUN, SUM, TIMES, UNCOVERED, WORD, FakeWriter,
+from tests.fakes import (AC, BANK, COLD, COOL, ENGLISH, FOG, FRIEND, MATH, REASON, RUN, SUM, TIMES, UNCOVERED, WORD, FakeWriter,
                          draft, without_situations)
 
 AGES = ("LITTLE", "CAPTAIN", "DETECTIVE")
@@ -20,6 +20,7 @@ def request(slots, ages=("CAPTAIN",)):
         minutes=10,
         context={"timeOfDay": "EVENING", "season": "WINTER"},
         puzzles=slots,
+        friend=FRIEND,
     )
 
 

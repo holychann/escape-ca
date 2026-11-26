@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import quiz
 from .bank import Bank
-from .checker import Verdict, art_problems, check, friend_problems, scene_text, to_episode
+from .checker import Verdict, art_problems, check, scene_text, to_episode
 from .models import Draft, DraftQuestion, Episode, EpisodeRequest
 from .painter import Painter
 from .prompt import SYSTEM, user_message
@@ -53,15 +53,14 @@ def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int 
             continue
         put_questions(draft, picks)
         verdict = check(draft, req)
-        friend = friend_problems(draft.friend, req)
-        log.info("attempt %d: episode=%s scenes=%s friend=%s", attempt, verdict.whole, verdict.items, friend)
+        log.info("attempt %d: episode=%s scenes=%s", attempt, verdict.whole, verdict.items)
         if not verdict.usable:
             continue
         episode = to_episode(draft, verdict, req, uuid.uuid4().hex, model)
-        # fewer dropped scenes first; with as many, a story that brings its new friend
-        if best is None or _score(verdict, episode) < _score(best[0], best[1]):
+        # the draft that drops fewer scenes
+        if best is None or len(verdict.items) < len(best[0].items):
             best = (verdict, episode, draft)
-        if verdict.clean and episode.friend is not None:
+        if verdict.clean:
             break
     if best is None:
         return None
@@ -71,10 +70,6 @@ def make_episode(req: EpisodeRequest, writer: Writer, bank: Bank, attempts: int 
     if bad:
         episode = repair(req, writer, episode, bad, picks)
     return episode, draft
-
-
-def _score(verdict: Verdict, episode: Episode) -> tuple[int, bool]:
-    return len(verdict.items), episode.friend is None
 
 
 def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], picks: Picks) -> Episode:
@@ -100,51 +95,38 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], pick
         return ep
     scenes = dict(ep.scenes)
     for key, s in fixed.items():
-        scenes[key] = scene_text(key, s)
+        scenes[key] = scene_text(key, s, req)
     return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]})
 
 
-def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path, scenes: bool = True) -> Episode:
-    """Draw today's new friend's portrait and, when [scenes], the cover, one picture per puzzle and the ending.
-
-    Everything is drawn side by side, except that the cover and the ending wait for the portrait so they can show the
-    same friend. A picture that is refused or fails is left out and the app shows its own picture there.
-    """
+def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path) -> Episode:
+    """Draw the cover, one picture per puzzle and the ending, side by side. A picture that is refused or fails is left
+    out and the app shows its own picture there."""
     wanted: dict[str, str] = {}
-    if scenes:
-        art = draft.art
-        skip = art_problems(draft, req)
-        if skip:
-            log.info("pictures not drawn: %s", skip)
-        if art is not None:
-            wanted["cover"] = art.cover
-            wanted["ending"] = art.ending
-            for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
-                # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
-                avoid = sorted({w for key in req.puzzles[i - 1] if quiz.parse(key) is None for w in rule_for(key).art_never})
-                wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
-        wanted = {name: text for name, text in wanted.items() if name not in skip}
-    friend = ep.friend
-    if not wanted and friend is None:
+    art = draft.art
+    skip = art_problems(draft, req)
+    if skip:
+        log.info("pictures not drawn: %s", skip)
+    if art is not None:
+        wanted["cover"] = art.cover
+        wanted["ending"] = art.ending
+        for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
+            # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
+            avoid = sorted({w for key in req.puzzles[i - 1] if quiz.parse(key) is None for w in rule_for(key).art_never})
+            wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
+    wanted = {name: text for name, text in wanted.items() if name not in skip}
+    if not wanted:
         return ep
 
-    def draw(name: str, job) -> tuple[str, bytes | None]:
+    def draw(name: str, text: str) -> tuple[str, bytes | None]:
         try:
-            return name, job()
+            return name, painter.paint(text)
         except Exception as e:  # refusal, timeout, no image part
             log.warning("picture %s failed: %r", name, e)
             return name, None
 
-    drawn: dict[str, bytes | None] = {}
-    with ThreadPoolExecutor(max_workers=len(wanted) + 1) as pool:
-        later = {"cover", "ending"} if friend is not None else set()
-        first = {n: pool.submit(draw, n, lambda t=t: painter.paint(t)) for n, t in wanted.items() if n not in later}
-        if friend is not None:
-            face = f"{friend.name}. {friend.look}" + (f" (사는 곳: {ep.world})" if ep.world else "")
-            drawn["friend"] = pool.submit(draw, "friend", lambda: painter.portrait(face)).result()[1]
-            portrait = drawn["friend"]
-            first |= {n: pool.submit(draw, n, lambda t=wanted[n]: painter.paint(t, portrait)) for n in later if n in wanted}
-        drawn |= dict(f.result() for f in first.values())
+    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
+        drawn = dict(pool.map(lambda item: draw(*item), wanted.items()))
 
     out = folder / ep.storyId
     images = {}

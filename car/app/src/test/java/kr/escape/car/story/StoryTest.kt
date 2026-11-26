@@ -1,18 +1,23 @@
 package kr.escape.car.story
 
+import kr.escape.car.GameUi
+import kr.escape.car.engine.Age
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Device
 import kr.escape.car.engine.Dial
+import kr.escape.car.engine.Friend
 import kr.escape.car.engine.Gear
 import kr.escape.car.engine.Planner
 import kr.escape.car.engine.Puzzle
 import kr.escape.car.engine.QuizKind
 import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -116,18 +121,26 @@ class StoryTest {
 
     private val json = """
         {"storyId":"0123456789abcdef0123456789abcdef","model":"m","theme":"SEA_SUB","title":"잠수함 대소동",
-         "intro":"안녕!","success":["최고야!","해냈어!"],"treasureGift":"선물!","treasureBadge":"배지!",
+         "intro":"안녕!","treasureBadge":"배지!",
          "scenes":{
            "Q:MATH:FAN:5":{"bubble":"바람이 필요해!","speech":"잠수함 새싹이 시들었어.","hint":"손가락으로 세어 봐!",
-             "question":{"kind":"MATH","text":"조개 2개에 3개를 더하면 몇 개일까?","expr":"2+3"}},
+             "question":{"kind":"MATH","text":"조개 2개에 3개를 더하면 몇 개일까?","expr":"2+3"},
+             "result":"바람이 솔솔, 새싹이 다시 일어났어!"},
            "Q:ENGLISH:LIGHTS:2":{"bubble":"깜깜해!","speech":"등대가 꺼졌어.","hint":"세어 봐!",
-             "question":{"kind":"MATH","text":"1 더하기 1은?","expr":"1+1"}},
+             "question":{"kind":"MATH","text":"1 더하기 1은?","expr":"1+1"},"result":"등대가 반짝!"},
            "Q:ENGLISH:SEAT_HEAT:3":{"bubble":"추워!","speech":"의자가 차가워.","hint":"세어 봐!"},
            "Q:MATH:TEMP_DOWN:2":{"bubble":"더워!","speech":"방이 더워.","hint":"세어 봐!",
              "question":{"kind":"SPELLING","text":"몇 글자?"}},
            "Q:REASON:DEFROST:1":{"bubble":"앞이 안 보여!","speech":"잠수함 창이 흐려졌어.","hint":"앞 유리를 맑게 하는 버튼!",
-             "question":{"kind":"REASON","text":"펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 차 버튼으로 펭귄 선장을 도와줘!"}},
-           "BELT":{"bubble":"딸깍!","speech":"벨트를 딸깍!","hint":"딸깍 소리!"}},
+             "question":{"kind":"REASON","text":"펭귄 선장의 입김에 앞 유리 안쪽이 뿌예지려고 해. 차 버튼으로 펭귄 선장을 도와줘!"},
+             "result":""},
+           "Q:REASON:LIGHT_CHILD:1":{"bubble":"글씨가 안 보여!","speech":"보물 지도가 작아.","hint":"네 자리를 밝게!",
+             "question":{"kind":"REASON","text":"보물 지도 글씨가 너무 작아. 차 버튼으로 보물 찾기를 도와줘!"},
+             "result":"네 자리가 환해져서 지도가 잘 보여!"},
+           "Q:REASON:LIGHTS_OFF:0":{"bubble":"잠이 안 와!","speech":"아기 해마가 졸려.","hint":"불을 모두 꺼 봐!",
+             "question":{"kind":"REASON","text":"아기 해마가 낮잠을 자려는데 불빛 때문에 잠이 안 온대. 차 버튼으로 아기 해마를 도와줘!"},
+             "result":"깜깜해지자 아기 해마가 새근새근 잠들었어!"},
+           "BELT":{"bubble":"딸깍!","speech":"벨트를 딸깍!","hint":"딸깍 소리!","result":"딸깍! 출발 준비 끝!"}},
          "dropped":["Q:REASON:AC:1"]}
     """.trimIndent()
 
@@ -176,8 +189,58 @@ class StoryTest {
         assertEquals("벨트를 딸깍!", story.scene(Puzzle.BeltMission).speech)
         assertEquals(Lines.scene(Puzzle.BeltMission).pictures, story.scene(Puzzle.BeltMission).pictures)
         assertEquals("theme_sea_sub", story.themePicture)
-        assertEquals("해냈어!", story.success(3))
         assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    @Test
+    fun anOlderStoryStillPlays() {
+        // written before the friend told the story: generic praise, a gift line, a new friend, and no scene results
+        val old = JSONObject(json).put("success", JSONArray(listOf("최고야!"))).put("treasureGift", "선물!")
+            .put("friend", JSONObject().put("name", "꼬마 해마"))
+        old.getJSONObject("scenes").keys().forEach { old.getJSONObject("scenes").getJSONObject(it).remove("result") }
+        val story = Story.parse(old)
+        assertEquals("배지!", story.treasureBadge)
+        assertTrue(story.scenes.values.all { it.result.isEmpty() })
+        assertEquals("", story.scene(fan).result)
+        assertEquals(story, Story.parse(story.toJson()))
+    }
+
+    // ------------------------------------------------------------ when a puzzle is solved
+
+    private fun solvedLine(p: Puzzle, story: Story? = Story.parse(JSONObject(json))) =
+        GameUi(puzzles = listOf(Puzzle.BeltMission, p), index = 1, story = story).solvedLine
+
+    @Test
+    fun aSolvedPuzzleEndsWithItsScenesResultLine() {
+        val story = Story.parse(JSONObject(json))
+        assertEquals("바람이 솔솔, 새싹이 다시 일어났어!", story.scene(fan).result)
+        assertEquals("바람이 솔솔, 새싹이 다시 일어났어!", solvedLine(fan))
+        assertEquals("딸깍! 출발 준비 끝!", GameUi(puzzles = listOf(Puzzle.BeltMission), story = story).solvedLine)
+        // a result the server dropped
+        assertEquals(Lines.SUCCESS, solvedLine(defrost))
+        // the scene is played from the app's own lines, so the story's line would follow words the child never heard
+        assertEquals(Lines.SUCCESS, solvedLine(lights))
+        // dropped by the server, or no story at all
+        assertEquals(Lines.SUCCESS, solvedLine(ac))
+        assertEquals(Lines.SUCCESS, solvedLine(fan, story = null))
+    }
+
+    @Test
+    fun aQuizSwappedAsItStartsEndsWithItsOwnResultLine() {
+        val lightChild = Puzzle.Quiz(QuizKind.REASON, Dial.LIGHT_CHILD, 1)
+        // the child's light was switched on during an earlier puzzle: the app tells the opposite story instead
+        val lit = known.copy(readingLights = known.readingLights + (Seat.REAR_RIGHT to true))
+        val puzzles = Planner.fitted(listOf(Puzzle.BeltMission, lightChild), 1, lit, Setup(), Random(0))
+        val swapped = Puzzle.Quiz(QuizKind.REASON, Dial.LIGHTS_OFF, 0)
+        assertEquals(listOf(Puzzle.BeltMission, swapped), puzzles)
+        val ui = GameUi(puzzles = puzzles, index = 1, story = Story.parse(JSONObject(json)))
+        assertEquals("깜깜해지자 아기 해마가 새근새근 잠들었어!", ui.solvedLine)
+        assertEquals("네 자리가 환해져서 지도가 잘 보여!", solvedLine(lightChild))
+    }
+
+    @Test
+    fun theFriendGetsCloserInItsOwnWords() {
+        assertEquals("우리 한층 더 친해졌어!", Lines.CLOSER)
     }
 
     @Test
@@ -395,15 +458,70 @@ class StoryTest {
     }
 
     @Test
-    fun requestCarriesOnlyEnumsNumbersAndOneKeyPerPuzzle() {
+    fun requestCarriesOnlyEnumsNumbersAndAnswerKeys() {
         val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
         val puzzles = listOf(fan, Puzzle.BeltMission, Puzzle.Quiz(QuizKind.REASON, Dial.AC, 0))
-        val body = StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(), puzzles, now, lesson = "GRIT")
-        assertEquals(setOf("installId", "ages", "minutes", "context", "puzzles", "lesson"), body.keySet())
+        val body = StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(friend = Friend.CASPIN), puzzles, now, lesson = "GRIT")
+        assertEquals(setOf("installId", "ages", "minutes", "context", "friend", "puzzles", "lesson"), body.keySet())
+        assertEquals("CASPIN", body.getString("friend"))
         assertEquals("GRIT", body.getString("lesson"))
         assertEquals("AUTUMN", body.getJSONObject("context").getString("season"))
         assertEquals("EVENING", body.getJSONObject("context").getString("timeOfDay"))
-        assertEquals("""[["Q:MATH:FAN:5"],["BELT"],["Q:REASON:AC:0"]]""", body.getJSONArray("puzzles").toString())
+        // a fan amount and the belt mission go only one way; the air conditioner off also has the story of on
+        assertEquals("""[["Q:MATH:FAN:5"],["BELT"],["Q:REASON:AC:0","Q:REASON:AC:1"]]""", body.getJSONArray("puzzles").toString())
+        assertEquals("BANTE", StoryRepo.request("00000000-0000-0000-0000-000000000000", Setup(), puzzles, now).getString("friend"))
+    }
+
+    private fun slots(setup: Setup, puzzles: List<Puzzle>): List<List<String>> {
+        val now = Calendar.getInstance().apply { set(2026, Calendar.NOVEMBER, 1, 18, 30) }
+        val a = StoryRepo.request("00000000-0000-0000-0000-000000000000", setup, puzzles, now).getJSONArray("puzzles")
+        return List(a.length()) { i -> a.getJSONArray(i).let { s -> List(s.length()) { s.getString(it) } } }
+    }
+
+    @Test
+    fun aQuizSlotAlsoNamesTheQuizTheAppMaySwitchTo() {
+        val warm = Puzzle.Quiz(QuizKind.REASON, Dial.TEMP_UP, 1)
+        val puzzles = listOf(
+            cold, Puzzle.Quiz(QuizKind.REASON, Dial.LIGHT_CHILD, 1), Puzzle.BeltMission, warm,
+            Puzzle.Quiz(QuizKind.REASON, Dial.SEAT_HEAT_OFF, 0), defrost,
+        )
+        assertEquals(
+            listOf(
+                listOf("Q:MATH:TEMP_DOWN:2", "Q:MATH:TEMP_UP:2"),
+                listOf("Q:REASON:LIGHT_CHILD:1", "Q:REASON:LIGHTS_OFF:0"),
+                listOf("BELT"),
+                listOf("Q:REASON:TEMP_UP:1", "Q:REASON:TEMP_DOWN:1"),
+                listOf("Q:REASON:SEAT_HEAT_OFF:0", "Q:REASON:SEAT_HEAT_ON:1"),
+                // the defroster only goes on
+                listOf("Q:REASON:DEFROST:1"),
+            ),
+            slots(Setup(), puzzles),
+        )
+        // the youngest (4~6) are never told a "cool the cabin" story, so the app never switches to one for them
+        val little = Setup(ages = listOf(Age.CAPTAIN, Age.LITTLE))
+        assertEquals(listOf(listOf("Q:REASON:TEMP_UP:1")), slots(little, listOf(warm)))
+        // a number on the temperature may go the other way at any age
+        assertEquals(listOf(listOf("Q:MATH:TEMP_DOWN:2", "Q:MATH:TEMP_UP:2")), slots(little, listOf(cold)))
+    }
+
+    @Test
+    fun everyPlannedRequestNamesEachKeyOnceWithThePlannedOneFirst() {
+        repeat(200) { seed ->
+            for (car in listOf(parked, known)) {
+                for (ages in listOf(listOf(Age.LITTLE), listOf(Age.CAPTAIN), listOf(Age.DETECTIVE))) {
+                    val setup = Setup(ages = ages, minutes = 15)
+                    val puzzles = Planner.plan(setup, car, Random(seed))
+                    val slots = slots(setup, puzzles)
+                    assertEquals(puzzles.map(StoryKeys::key), slots.map { it.first() })
+                    val keys = slots.flatten()
+                    // the server takes at most 16 keys and refuses one named twice
+                    assertTrue(keys.size <= 16)
+                    assertEquals(keys.size, keys.toSet().size)
+                    // whatever the app may switch to at the start is a quiz it can play
+                    for (k in keys) assertNotNull(k, StoryKeys.puzzle(k))
+                }
+            }
+        }
     }
 
     @Test

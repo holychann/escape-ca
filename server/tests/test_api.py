@@ -13,6 +13,7 @@ BODY = {
     "minutes": 10,
     "context": {"timeOfDay": "AFTERNOON", "season": "AUTUMN"},
     "puzzles": [[MATH], [REASON], ["BELT"]],
+    "friend": "BANTE",
 }
 KEYS = [MATH, REASON, "BELT"]
 
@@ -24,7 +25,7 @@ def client(writer, tmp_path, bank=BANK):
 def leaky():
     """A draft whose story says the sum's answer before the child has worked it out."""
     d = draft(KEYS)
-    d.scenes[0].speech = "새싹 로봇이 사과 다섯 개만 있으면 된대! 이 문제를 풀어 볼까?"
+    d.scenes[0].speech = "사과 다섯 개만 있으면 된대! 이 문제를 풀어 볼까?"
     return d
 
 
@@ -81,7 +82,7 @@ def test_a_story_that_says_the_other_way_is_dropped_and_repaired(tmp_path):
     keys = [MATH, AC, "BELT"]
     wrong_way = draft(keys)
     # the air conditioner goes on; a story about the cold sends the child the other way
-    wrong_way.scenes[1].speech = "새싹 로봇이 너무 추워서 오들오들 떨어. 이 문제를 풀어 볼까?"
+    wrong_way.scenes[1].speech = "나 너무 추워서 오들오들 떨려. 이 문제를 풀어 볼까?"
     second = wrong_way.model_copy(deep=True)
     w = FakeWriter(wrong_way, second, draft([AC]))
     ep = client(w, tmp_path).post("/v1/episode", json=body).json()
