@@ -37,7 +37,7 @@ NOT_AI = (
 )
 STYLE = LOOK + (
     "Landscape picture, main subjects centered with margin on the left and right. "
-    "The first reference picture is the model sheet of the nine friends, read row by row: Bante (puppy, light brown and white, left ear folded, red scarf), Konyang (gray "
+    "The first reference picture is the model sheet of the nine friends, read row by row: Bante (puppy, light brown and white, symmetric half-folded button ears, red scarf), Konyang (gray "
     "tabby kitten, lime vest, magnifying glass), Ria (white bunny, yellow star hairpin, lilac cape with stars, crayon), "
     "Tubugi (green turtle, dark green shell, small backpack), Pappi (tiny round long-tailed tit bird, short beak, orange "
     "hard hat, pink ribbon), Potto (panda, blue overalls, bamboo basket), Io (orange fox, sky-blue scarf, winking), "
