@@ -148,8 +148,10 @@ class StoryRepo(
             if (slots.any { null in it }) continue
             val chosen = Planner.accepts(slots.map { it.filterNotNull() }, setup, car, questions)
                 ?.takeIf { it.isNotEmpty() } ?: continue
-            val asked = chosen.filterIsInstance<Puzzle.Quiz>().all { p ->
-                candidate.story.scenes[StoryKeys.key(p)]?.question?.let { bank.asks(p, youngest, it) } ?: true
+            // every quiz scene is checked, the alternate keys of a slot too: the app may swap to one as a puzzle starts
+            val asked = candidate.story.scenes.all { (key, words) ->
+                val p = StoryKeys.puzzle(key) as? Puzzle.Quiz ?: return@all true
+                words.question?.let { bank.asks(p, youngest, it) } ?: true
             }
             if (asked) return Found(withLocalPictures(candidate.story), chosen)
         }

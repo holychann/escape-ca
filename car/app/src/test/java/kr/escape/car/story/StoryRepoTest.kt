@@ -255,11 +255,12 @@ class StoryRepoTest {
     )
 
     /** The questions the app ships here: the stored story's own, and one each for the lights and the air conditioner. */
-    private val shelfBank = QuestionBank(listOf(
+    private val shelfBankEntries = listOf(
         QuestionBank.Entry(QuizKind.MATH, Dial.FAN, Age.CAPTAIN, "조개 2개에 3개를 더하면?", "세어 봐", 5, expr = "2+3"),
         QuestionBank.Entry(QuizKind.ENGLISH, Dial.LIGHTS, Age.CAPTAIN, "TWO는 우리말로 몇일까?", "세어 봐", 2, word = "TWO"),
         QuestionBank.Entry(QuizKind.REASON, Dial.AC, Age.CAPTAIN, "더워서 헥헥! 차 버튼으로 도와줘!", "버튼을 찾아봐", 1),
-    ))
+    )
+    private val shelfBank = QuestionBank(shelfBankEntries)
 
     private val goodSlots = listOf(
         listOf("Q:MATH:FAN:5"), listOf("Q:ENGLISH:LIGHTS:2"), listOf("BELT"), listOf("Q:REASON:AC:1"),
@@ -335,6 +336,24 @@ class StoryRepoTest {
         advanceUntilIdle()
         assertEquals("b".repeat(32), r.preview.value?.storyId)
         assertEquals(goodPuzzles, r.take(Setup(), shelfCar)!!.puzzles)
+    }
+
+    @Test
+    fun aQuestionOfAnAlternateKeyIsCheckedToo() = runTest {
+        val slots = listOf(goodSlots[0], goodSlots[1], goodSlots[2], listOf("Q:REASON:AC:1", "Q:REASON:AC:0"))
+        val base = storyOf("a".repeat(32))
+        val off = base.scenes.getValue("BELT").copy(question = Question(QuizKind.REASON, "끄는 이야기, 차 버튼으로 도와줘!"))
+        val story = base.copy(scenes = base.scenes + ("Q:REASON:AC:0" to off))
+        val withOff = QuestionBank(shelfBankEntries + QuestionBank.Entry(
+            QuizKind.REASON, Dial.AC, Age.CAPTAIN, "끄는 이야기, 차 버튼으로 도와줘!", "버튼을 찾아봐", 0))
+        for ((bank, picked) in listOf(shelfBank to false, withOff to true)) {
+            val client = FakeClient { throw IOException("no new story") }
+            client.shelf = { listOf(shelved("a".repeat(32), slots, story)) }
+            val r = repoWith(client, keep = null, bank = bank, heard = HeardStories(tmp.newFile().also { it.delete() }))
+            r.prepare(Setup(), shelfCar)
+            advanceUntilIdle()
+            assertEquals(if (picked) StoryRepo.Status.READY else StoryRepo.Status.OFFLINE, r.status.value)
+        }
     }
 
     @Test
