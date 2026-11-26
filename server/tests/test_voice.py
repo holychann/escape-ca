@@ -9,7 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.voice import GeminiVoice, KeyedVoice, Quota, QuotaError, make_voice, to_wav
+from app.voice import (NAMES_GUIDE, alike, GeminiVoice, KeyedVoice, MisreadError, Quota, QuotaError, make_voice, misheard,
+                       to_wav)
 from tests.fakes import BANK, FakeWriter
 
 INSTALL = "0123456789abcdef0123"
@@ -168,8 +169,11 @@ def test_make_voice_follows_the_keys(monkeypatch):
     import app.voice as voice
 
     class Made:
-        def __init__(self, api_key=None, limited=True):
-            self.api_key, self.limited = api_key, limited
+        def __init__(self, api_key=None, limited=True, listener=None, pace=None):
+            self.pace = pace
+            self.api_key, self.limited, self.listener = api_key, limited, listener
+
+    monkeypatch.setattr(voice, "Listener", lambda api_key=None, paid_key=None: ("listener", api_key, paid_key))
 
     monkeypatch.setattr(voice, "GeminiVoice", Made)
     monkeypatch.delenv("TTS_MODEL", raising=False)
@@ -184,6 +188,10 @@ def test_make_voice_follows_the_keys(monkeypatch):
     both = make_voice()
     assert isinstance(both, KeyedVoice)
     assert (both.free.api_key, both.free.limited, both.paid.api_key, both.paid.limited) == ("free", True, "paid", False)
+    # both keys hear their recordings back: through the free key first, then the paid key
+    assert both.free.listener == both.paid.listener == ("listener", "free", "paid")
+    monkeypatch.setenv("TTS_LISTEN", "off")
+    assert make_voice().free.listener is None
     monkeypatch.setenv("TTS_MODEL", "off")
     assert make_voice() is None
 
@@ -224,7 +232,9 @@ def test_the_style_is_never_part_of_the_words(monkeypatch):
     v = GeminiVoice(model="m", client=_Obj(models=models))
     assert v.speak(LINE)[:4] == b"RIFF"
     part = models.sent["contents"][0]["parts"][0]
-    assert part == {"text": LINE, "speech_metadata": {"style": style}}
+    # a style from .env still carries how to say the friends' names
+    assert part == {"text": LINE, "speech_metadata": {"style": f"{style} {NAMES_GUIDE}"}}
+    assert "반테 (Ban-te, never 방테)" in part["speech_metadata"]["style"]
     assert models.sent["config"]["response_modalities"] == ["AUDIO"]
     assert models.sent["config"]["speech_config"]["voice_config"]["voice"] == "ko-kr-storyteller-4"
 
@@ -269,3 +279,113 @@ def test_a_429_on_the_free_key_closes_it_without_more_calls():
         with pytest.raises(QuotaError):
             v.speak("안녕")
     assert models.calls == 1
+
+
+# ---------------------------------------------------------------- hearing a recording back
+
+
+class _Ears:
+    """Writes down, in turn, what each recording is heard as; None stands for a check that could not be made."""
+
+    def __init__(self, *heard):
+        self.heard_as = list(heard)
+        self.calls = 0
+
+    def heard(self, wav):
+        self.calls += 1
+        return self.heard_as.pop(0)
+
+
+def _voice(ears, limited=False):
+    models = _Models(pcm("반테"))
+    calls = []
+    original = models.generate_content
+
+    def counted(**kw):
+        calls.append(kw)
+        return original(**kw)
+
+    models.generate_content = counted
+    return GeminiVoice(model="m", client=_Obj(models=models), listener=ears, limited=limited), calls
+
+
+def test_a_misread_name_is_found():
+    assert misheard("나는 반테야.", "나는 방태야.") == ["반테"]
+    assert misheard("나는 반테야.", "나는 반 테야!") == []
+    assert misheard("쏠랑이가 왔어", "쏠랑이가 왔어") == []
+    assert misheard("바람을 세게 해 줘", "바람을 새게 해 줘") == []
+    # ㅔ and ㅐ sound the same, so a listener writing 반태 heard it right; the final consonant and the first one do not
+    assert misheard("나는 반테야", "나는 반태야") == []
+    assert misheard("나는 반테야", "나는 판태야") == ["반테"]
+    assert misheard("캐스핀이 왔어", "케스핀이 왔어") == []
+
+
+def test_a_misread_name_is_made_again():
+    ears = _Ears("안녕 나는 방태야", "안녕 나는 반테야")
+    v, calls = _voice(ears)
+    assert v.speak("안녕, 나는 반테야!")[:4] == b"RIFF"
+    assert len(calls) == 2 and ears.calls == 2
+
+
+def test_a_name_misread_every_time_gives_up_on_that_key():
+    v, calls = _voice(_Ears("방태야", "방태야"))
+    with pytest.raises(MisreadError):
+        v.speak("나는 반테야")
+    assert len(calls) == 2
+
+
+def test_the_paid_key_takes_a_line_the_free_key_keeps_misreading(tmp_path):
+    free, _ = _voice(_Ears("방태야", "방태야"))
+    paid, paid_calls = _voice(_Ears("나는 반테야"))
+    assert KeyedVoice(free, paid).speak("나는 반테야")[:4] == b"RIFF"
+    assert len(paid_calls) == 1
+
+
+def test_a_line_read_as_written_is_kept_and_a_failed_check_keeps_the_sound():
+    ears = _Ears(LINE)
+    v, calls = _voice(ears)
+    v.speak(LINE)
+    assert ears.calls == 1 and len(calls) == 1
+    v, calls = _voice(_Ears(None))
+    assert v.speak("나는 반테야")[:4] == b"RIFF"
+    assert len(calls) == 1
+
+
+def test_changed_words_are_made_again_and_the_closer_recording_is_kept():
+    line = "온도를 3도 올렸으니 차 안이 곧 포근해질 거야."
+    # an added word the first time, read as written the second time
+    v, calls = _voice(_Ears("온도를 3도 올렸으니 잠시 후 곧 포근해질 거야.", "온도를 3도 올렸으니 차 안이 곧 포근해질 거야."))
+    assert v.speak(line)[:4] == b"RIFF" and len(calls) == 2
+    # changed both times: still a sound (never none for this), and no third try
+    v, calls = _voice(_Ears("버클을 짚고 말했죠", "포크를 집고 말했죠"))
+    assert v.speak("탐험대장, 버클을 손으로 짚고 딸깍 확인이라고 말해 줘.")[:4] == b"RIFF" and len(calls) == 2
+
+
+def test_a_listener_writes_sounds_and_signs_its_own_way():
+    # a tense consonant and its aspirated pair are written either way: 파피 for 파삐 is heard right
+    assert misheard("나는 파삐야", "나는 파피야") == []
+    assert misheard("나는 반테야", "나는 판테야") == ["반테"]
+    # 빼기 and 더하기 written as - and +
+    assert alike("11 빼기 6 빼기 2도만큼 올려 줘", "11 - 6 - 2도 만큼 올려줘") >= 0.9
+
+
+def test_the_listener_tries_the_paid_key_when_the_free_key_cannot_hear():
+    from app.voice import Listener
+
+    class Busy:
+        def generate_content(self, **kw):
+            raise RuntimeError("503 busy")
+
+    class Hears:
+        def generate_content(self, **kw):
+            return _Obj(text=" 나는 방태야 ")
+
+    assert Listener(client=_Obj(models=Busy()), paid_client=_Obj(models=Hears())).heard(b"RIFF") == "나는 방태야"
+    assert Listener(client=_Obj(models=Busy()), paid_client=_Obj(models=Busy())).heard(b"RIFF") is None
+
+
+def test_english_in_capitals_is_sent_in_small_letters():
+    models = _Models(pcm("x"))
+    v = GeminiVoice(model="m", client=_Obj(models=models))
+    v.speak("힌트: THREE가 우리말로 몇일까? ON의 글자 수만큼! 반테 OK")
+    assert models.sent["contents"][0]["parts"][0]["text"] == "힌트: three가 우리말로 몇일까? on의 글자 수만큼! 반테 ok"

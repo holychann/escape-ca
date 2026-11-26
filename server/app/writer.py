@@ -134,8 +134,9 @@ class GeminiWriter:
 
 
 def _provider() -> str:
-    """STORY_PROVIDER picks the model maker; without it, a Gemini key alone means Gemini."""
-    return os.environ.get("STORY_PROVIDER") or ("gemini" if os.environ.get("GEMINI_API_KEY") else "claude")
+    """The script is written with the Anthropic key (Claude). The Gemini keys are kept for speech and pictures, so
+    having them never changes the writer; STORY_PROVIDER=gemini switches to Gemini on the free key, for trying only."""
+    return os.environ.get("STORY_PROVIDER") or "claude"
 
 
 def make_writer() -> Writer:

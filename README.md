@@ -84,7 +84,7 @@ python -m venv .venv
 copy .env.example .env
 ```
 
-`.env`의 `GEMINI_API_KEY=` 뒤에 따로 받은 키를 넣습니다. `.env`는 `.gitignore`에 들어 있어 저장소에 올라가지 않으니, 키를 다른 파일이나 커밋 메시지, 단체방에 붙여 넣지 않도록 주의해 주세요.
+`.env`에 따로 받은 키 세 개를 넣습니다: `ANTHROPIC_API_KEY=`(대본), `GEMINI_API_KEY=`(무료, 대사 읽기), `GEMINI_API_KEY_PAID=`(유료, 그림과 무료 한도를 넘은 대사 읽기). 역할은 [server/README.md의 '키 세 개'](server/README.md#키-세-개)에 있습니다. `.env`는 `.gitignore`에 들어 있어 저장소에 올라가지 않으니, 키를 다른 파일이나 커밋 메시지, 단체방에 붙여 넣지 않도록 주의해 주세요.
 
 - 이야기 한 편에 약 7원이 키 주인 계정으로 나갑니다. 여러 편을 한꺼번에 만드는 `textgate sample`은 미리 말하고 돌려 주세요.
 - 키 없이 앱 연결만 확인할 때는 `.\.venv\Scripts\python -m tools.dev_server`를 씁니다(문장에 [개발용] 표시).
