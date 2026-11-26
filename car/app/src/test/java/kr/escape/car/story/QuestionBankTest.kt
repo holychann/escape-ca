@@ -79,6 +79,26 @@ class QuestionBankTest {
     }
 
     @Test
+    fun asksOnlyItsOwnQuestion() {
+        val five = Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5)
+        val little = Question(QuizKind.MATH, "조개 3개에 2개를 더 주우면 몇 개일까?", expr = "3+2")
+        val captain = Question(QuizKind.MATH, "사과 9개 중 4개를 먹으면 몇 개 남을까?", expr = "9-4")
+        // the same words
+        assertTrue(bank.asks(five, Age.LITTLE, little))
+        // other words, or the same words with other parts
+        assertFalse(bank.asks(five, Age.LITTLE, little.copy(text = "다른 글")))
+        assertFalse(bank.asks(five, Age.LITTLE, little.copy(expr = "4+1")))
+        // a question made for an older child is not asked of a younger one
+        assertFalse(bank.asks(five, Age.LITTLE, captain))
+        // a question made for a younger child is fine for an older one
+        assertTrue(bank.asks(five, Age.CAPTAIN, little))
+        assertTrue(bank.asks(five, Age.CAPTAIN, captain))
+        // and not for another answer or device
+        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 6), Age.CAPTAIN, little))
+        assertFalse(bank.asks(Puzzle.Quiz(QuizKind.MATH, Dial.LIGHTS, 5), Age.CAPTAIN, little))
+    }
+
+    @Test
     fun anEmptyBankLeavesTheAppsOwnQuestions() {
         assertSame(bank, bank.questions)
         assertSame(Questions.ANY, QuestionBank.parse("not json").questions)

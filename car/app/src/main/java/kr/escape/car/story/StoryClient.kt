@@ -1,5 +1,6 @@
 package kr.escape.car.story
 
+import org.json.JSONException
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -9,10 +10,20 @@ import java.net.URL
 /** The server refused the family's story wish before writing anything; [reasons] say why, for the parent. */
 class WishRejected(val reasons: List<String>) : IOException("wish rejected: $reasons")
 
+/** A story another car got that the server offers again: the slots (answer keys) it was written for, and its words. */
+data class Shelf(val slots: List<List<String>>, val story: Story)
+
 /** The app talks only to its own story server; the AI keys live there, never in the APK. */
 open class StoryClient(private val baseUrl: String) {
     /** Blocking. Throws [WishRejected] for a refused wish and IOException on any other failure (502: every draft failed). */
     open fun episode(request: JSONObject): Story = Story.parse(JSONObject(post("/v1/episode", request, readTimeoutMs = 300_000)))
+
+    /**
+     * Blocking, short waits (connect 3 s, read 5 s). Shelf stories offered for [request]; IOException on failure,
+     * a 429 or a broken answer included.
+     */
+    open fun library(request: JSONObject): List<Shelf> =
+        parseShelves(post("/v1/library", request, readTimeoutMs = 5_000, connectTimeoutMs = 3_000))
 
     open fun report(storyId: String, reason: String) {
         post("/v1/report", JSONObject().put("storyId", storyId).put("reason", reason), readTimeoutMs = 10_000)
@@ -34,11 +45,11 @@ open class StoryClient(private val baseUrl: String) {
         }
     }
 
-    private fun post(path: String, body: JSONObject, readTimeoutMs: Int): String {
+    private fun post(path: String, body: JSONObject, readTimeoutMs: Int, connectTimeoutMs: Int = 5_000): String {
         val conn = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
-            conn.connectTimeout = 5_000
+            conn.connectTimeout = connectTimeoutMs
             conn.readTimeout = readTimeoutMs
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -56,6 +67,26 @@ open class StoryClient(private val baseUrl: String) {
             return conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
         } finally {
             conn.disconnect()
+        }
+    }
+
+    companion object {
+        /** The shelf's answer; a story that does not parse is left out, a broken answer is an IOException. */
+        fun parseShelves(text: String): List<Shelf> {
+            val items = try {
+                JSONObject(text).getJSONArray("stories")
+            } catch (e: JSONException) {
+                throw IOException("story server /v1/library: broken answer", e)
+            }
+            return (0 until items.length()).mapNotNull { i ->
+                runCatching {
+                    val o = items.getJSONObject(i)
+                    val slots = o.getJSONArray("puzzles").let { all ->
+                        List(all.length()) { s -> all.getJSONArray(s).let { keys -> List(keys.length()) { keys.getString(it) } } }
+                    }
+                    Shelf(slots, Story.parse(o.getJSONObject("episode")))
+                }.getOrNull()
+            }
         }
     }
 }

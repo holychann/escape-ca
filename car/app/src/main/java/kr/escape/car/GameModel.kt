@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kr.escape.car.car.VehicleSource
 import kr.escape.car.engine.FriendBook
+import kr.escape.car.story.HeardStories
 import kr.escape.car.story.ProgressStore
 import kr.escape.car.story.QuestionBank
 import kr.escape.car.story.StoryClient
@@ -24,7 +25,7 @@ class GameModel(app: Application) : AndroidViewModel(app) {
     private val bank = QuestionBank.load(app)
     val stories = StoryRepo(
         File(app.filesDir, "next_episode.json"), installId(app), StoryClient(BuildConfig.STORY_URL), viewModelScope,
-        questions = bank.questions,
+        questions = bank.questions, bank = bank, heard = HeardStories(File(app.filesDir, "heard_stories.json")),
     )
     val book = FriendBook(File(app.filesDir, "friend_book"))
     val game = Game(

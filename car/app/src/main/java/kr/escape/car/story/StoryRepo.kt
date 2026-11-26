@@ -35,6 +35,10 @@ class StoryRepo(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     /** The quizzes the planner may ask (the app's copy of the question bank, the same one the server draws from). */
     private val questions: Questions = Questions.ANY,
+    /** The questions this app ships; the shelf is asked only with one, to hold a shelved story to them. */
+    private val bank: QuestionBank? = null,
+    /** The stories this car already played; the shelf is not asked without it. */
+    private val heard: HeardStories? = null,
 ) {
     enum class Status { NONE, WRITING, READY, OFFLINE, REJECTED }
 
@@ -83,11 +87,15 @@ class StoryRepo(
         _status.value = Status.WRITING
         _rejection.value = emptyList()
         val body = request(installId, setup, puzzles, Calendar.getInstance())
+        // a family's own wish is always written new; the shelf only serves a story chosen by the app
+        val askShelf = wanted.wish.isEmpty() && bank != null && bank.size > 0 && heard != null
         job = scope.launch {
-            val result = withContext(io) { runCatching { withLocalPictures(client.episode(body)) } }
+            val result = withContext(io) {
+                runCatching { if (askShelf) viaShelf(setup, car, puzzles, body) else Found(withLocalPictures(client.episode(body)), puzzles) }
+            }
             if (writingFor != wanted) return@launch
             writingFor = null
-            val story = result.getOrElse { e ->
+            val found = result.getOrElse { e ->
                 if (e is WishRejected) {
                     _rejection.value = e.reasons
                     _status.value = Status.REJECTED
@@ -96,7 +104,8 @@ class StoryRepo(
                 }
                 return@launch
             }
-            val next = Saved(wanted, puzzles.map(StoryKeys::key), story)
+            val story = found.story
+            val next = Saved(wanted, found.puzzles.map(StoryKeys::key), story)
             saved = next
             withContext(io) {
                 runCatching { file.writeText(save(next).toString()) }
@@ -107,9 +116,50 @@ class StoryRepo(
         }
     }
 
+    private class Found(val story: Story, val puzzles: List<Puzzle>)
+
+    /**
+     * The shelf first: a story other cars got that this car and the app's own question bank accept. Otherwise a new
+     * one is written; if that fails and the shelf had nothing at all, the shelf is asked once more for any story it
+     * would not have kept back for a fresh one. Blocking; throws when nothing could be had.
+     */
+    private fun viaShelf(setup: Setup, car: CarState, puzzles: List<Puzzle>, body: JSONObject): Found {
+        val playable = Planner.playable(setup, car, questions)
+        val offered = runCatching { client.library(libraryRequest(setup, playable, allowFresh = true)) }.getOrNull()
+        offered?.let { pick(it, setup, car) }?.let { return it }
+        try {
+            return Found(withLocalPictures(client.episode(body)), puzzles)
+        } catch (e: Exception) {
+            if (offered?.isEmpty() != true) throw e
+            val again = runCatching { client.library(libraryRequest(setup, playable, allowFresh = false)) }.getOrNull()
+            return again?.let { pick(it, setup, car) } ?: throw e
+        }
+    }
+
+    /** The first shelf story this car has not heard, plays on this car now, and asks only questions this app ships. */
+    private fun pick(offered: List<Shelf>, setup: Setup, car: CarState): Found? {
+        val bank = bank ?: return null
+        val heard = heard ?: return null
+        val youngest = Planner.youngest(setup)
+        for (candidate in offered) {
+            if (candidate.story.storyId in heard) continue
+            // a key this app does not know leaves the story out
+            val slots = candidate.slots.map { keys -> keys.map { StoryKeys.puzzle(it) } }
+            if (slots.any { null in it }) continue
+            val chosen = Planner.accepts(slots.map { it.filterNotNull() }, setup, car, questions)
+                ?.takeIf { it.isNotEmpty() } ?: continue
+            val asked = chosen.filterIsInstance<Puzzle.Quiz>().all { p ->
+                candidate.story.scenes[StoryKeys.key(p)]?.question?.let { bank.asks(p, youngest, it) } ?: true
+            }
+            if (asked) return Found(withLocalPictures(candidate.story), chosen)
+        }
+        return null
+    }
+
     /** The ready episode if it was written for this setup and this car can play it; it is used up. */
     fun take(setup: Setup, car: CarState): Ready? {
         val ready = fits(setup, car) ?: return null
+        heard?.add(ready.story.storyId)
         saved = null
         file.delete()
         playing = ready.story.storyId
@@ -173,6 +223,17 @@ class StoryRepo(
          */
         val LESSONS = listOf("COURAGE", "CARE", "CREATIVITY", "GRIT", "TEAMWORK", "SHARING", "HONESTY", "THANKS",
             "PROMISE", "FRIENDSHIP")
+
+        /**
+         * What the story shelf is asked: only enums, numbers and answer keys ([playable] holds quiz keys only), never an
+         * install id, a context, a wish or a lesson. With [allowFresh] false the shelf may offer any story it has.
+         */
+        fun libraryRequest(setup: Setup, playable: List<Puzzle.Quiz>, allowFresh: Boolean): JSONObject = JSONObject()
+            .put("ages", JSONArray(setup.ages.map { it.name }))
+            .put("minutes", setup.minutes)
+            .put("friend", setup.friend.name)
+            .put("playable", JSONArray(playable.map(StoryKeys::key)))
+            .put("allowFresh", allowFresh)
 
         private fun Setup.forStory() = copy(wish = wish.trim())
 

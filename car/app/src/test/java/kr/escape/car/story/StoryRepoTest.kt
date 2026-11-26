@@ -7,12 +7,15 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kr.escape.car.engine.Age
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Device
 import kr.escape.car.engine.Dial
 import kr.escape.car.engine.Gear
 import kr.escape.car.engine.Puzzle
+import kr.escape.car.engine.Questions
 import kr.escape.car.engine.QuizKind
+import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -77,6 +80,13 @@ class StoryRepoTest {
     private class FakeClient(private val answer: () -> Story) : StoryClient("http://127.0.0.1:9") {
         var calls = 0
         var lastRequest: JSONObject? = null
+        val libraryRequests = mutableListOf<JSONObject>()
+        var shelf: (JSONObject) -> List<Shelf> = { throw IOException("no shelf") }
+        override fun library(request: JSONObject): List<Shelf> {
+            libraryRequests += request
+            return shelf(request)
+        }
+
         override fun episode(request: JSONObject): Story {
             calls++
             lastRequest = request
@@ -90,11 +100,16 @@ class StoryRepoTest {
         }
     }
 
-    private fun TestScope.repoWith(client: StoryClient, keep: String? = stored): StoryRepo {
+    private fun TestScope.repoWith(
+        client: StoryClient, keep: String? = stored, bank: QuestionBank? = null, heard: HeardStories? = null,
+    ): StoryRepo {
         val d = StandardTestDispatcher(testScheduler)
         val file = tmp.root.resolve("next_episode.json")
         if (keep == null) file.delete() else file.writeText(keep)
-        return StoryRepo(file, "00000000-0000-0000-0000-000000000000", client, CoroutineScope(d), io = d)
+        return StoryRepo(
+            file, "00000000-0000-0000-0000-000000000000", client, CoroutineScope(d), io = d,
+            questions = bank?.questions ?: Questions.ANY, bank = bank, heard = heard,
+        )
     }
 
     @Test
@@ -230,5 +245,230 @@ class StoryRepoTest {
         r.letGo(playedId)
         advanceUntilIdle()
         assertFalse(cover.parentFile.exists())
+    }
+
+    // ------------------------------------------------------------ 이야기 창고: the shelf is asked first
+
+    /** Wind at 2, two reading lights off, the air conditioner off, 24 degrees: the car the stored keys suit. */
+    private val shelfCar = parked.copy(
+        fanSpeed = 2, readingLights = mapOf(Seat.DRIVER to false, Seat.REAR_RIGHT to false), acOn = false, tempLeft = 24f,
+    )
+
+    /** The questions the app ships here: the stored story's own, and one each for the lights and the air conditioner. */
+    private val shelfBank = QuestionBank(listOf(
+        QuestionBank.Entry(QuizKind.MATH, Dial.FAN, Age.CAPTAIN, "조개 2개에 3개를 더하면?", "세어 봐", 5, expr = "2+3"),
+        QuestionBank.Entry(QuizKind.ENGLISH, Dial.LIGHTS, Age.CAPTAIN, "TWO는 우리말로 몇일까?", "세어 봐", 2, word = "TWO"),
+        QuestionBank.Entry(QuizKind.REASON, Dial.AC, Age.CAPTAIN, "더워서 헥헥! 차 버튼으로 도와줘!", "버튼을 찾아봐", 1),
+    ))
+
+    private val goodSlots = listOf(
+        listOf("Q:MATH:FAN:5"), listOf("Q:ENGLISH:LIGHTS:2"), listOf("BELT"), listOf("Q:REASON:AC:1"),
+    )
+    private val goodPuzzles = listOf(
+        Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5), Puzzle.Quiz(QuizKind.ENGLISH, Dial.LIGHTS, 2),
+        Puzzle.BeltMission, Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1),
+    )
+
+    private fun storyOf(id: String): Story = Story.parse(JSONObject(stored).getJSONObject("story")).copy(storyId = id)
+
+    private fun shelved(id: String, slots: List<List<String>> = goodSlots, story: Story = storyOf(id)) = Shelf(slots, story)
+
+    private fun heardFile() = HeardStories(tmp.root.resolve("heard_stories.json"))
+
+    @Test
+    fun withoutAWishTheShelfIsAskedFirst() = runTest {
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        assertEquals(StoryRepo.Status.WRITING, r.status.value)
+        advanceUntilIdle()
+        assertEquals(0, client.calls)
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+        assertEquals("a".repeat(32), r.preview.value?.storyId)
+        val asked = client.libraryRequests.single()
+        assertEquals(setOf("ages", "minutes", "friend", "playable", "allowFresh"), asked.keys().asSequence().toSet())
+        assertEquals(true, asked.getBoolean("allowFresh"))
+        assertEquals("BANTE", asked.getString("friend"))
+        assertEquals(10, asked.getInt("minutes"))
+        val keys = asked.getJSONArray("playable").let { a -> List(a.length()) { a.getString(it) } }
+        assertTrue("Q:MATH:FAN:5" in keys)
+        assertFalse("BELT" in keys)
+        assertEquals(goodPuzzles, r.take(Setup(), shelfCar)!!.puzzles)
+    }
+
+    @Test
+    fun aShelfStoryThisCarHeardIsPassedOver() = runTest {
+        val heard = heardFile().also { it.add("a".repeat(32)) }
+        val fresh = storyOf("f".repeat(32))
+        val client = FakeClient { fresh }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heard)
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(1, client.calls)
+        assertEquals("f".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aShelfStoryWhoseQuestionTheAppDoesNotShipIsPassedOver() = runTest {
+        val base = storyOf("a".repeat(32))
+        val other = base.copy(scenes = base.scenes + ("Q:MATH:FAN:5" to base.scenes.getValue("Q:MATH:FAN:5")
+            .copy(question = Question(QuizKind.MATH, "다른 질문은?", expr = "9+9"))))
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32), story = other), shelved("b".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(0, client.calls)
+        assertEquals("b".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aShelfStoryThatDoesNotFitIsPassedOver() = runTest {
+        // the car already shows wind 2, so a story asking for it cannot be played
+        val showing = listOf(listOf("Q:MATH:FAN:2")) + goodSlots.drop(1)
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32), showing), shelved("b".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals("b".repeat(32), r.preview.value?.storyId)
+        assertEquals(goodPuzzles, r.take(Setup(), shelfCar)!!.puzzles)
+    }
+
+    @Test
+    fun aShelfStoryWithAKeyThisAppDoesNotKnowIsPassedOver() = runTest {
+        val unknown = listOf(listOf("Q:MATH:WIPER:1")) + goodSlots.drop(1)
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32), unknown), shelved("b".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals("b".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aShelfStoryWithNoSlotsIsPassedOver() = runTest {
+        val client = FakeClient { throw IOException("no new story") }
+        client.shelf = { listOf(shelved("a".repeat(32), emptyList()), shelved("b".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals("b".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun anEmptyShelfLeadsToANewStoryAndBackToTheShelfIfThatFails() = runTest {
+        val client = FakeClient { throw IOException("server down") }
+        client.shelf = { req -> if (req.getBoolean("allowFresh")) emptyList() else listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(1, client.calls)
+        assertEquals(listOf(true, false), client.libraryRequests.map { it.getBoolean("allowFresh") })
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+        assertEquals("a".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aShelfThatCannotBeReachedLeadsToANewStory() = runTest {
+        val client = FakeClient { throw IOException("server down") }
+        client.shelf = { throw IOException("429") }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(1, client.calls)
+        assertEquals(1, client.libraryRequests.size)
+        assertEquals(StoryRepo.Status.OFFLINE, r.status.value)
+        assertNull(r.preview.value)
+    }
+
+    @Test
+    fun aShelfWithNothingForThisCarLeavesTheAppOffline() = runTest {
+        val client = FakeClient { throw IOException("server down") }
+        client.shelf = { listOf(shelved("a".repeat(32), listOf(listOf("Q:MATH:FAN:2")))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(StoryRepo.Status.OFFLINE, r.status.value)
+        // not empty, so the shelf is not asked again
+        assertEquals(1, client.libraryRequests.size)
+    }
+
+    @Test
+    fun aWishNeverAsksTheShelf() = runTest {
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(wish = "공룡 섬에서 보물찾기"), shelfCar)
+        advanceUntilIdle()
+        assertEquals(0, client.libraryRequests.size)
+        assertEquals(1, client.calls)
+    }
+
+    @Test
+    fun withoutABankTheShelfIsNotAsked() = runTest {
+        for (bank in listOf(null, QuestionBank(emptyList()))) {
+            val client = FakeClient { storyOf("f".repeat(32)) }
+            client.shelf = { listOf(shelved("a".repeat(32))) }
+            val r = repoWith(client, keep = null, bank = bank, heard = heardFile())
+            r.prepare(Setup(), shelfCar)
+            advanceUntilIdle()
+            assertEquals(0, client.libraryRequests.size)
+            assertEquals(1, client.calls)
+        }
+    }
+
+    @Test
+    fun aTakenStoryIsRememberedAsHeard() = runTest {
+        val heard = heardFile()
+        val r = repoWith(FakeClient { throw IOException("x") }, heard = heard)
+        assertFalse("7b7c564a6a284c9881821fe55b9ae1a5" in heard)
+        assertNotNull(r.take(Setup(), parked))
+        assertTrue("7b7c564a6a284c9881821fe55b9ae1a5" in heard)
+    }
+
+    @Test
+    fun aStoryWrittenHereIsNotOfferedBackFromTheShelf() = runTest {
+        var n = 0
+        val client = FakeClient { storyOf((if (n++ == 0) "e" else "f").repeat(32)) }
+        client.shelf = { listOf(shelved("e".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        // the first story is written (the shelf's candidate is the one this car then hears: take marks it)
+        client.shelf = { emptyList() }
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals("e".repeat(32), r.take(Setup(), shelfCar)!!.story.storyId)
+        client.shelf = { listOf(shelved("e".repeat(32))) }
+        r.prepare(Setup(), shelfCar)
+        advanceUntilIdle()
+        assertEquals(2, client.calls)
+        assertEquals("f".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun nothingIsAskedBeforeTheCarReportsItsDevices() = runTest {
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
+        r.prepare(Setup(), parked.copy(devices = emptySet()))
+        advanceUntilIdle()
+        assertEquals(0, client.libraryRequests.size)
+        assertEquals(0, client.calls)
+        assertEquals(StoryRepo.Status.NONE, r.status.value)
+    }
+
+    @Test
+    fun theShelfAnswerIsReadIntoStories() {
+        val one = JSONObject(stored).getJSONObject("story")
+        val answer = JSONObject().put("stories", org.json.JSONArray()
+            .put(JSONObject().put("puzzles", org.json.JSONArray(goodSlots.map { org.json.JSONArray(it) })).put("episode", one))
+            .put(JSONObject().put("puzzles", org.json.JSONArray()).put("episode", JSONObject().put("broken", 1))))
+        val got = StoryClient.parseShelves(answer.toString())
+        assertEquals(1, got.size)
+        assertEquals(goodSlots, got[0].slots)
+        assertEquals("7b7c564a6a284c9881821fe55b9ae1a5", got[0].story.storyId)
+        assertTrue(runCatching { StoryClient.parseShelves("not json") }.exceptionOrNull() is IOException)
     }
 }
