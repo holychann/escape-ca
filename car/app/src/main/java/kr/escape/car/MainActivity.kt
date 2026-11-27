@@ -44,6 +44,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
@@ -130,6 +131,7 @@ import kr.escape.car.ui.Portrait
 import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
 import kr.escape.car.voice.Lumi
+import kr.escape.car.voice.Said
 import kr.escape.car.voice.Subtitles
 
 class MainActivity : ComponentActivity() {
@@ -957,7 +959,7 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 
 @Composable
 private fun KidStage(
-    game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, said: List<String>, view: StoryView, draft: WishDraft,
+    game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, said: List<Said>, view: StoryView, draft: WishDraft,
     modifier: Modifier,
 ) {
     val preview = view.preview
@@ -1131,11 +1133,12 @@ private fun BoxScope.WishingOverlay(wish: String, buddy: Friend, waited: Int) {
 }
 
 /**
- * 지난 자막: everything the friend has said this episode, oldest first, scrolled to the newest, over the stage. A touch
- * outside the card or 닫기 closes it.
+ * 지난 자막: everything the friend has said this episode, oldest first, scrolled to the newest, over the stage, with a
+ * small title before each part (시작, 퍼즐 1, …, 마무리). A touch outside the card or 닫기 closes it.
  */
 @Composable
-private fun BoxScope.LookBack(lines: List<String>, onClose: () -> Unit) {
+private fun BoxScope.LookBack(said: List<Said>, onClose: () -> Unit) {
+    val rows = remember(said) { LookBackParts.rows(said) }
     Box(Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.72f)).pointerInput(Unit) { detectTapGestures { onClose() } })
     val shape = RoundedCornerShape(44.dp)
     Column(
@@ -1149,9 +1152,22 @@ private fun BoxScope.LookBack(lines: List<String>, onClose: () -> Unit) {
             ClayButton("닫기", ClayStyle.GHOST, Modifier.width(180.dp), height = 72.dp, onClick = onClose)
         }
         val list = rememberLazyListState()
-        LaunchedEffect(lines.size) { if (lines.isNotEmpty()) list.scrollToItem(lines.lastIndex) }
+        LaunchedEffect(rows.size) { if (rows.isNotEmpty()) list.scrollToItem(rows.lastIndex) }
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            items(lines) { line -> KidText(line, 32.sp, balanced = true) }
+            itemsIndexed(rows) { i, row ->
+                when (row) {
+                    is LookBackParts.Row.Line -> KidText(row.text, 32.sp, balanced = true)
+                    // a part's title: small and colored, with a rule after it, a little apart from the part before
+                    is LookBackParts.Row.Title -> Row(
+                        Modifier.padding(top = if (i == 0) 0.dp else 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        KidText(row.text, 28.sp, color = Clay.SunLip, maxLines = 1)
+                        Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(50)).background(Clay.Line))
+                    }
+                }
+            }
         }
     }
 }

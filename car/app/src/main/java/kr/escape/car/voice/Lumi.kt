@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.util.concurrent.Executors
 
+/** A line in 지난 자막, with the part of the episode it was said in (퍼즐 1), or null outside one. */
+data class Said(val text: String, val part: String? = null)
+
 /**
  * Lumi's voice: every line is a recording the story server made with Gemini's speech model in a picture-book
  * storyteller's voice (server app/voice.py), fetched once and kept on the device ([cache]). The car's own TTS is never
@@ -39,8 +42,11 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     val noSound: StateFlow<Boolean> = _noSound
 
     /** Every line said since [forget], as the subtitles show it, for 지난 자막; a line said again in a row is kept once. */
-    private val _said = MutableStateFlow<List<String>>(emptyList())
-    val said: StateFlow<List<String>> = _said
+    private val _said = MutableStateFlow<List<Said>>(emptyList())
+    val said: StateFlow<List<Said>> = _said
+
+    /** The part of the episode a line is said in (퍼즐 1), asked as it is said, for 지난 자막's titles. */
+    var part: () -> String? = { null }
 
     /** A new episode: 지난 자막 starts empty. */
     fun forget() {
@@ -64,7 +70,8 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         _speaking.value = false
         _noSound.value = false
         val pieces = Subtitles.pieces(text)
-        Subtitles.clean(text).takeIf { it.isNotEmpty() && it != _said.value.lastOrNull() }?.let { _said.value = _said.value + it }
+        Subtitles.clean(text).takeIf { it.isNotEmpty() && it != _said.value.lastOrNull()?.text }
+            ?.let { _said.value = _said.value + Said(it, part()) }
         // the first piece is up at once; the rest follow the recording when it starts, or reading pace without one
         show(pieces, mine, null, keepLast, afterSilent)
         val c = cache ?: return silent(pieces, mine, keepLast, afterSilent)

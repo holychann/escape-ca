@@ -40,6 +40,8 @@ class GameModel(app: Application) : AndroidViewModel(app) {
     )
 
     init {
+        // 지난 자막 puts each line under the part of the episode it was said in
+        lumi.part = { LookBackParts.of(game.ui.value) }
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
         stories.savedSetup()?.let { saved -> game.setup { saved } }
     }

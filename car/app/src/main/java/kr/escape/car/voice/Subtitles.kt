@@ -57,16 +57,26 @@ object Subtitles {
     }
 
     // where a Korean sentence pauses by itself: after a comma or a word that ends a clause ("가야 하는데", "들어오니")
-    private val CLAUSE_END = Regex("""(,|는데|니까|니|지만|어서|아서|해서|하고|타고|으면|려고|는지|다가)$""")
+    private val CLAUSE_END = Regex("""(,|는데|니까|니|지만|어서|아서|해서|하고|타고|면|려고|는지|다가)$""")
     // a place or a way ("밖에서", "안으로") ends a phrase too, if less clearly
     private val PLACE_END = Regex("""(에서|에게|으로|까지|부터)$""")
     // an object ("바람을") belongs with the verb after it, so a cut right after it reads badly
     private val OBJECT_END = Regex("""[을를]$""")
 
+    // the end of a sentence ("탐험대장!") is the clearest place of all: a piece of two short sentences breaks between them
+    private val SENTENCE_WORD_END = Regex("""[.!?…~]$""")
+
     /** How good a place to cut after [word] is, at [at] letters where [ideal] would be even: lower is better. */
     private fun cutScore(word: String, at: Int, ideal: Int): Int = kotlin.math.abs(at - ideal) -
+        (if (SENTENCE_WORD_END.containsMatchIn(word)) 12 else 0) -
         (if (CLAUSE_END.containsMatchIn(word)) 6 else 0) - (if (PLACE_END.containsMatchIn(word)) 3 else 0) +
         (if (OBJECT_END.containsMatchIn(word)) 5 else 0)
+
+    /**
+     * A cut that leaves one side under a quarter of [whole] ("안녕, / 탐험대장! 나는 강아지 반테야.") is never taken while
+     * another is possible, whatever word it comes after.
+     */
+    private fun lopsided(before: Int, after: Int, whole: Int): Int = if (minOf(before, after) * 4 < whole) 100 else 0
 
     /** About one line of the child's subtitle at its size: a longer piece is shown on two. */
     const val LINE_CHARS = 16
@@ -80,7 +90,9 @@ object Subtitles {
         val words = piece.split(" ")
         if (words.size < 2) return piece
         val ends = words.runningReduce { a, b -> "$a $b" }.map { it.length }
-        val best = (0 until words.size - 1).minBy { i -> cutScore(words[i], ends[i], piece.length / 2) }
+        val best = (0 until words.size - 1).minBy { i ->
+            cutScore(words[i], ends[i], piece.length / 2) + lopsided(ends[i], piece.length - ends[i] - 1, piece.length)
+        }
         return words.subList(0, best + 1).joinToString(" ") + "\n" + words.subList(best + 1, words.size).joinToString(" ")
     }
 
@@ -139,6 +151,7 @@ object Subtitles {
     private fun along(pieces: List<String>, timeline: Pauses.Timeline): List<Long> {
         val sizes = pieces.map { p -> p.count { it.isLetterOrDigit() }.coerceAtLeast(1).toLong() }
         val total = sizes.sum()
+        anchored(pieces, sizes, timeline)?.let { return it }
         val out = mutableListOf(0L)
         var said = 0L
         var used = -1
@@ -153,6 +166,87 @@ object Subtitles {
         }
         return out
     }
+
+    /** A word the voice stops after: a comma or a sentence's end. */
+    private val STOP_WORD = Regex("""[,.!?…~]$""")
+
+    /**
+     * Along the pauses the line's own marks make. The voice rests longest at each comma and sentence end, longer than
+     * between any two words, so the line's marks, in order, are the recording's longest pauses, in order. A piece that
+     * ends at a mark comes up as the voice starts again after its pause; any other piece is placed between the marks
+     * around it as [along] places it. A share by syllables alone drifts by a second or more over a long line and turns
+     * at a short breath near the true pause ("함께 온 친구" a second and a half before the voice says it).
+     * Null when the marks and the pauses do not match: fewer pauses than marks, or one too far from where it should be.
+     */
+    private fun anchored(pieces: List<String>, sizes: List<Long>, timeline: Pauses.Timeline): List<Long>? {
+        val total = sizes.sum()
+        // where the line stops, as the syllables said by then: every mark but the line's last
+        val stops = mutableListOf<Long>()
+        var count = 0L
+        for (word in pieces.joinToString(" ").split(" ").filter { it.isNotEmpty() }) {
+            count += word.count { it.isLetterOrDigit() }
+            if (STOP_WORD.containsMatchIn(word) && count < total) stops += count
+        }
+        val matched = match(stops.map { timeline.at(timeline.voicedMs * it / total) }, timeline.gaps)
+        if (matched.isEmpty()) return null
+        // (syllables said, the voice stops at, the voice goes on at): the start, each mark with its pause, the end
+        val marks = listOf(Triple(0L, timeline.startMs, timeline.startMs)) +
+            matched.map { (i, g) -> Triple(stops[i], g.startMs, g.endMs) } +
+            Triple(total, timeline.endMs, timeline.endMs)
+        val out = mutableListOf(0L)
+        var said = 0L
+        for (k in 1 until pieces.size) {
+            said += sizes[k - 1]
+            val at = marks.firstOrNull { it.first == said }
+            val turn = if (at != null) at.third - TURN_LEAD_MS else {
+                // between two marks: its share of the voice between them, or a pause close to that
+                val from = marks.last { it.first < said }
+                val to = marks.first { it.first > said }
+                val end = from.third + (to.second - from.third) * (said - from.first) / (to.first - from.first)
+                timeline.gaps.filter { g -> g.startMs >= from.third && g.endMs <= to.second && kotlin.math.abs(g.middleMs - end) <= SNAP_MS }
+                    .minByOrNull { g -> kotlin.math.abs(g.middleMs - end) }?.let { it.endMs - TURN_LEAD_MS } ?: end
+            }
+            out += maxOf(turn, out.last())
+        }
+        return out
+    }
+
+    /**
+     * Each mark, by where the syllables put it ([marks], in ms), paired in order with a pause of [gaps]: a long pause
+     * a little away is taken over a short breath right there, and a mark the voice runs through ("탐험대장! 나는")
+     * gets none. Returns (the mark's index, its pause) for every mark that has one.
+     */
+    private fun match(marks: List<Long>, gaps: List<Pauses.Gap>): List<Pair<Int, Pauses.Gap>> {
+        fun worth(i: Int, j: Int): Long? {
+            val g = gaps[j]
+            val off = kotlin.math.abs(g.middleMs - marks[i])
+            return (g.endMs - g.startMs - off / 2).takeIf { off <= ANCHOR_MS && it > 0 }
+        }
+        val n = marks.size
+        val m = gaps.size
+        // best[i][j]: the most the first i marks can get from the first j pauses
+        val best = Array(n + 1) { LongArray(m + 1) }
+        for (i in 0..n) for (j in 0..m) {
+            if (i == 0 || j == 0) continue
+            val paired = worth(i - 1, j - 1)?.let { best[i - 1][j - 1] + it } ?: Long.MIN_VALUE
+            best[i][j] = maxOf(best[i - 1][j], best[i][j - 1], paired)
+        }
+        val out = mutableListOf<Pair<Int, Pauses.Gap>>()
+        var i = n
+        var j = m
+        while (i > 0 && j > 0) {
+            val w = worth(i - 1, j - 1)
+            when {
+                w != null && best[i][j] == best[i - 1][j - 1] + w -> { out += (i - 1) to gaps[j - 1]; i--; j-- }
+                best[i][j] == best[i - 1][j] -> i--
+                else -> j--
+            }
+        }
+        return out.reversed()
+    }
+
+    /** How far a mark's pause may be from where the syllables put it and still be taken as that mark's. */
+    const val ANCHOR_MS = 2500L
 
     /** A piece comes up this much before the voice starts again, as the eye is a moment slower than the ear. */
     const val TURN_LEAD_MS = 120L

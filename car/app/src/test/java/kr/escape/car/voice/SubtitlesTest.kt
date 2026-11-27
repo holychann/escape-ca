@@ -6,6 +6,35 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubtitlesTest {
+    private fun gaps(vararg ms: Long) = ms.toList().chunked(2).map { (a, b) -> Pauses.Gap(a, b) }
+
+    @Test
+    fun aPieceTurnsAtThePauseOfItsMarkNotAtABreathNearIt() {
+        // the pauses read from the friend's real recording of this puzzle (27 s): each sentence ends in a long pause a
+        // second or so after a short breath, which is where the piece used to turn
+        val line = "산호 광장에서 보물 지도 첫 조각을 찾는데, 안전 지킴이 의자에만 차가운 바닷물 방울이 톡톡 떨어졌어. " +
+            "함께 온 친구 자리가 차가우면 내 마음이 쓰이니까, 내가 먼저 데워 주고 싶어! 9 빼기 6은 얼마일까? " +
+            "시트 열선을 그 수와 같은 단으로 맞춰 줘! 어떻게 하면 되는지 안전 지킴이에게 말해 줘!"
+        val timeline = Pauses.Timeline(
+            40, 26520,
+            gaps(
+                1240, 1400, 3120, 3680, 5400, 5720, 7180, 7520, 7560, 7920, 7980, 8160, 8740, 9600, 12000, 12220,
+                13260, 13420, 13600, 14280, 15600, 15760, 15860, 16980, 17160, 17360, 18040, 18360, 18720, 18880,
+                19000, 19820, 20800, 21180, 23080, 23700, 24820, 25160,
+            ),
+        )
+        assertEquals(listOf(0L, 3560, 9480, 12100, 16860, 19700, 23580), Subtitles.starts(Subtitles.pieces(line), 26979, timeline))
+    }
+
+    @Test
+    fun aMarkTheVoiceRunsThroughIsLeftOut() {
+        // the real hello (15 s): no pause after "탐험대장!", yet the last piece still turns at the pause after "내려와."
+        val line = "안녕, 탐험대장! 나는 강아지 반테야. 오늘은 바닷속 마을에 왔어. 가을 햇살이 물결 사이로 살랑살랑 내려와. " +
+            "마을 어딘가에 숨은 진주 보물상자를 함께 찾아보자!"
+        val timeline = Pauses.Timeline(0, 14800, gaps(1100, 1540, 3160, 3900, 5860, 6600, 8560, 8800, 10120, 11120, 13600, 13920))
+        assertEquals(listOf(0L, 3780, 6480, 11000), Subtitles.starts(Subtitles.pieces(line), 15209, timeline))
+    }
+
     @Test
     fun tagsNeverReachTheScreen() {
         assertEquals("와, 해냈어! 정말 최고야.", Subtitles.clean("[excited] 와, 해냈어! <short pause> 정말 {laugh} 최고야."))
@@ -53,6 +82,12 @@ class SubtitlesTest {
         assertEquals("자동차 그림 안에서 화살표가\n빙글 도는 버튼을 찾아봐.", Subtitles.lines(pieces[1]))
         // a piece that fits one line stays on one
         assertEquals("고쳤다! 최고야!", Subtitles.lines("고쳤다! 최고야!"))
+        // two sentences in one piece break between them, never after the comma of the first
+        assertEquals("안녕, 탐험대장!\n나는 강아지 반테야.", Subtitles.lines("안녕, 탐험대장! 나는 강아지 반테야."))
+        // "마음이 / 쓰이니까" is never cut apart: "차가우면" ends a clause too, and a one-word line is too short
+        val warm = Subtitles.pieces("함께 온 친구 자리가 차가우면 내 마음이 쓰이니까, 내가 먼저 데워 주고 싶어!")
+        assertEquals(listOf("함께 온 친구 자리가 차가우면", "내 마음이 쓰이니까, 내가 먼저 데워 주고 싶어!"), warm)
+        assertEquals("내 마음이 쓰이니까,\n내가 먼저 데워 주고 싶어!", Subtitles.lines(warm[1]))
     }
 
     @Test
