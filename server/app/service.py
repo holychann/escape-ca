@@ -1,26 +1,21 @@
 """One episode: draw its questions from the bank, have the story written around them, check, write once more if
-the first draft was not clean, then draw its pictures."""
+the first draft was not clean. Its pictures are drawn in app/pictures.py."""
 import logging
 import os
 import random
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import quiz
 from .bank import Bank
-from .checker import Verdict, art_problems, check, scene_text, to_episode
+from .checker import Verdict, check, scene_text, to_episode
 from .models import THEME_LABEL, Draft, DraftQuestion, DraftScene, Episode, EpisodeRequest
-from .painter import Painter
 from .prompt import SYSTEM, user_message
-from .rules import rule_for
 from .voice import QuotaError, Voice, cache_key
 from .writer import Writer
 
 log = logging.getLogger("story")
-# the belt mission's answer key (the app's StoryKeys), the one scene drawn before and after
-BELT = "BELT"
 
 Picks = dict[str, tuple[DraftQuestion, str]]
 
@@ -114,67 +109,6 @@ def repair(req: EpisodeRequest, writer: Writer, ep: Episode, bad: set[str], pick
     for key, s in fixed.items():
         scenes[key] = scene_text(key, s, req)
     return ep.model_copy(update={"scenes": scenes, "dropped": [k for k in ep.dropped if k not in fixed]}), fixed
-
-
-def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Painter, folder: Path) -> Episode:
-    """Draw the cover and one picture per puzzle, side by side. A picture that is refused or fails is left out and the
-    app shows its own picture there."""
-    wanted: dict[str, str] = {}
-    art = draft.art
-    skip = art_problems(draft, req)
-    if skip:
-        log.info("pictures not drawn: %s", skip)
-    if art is not None:
-        wanted["cover"] = art.cover
-        for i, text in enumerate(art.puzzles[: len(req.puzzles)], start=1):
-            # an image model adds steam to a soup pot unasked, so what would give an answer away is also forbidden here
-            avoid = sorted({w for key in req.puzzles[i - 1] if quiz.parse(key) is None for w in rule_for(key).art_never})
-            wanted[f"p{i}"] = text + (f" (그림에 절대 넣지 말 것: {', '.join(avoid)})" if avoid else "")
-    wanted = {name: text for name, text in wanted.items() if name not in skip}
-    if not wanted:
-        return ep
-    # 벨트 딸깍 미션 is drawn twice, before the click and after it (p3, p3_ok), by a painter that knows the child seat
-    belt = {f"p{i}" for i, slot in enumerate(req.puzzles, start=1) if BELT in slot}
-    paint_belt, buckle = getattr(painter, "paint_belt", None), getattr(painter, "buckle", None)
-
-    def draw(name: str, text: str) -> list[tuple[str, bytes | None]]:
-        try:
-            if name not in belt or paint_belt is None:
-                return [(name, painter.paint(text))]
-            before = paint_belt(text)
-        except Exception as e:  # refusal, timeout, no image part
-            log.warning("picture %s failed: %r", name, e)
-            return [(name, None)]
-        # edited from the picture before, so only the belt and the friend's pose change; without it the app shows the cover
-        try:
-            after = buckle(before) if buckle is not None else None
-        except Exception as e:
-            log.warning("picture %s_ok failed: %r", name, e)
-            after = None
-        return [(name, before), (f"{name}_ok", after)]
-
-    # all at once (an episode has at most seven), so the family waits for the slowest picture, not for their sum;
-    # IMAGE_PARALLEL lowers it when the image model's per-minute limit is near
-    with ThreadPoolExecutor(max_workers=max(1, min(len(wanted), int(os.environ.get("IMAGE_PARALLEL", "6"))))) as pool:
-        drawn = dict(pair for pairs in pool.map(lambda item: draw(*item), wanted.items()) for pair in pairs)
-
-    out = folder / ep.storyId
-    images = {}
-    for name, data in drawn.items():
-        if data:
-            out.mkdir(parents=True, exist_ok=True)
-            (out / f"{name}.webp").write_bytes(data)
-            images[name] = f"/v1/images/{ep.storyId}/{name}.webp"
-    scenes_out = dict(ep.scenes)
-    pictures = {}
-    for i, slot in enumerate(req.puzzles, start=1):
-        if f"p{i}" in images:
-            for key in slot:
-                # the picture shows the world, never the answer, so it suits the app's own lines for this key too
-                pictures[key] = f"p{i}"
-                if key in scenes_out:
-                    scenes_out[key] = scenes_out[key].model_copy(update={"picture": f"p{i}"})
-    return ep.model_copy(update={"images": images, "scenes": scenes_out, "pictures": pictures})
 
 
 def tidy_line(text: str) -> str:

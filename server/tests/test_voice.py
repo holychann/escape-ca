@@ -1,5 +1,6 @@
 """Lumi's lines read aloud on POST /v1/speak: made once and kept, free key first, then the paid key once, and no
 sound (a caption in the app) when neither works. No test calls a real model."""
+import hashlib
 import io
 import logging
 import wave
@@ -9,8 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.voice import (NAMES_GUIDE, alike, GeminiVoice, KeyedVoice, MisreadError, Quota, QuotaError, make_voice, misheard,
-                       to_wav)
+from app.voice import (NAMES_GUIDE, alike, cache_key, configured_identity, GeminiVoice, KeyedVoice, MisreadError, Quota,
+                       QuotaError, make_voice, misheard, to_wav)
 from tests.fakes import BANK, FakeWriter
 
 INSTALL = "0123456789abcdef0123"
@@ -367,6 +368,22 @@ def test_a_listener_writes_sounds_and_signs_its_own_way():
     assert misheard("나는 반테야", "나는 판테야") == ["반테"]
     # 빼기 and 더하기 written as - and +
     assert alike("11 빼기 6 빼기 2도만큼 올려 줘", "11 - 6 - 2도 만큼 올려줘") >= 0.9
+
+
+def test_pappi_goes_to_the_speech_model_as_it_is_said():
+    models = _Models(pcm("파삐"))
+    v = GeminiVoice(model="m", voice="v", style="S", client=_Obj(models=models))
+    v.speak("파삐야, THREE 버튼을 같이 찾자!")
+    assert models.sent["contents"][0]["parts"][0]["text"] == "팝삐야, three 버튼을 같이 찾자!"
+    # only a line with the name is recorded again: every other line keeps the recording it has
+    old = lambda text: hashlib.sha256(f"{configured_identity()}\n{text}".encode("utf-8")).hexdigest()
+    assert cache_key(None, "반테야, 같이 찾자!") == old("반테야, 같이 찾자!")
+    assert cache_key(None, "파삐야, 같이 찾자!") != old("파삐야, 같이 찾자!")
+    # a listener may write the name as written, as respelled, or with an aspirated ㅍ
+    for heard in ("파삐야 같이 찾자", "팝삐야 같이 찾자", "파피야 같이 찾자"):
+        assert misheard("파삐야, 같이 찾자!", heard) == []
+        assert alike("파삐야, 같이 찾자!", heard) >= 0.9
+    assert misheard("파삐야, 같이 찾자!", "바비야 같이 찾자") == ["파삐"]
 
 
 def test_the_listener_tries_the_paid_key_when_the_free_key_cannot_hear():

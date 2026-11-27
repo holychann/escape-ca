@@ -42,7 +42,13 @@ class VoiceCache(private val dir: File, private val fetch: (String) -> ByteArray
         /** Spaces collapsed and ends trimmed, the same way the server keeps it (server app/service.py tidy_line). */
         fun tidy(text: String): String = text.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.joinToString(" ")
 
-        fun key(line: String): String =
-            MessageDigest.getInstance("SHA-256").digest(line.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        /** Names the server says with another spelling (server app/voice.py RESPELL). A line with one was recorded
+         *  again there, so it gets a new file here and a recording kept from before is not played. */
+        private val RESPELLED = listOf("파삐")
+
+        fun key(line: String): String {
+            val words = if (RESPELLED.any { it in line }) "respelled\n$line" else line
+            return MessageDigest.getInstance("SHA-256").digest(words.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        }
     }
 }

@@ -161,6 +161,8 @@ def test_the_dev_writer_uses_the_theme_the_prompt_names():
 def test_the_dev_server_shelves_into_a_local_folder(tmp_path, monkeypatch):
     from tools.dev_server import dev_app
     monkeypatch.setenv("STORY_LIBRARY_DIR", str(tmp_path / "shelf"))
+    # its own records too: the daily story limit must not carry over from earlier runs
+    monkeypatch.setenv("STORY_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.delenv("STORY_LIBRARY_MODELS", raising=False)
     app = dev_app()
     body = {"installId": "0123456789abcdef0123", "ages": ["CAPTAIN"], "minutes": 10, "theme": "SEA_SUB",

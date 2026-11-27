@@ -74,6 +74,24 @@ data class Story(
             else -> "theme_star_train"
         }
 
+    /** Whether picture [name] is still being drawn (named by the server, not yet on the device). */
+    fun drawing(name: String): Boolean = images[name]?.let { Companion.drawing(it) } == true
+
+    /**
+     * This story with the pictures [settled] by StoryRepo.follow taken in ("storyId/name" -> the file, or null when it
+     * could not be drawn: it is left out, so its scene shows the app's own picture). The same story when none is new.
+     */
+    fun settledWith(settled: Map<String, String?>): Story {
+        var changed = false
+        val out = images.mapNotNull { (name, path) ->
+            val key = "$storyId/$name"
+            if (!Companion.drawing(path) || key !in settled) return@mapNotNull name to path
+            changed = true
+            settled[key]?.let { name to it }
+        }.toMap()
+        return if (changed) copy(images = out) else this
+    }
+
     /** A drawn picture as a stage picture name ("file:/…/cover.webp"), or null when there is none on the device. */
     fun picture(name: String): String? = images[name]?.takeIf { !it.startsWith("/v1/") && (it.startsWith("/") || java.io.File(it).isAbsolute) }?.let { FILE + it }
 
@@ -115,6 +133,9 @@ data class Story(
         })
 
     companion object {
+        /** A picture path still on the server ("/v1/images/…"): it is being drawn and not yet on the device. */
+        fun drawing(path: String): Boolean = path.startsWith("/v1/")
+
         /** Stage pictures that start with this are files on the device, not assets. */
         const val FILE = "file:"
 

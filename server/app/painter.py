@@ -133,8 +133,9 @@ class GeminiPainter:
             # a 429 is left to the pace below, which waits as long as Google asks
             retry_options=types.HttpRetryOptions(attempts=2, initial_delay=4, max_delay=20, http_status_codes=[500, 503]),
         ))
-        # the paid key's per-minute limit for the image model, shared by the threads drawing one episode
-        self.pace = Pace(int(os.environ.get("IMAGE_RPM", "5")), "pictures (paid key)")
+        # the paid key's per-minute limit for the image model, shared by every episode being drawn: Google allows 100
+        # a minute on this project (AI Studio, 2026-11-27), so 60 leaves room and an episode's 6 pictures never wait
+        self.pace = Pace(int(os.environ.get("IMAGE_RPM", "60")), "pictures (paid key)")
         self.refs = [
             types.Part.from_bytes(data=(ART_DIR / f"{n}.jpg").read_bytes(), mime_type="image/jpeg")
             for n in ("ref_friends", "ref_style")

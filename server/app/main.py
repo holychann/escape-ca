@@ -2,7 +2,7 @@
 
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
-GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
+GET  /v1/images/{storyId}/{name}    one of those pictures (WebP); 202 while it is still being drawn
 POST /v1/library                    the car asks the shelf for stories it can play (for its choices and wish); it
                                     picks one it has not played, and asks /v1/episode for a new one otherwise
 POST /v1/speak                      one of Lumi's lines read aloud (WAV), made once and kept
@@ -12,6 +12,9 @@ GET  /health
 import logging
 import os
 import re
+import threading
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -22,15 +25,31 @@ from .checker import speak_problems, wish_problems
 from .library import Library, make_library, recheck
 from .models import Episode, EpisodeRequest, LibraryAnswer, LibraryRequest, Report, Shelf, SpeakRequest
 from .painter import Painter, make_painter
-from .service import make_episode, paint_pictures, speak_line, timeless_request
+from .pictures import PENDING, Drawing
+from .service import make_episode, speak_line, tidy_line, timeless_request
 from .store import DailyLimit, IpLimit, ReportLimit, Store, prune_audio, prune_images
-from .voice import Voice, make_voice
+from .voice import Voice, cache_key, make_voice
 from .writer import Writer, make_writer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("story")
 
 _UNSET = object()
+
+# the pictures of the episodes being drawn after their response, a few episodes at a time
+_drawers = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pictures")
+
+
+def _run_pictures(job: Callable[[], None]) -> object:
+    """Where an episode's drawing runs (tests put it on their own thread)."""
+    return _drawers.submit(job)
+
+
+def _read(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes() if path.is_file() else None
+    except OSError:
+        return None
 
 
 def client_ip(request: Request, trust_proxy: bool) -> str:
@@ -74,6 +93,9 @@ def create_app(
     audio_cache = folder / "audio_cache"
     audio_ttl_hours = float(os.environ.get("STORY_AUDIO_TTL_HOURS", "72"))
     audio_max_files = int(os.environ.get("STORY_AUDIO_MAX_FILES", "2000"))
+    if library is not None:
+        # a line read before its story was shelved is copied to the shelf from here
+        library.recording = lambda key: _read(audio_cache / f"{key}.wav")
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
@@ -92,6 +114,9 @@ def create_app(
         per_day=int(os.environ.get("STORY_REPORT_DAILY_TOTAL", "500")),
     )
     library_limit = IpLimit(per_ip=int(os.environ.get("STORY_LIBRARY_PER_IP", "500")))
+    # episodes whose pictures are still being drawn, by story id, so /v1/images can say "not yet"
+    drawings: dict[str, Drawing] = {}
+    drawings_lock = threading.Lock()
     prune_images(images, image_ttl_hours)
     prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
     log.info("writer=%s painter=%s voice=%s trust_proxy=%s", type(writer).__name__,
@@ -122,13 +147,34 @@ def create_app(
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
         ep, draft = made
-        if painter is not None and req.pictures:
-            prune_images(images, image_ttl_hours)
-            ep = paint_pictures(ep, draft, req, painter, images)
-        store.episode(ep, req)
         if library is not None:
-            # with pictures asked for and drawn here, they go on the shelf too (and the story only with them)
-            library.shelve_later(ep, draft, req, bank.digest(), images if painter is not None and req.pictures else None)
+            # its lines read aloud before it is shelved are kept with it too
+            library.expect(ep)
+        if painter is None or not req.pictures:
+            store.episode(ep, req)
+            if library is not None:
+                library.shelve_later(ep, draft, req, bank.digest())
+            return ep
+        prune_images(images, image_ttl_hours)
+        drawing = Drawing(ep, draft, req, painter, images)
+        with drawings_lock:
+            drawings[ep.storyId] = drawing
+
+        def drawn(d: Drawing) -> None:
+            with drawings_lock:
+                drawings.pop(d.story_id, None)
+            if library is None:
+                return
+            # a story goes on the shelf only with every picture drawn: one that failed would show the car's own
+            # picture to every family that gets it from the shelf
+            if d.failed:
+                log.info("shelf: %s is not shelved, pictures failed: %s", d.story_id, d.failed)
+                return
+            library.shelve_later(d.episode(), draft, req, bank.digest(), images)
+
+        # the cover first: the episode is sent once it is in, and the other pictures follow
+        ep = drawing.start(_run_pictures, drawn)
+        store.episode(ep, req)
         return ep
 
     @app.post("/v1/library", response_model=LibraryAnswer)
@@ -147,6 +193,11 @@ def create_app(
         path = images / story_id / f"{name}.webp"
         if path.is_file():
             return FileResponse(path, media_type="image/webp")
+        with drawings_lock:
+            drawing = drawings.get(story_id)
+        if drawing is not None and drawing.state(name) == PENDING:
+            # still being drawn: the car asks again in a moment
+            return Response(status_code=202, headers={"Retry-After": "3"})
         # the day-long copy is gone: a shelved story keeps its own
         data = library.picture(story_id, name) if library is not None else None
         if data is None:
@@ -160,10 +211,16 @@ def create_app(
         ip = client_ip(request, trust_proxy)
         if not speak_limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        data = speak_line(req.text, voice, audio_cache)
+        key = cache_key(voice, tidy_line(req.text))
+        # a shelved story keeps its lines for good: no new recording, even long after the cache has dropped it
+        data = library.voice(key) if library is not None else None
+        if data is None:
+            data = speak_line(req.text, voice, audio_cache)
         if data is None:
             # no sound for this line: the app shows it as a caption
             raise HTTPException(status_code=503, detail="no_voice")
+        if library is not None:
+            library.keep_voice(req.text, key, data)
         prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
         return Response(content=data, media_type="audio/wav")
 

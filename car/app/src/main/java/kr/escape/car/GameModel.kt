@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kr.escape.car.car.VehicleSource
 import kr.escape.car.engine.FriendBook
+import kr.escape.car.story.FriendIntro
 import kr.escape.car.story.HeardStories
 import kr.escape.car.story.ProgressStore
 import kr.escape.car.story.QuestionBank
@@ -44,7 +45,28 @@ class GameModel(app: Application) : AndroidViewModel(app) {
         lumi.part = { LookBackParts.of(game.ui.value) }
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
         stories.savedSetup()?.let { saved -> game.setup { saved } }
+        keepBundledVoice(app)
     }
+
+    /**
+     * The friends' self-introductions on the waiting screen ship recorded (assets/voice, named by friend), so they play
+     * at once while the server is writing, and with no server at all. Each goes into the voice cache under the name
+     * [VoiceCache] gives its line.
+     */
+    private fun keepBundledVoice(app: Application) = Thread {
+        val dir = File(app.filesDir, "voice_cache").apply { mkdirs() }
+        val shipped = app.assets.list("voice").orEmpty().toSet()
+        FriendIntro.RECORDINGS.forEach { (name, line) ->
+            if ("$name.wav" !in shipped) return@forEach
+            val to = File(dir, VoiceCache.key(VoiceCache.tidy(line)) + ".wav")
+            if (to.isFile) return@forEach
+            val part = File(to.path + ".part")
+            runCatching {
+                app.assets.open("voice/$name.wav").use { input -> part.outputStream().use { input.copyTo(it) } }
+                part.renameTo(to)
+            }.onFailure { part.delete() }
+        }
+    }.start()
 
     override fun onCleared() {
         lumi.stop()

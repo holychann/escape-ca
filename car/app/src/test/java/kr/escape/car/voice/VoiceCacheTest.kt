@@ -1,12 +1,15 @@
 package kr.escape.car.voice
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 
 class VoiceCacheTest {
     @get:Rule
@@ -69,5 +72,17 @@ class VoiceCacheTest {
         assertEquals("가 나 다", VoiceCache.tidy("  가\n나\t\t다 "))
         assertEquals(VoiceCache.key("가 나"), VoiceCache.key(VoiceCache.tidy("가   나")))
         assertEquals(64, VoiceCache.key("가").length)
+    }
+
+    @Test
+    fun aLineWithARespelledNameGetsANewFileAndNoOtherLineDoes() {
+        fun sha(s: String) = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
+        assertEquals(sha("반테야, 같이 찾자!"), VoiceCache.key("반테야, 같이 찾자!"))
+        assertNotEquals(sha("파삐야, 같이 찾자!"), VoiceCache.key("파삐야, 같이 찾자!"))
+        // a recording kept under the old name is not played; the line is fetched again
+        val server = Server()
+        File(tmp.root, "${sha("파삐야")}.wav").writeText("RIFF old")
+        assertEquals("RIFF파삐야", VoiceCache(tmp.root) { server.speak(it) }.get("파삐야")!!.readText())
+        assertEquals(listOf("파삐야"), server.asked)
     }
 }

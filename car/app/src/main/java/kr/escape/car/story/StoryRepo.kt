@@ -4,8 +4,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kr.escape.car.engine.Age
@@ -61,6 +63,16 @@ class StoryRepo(
 
     /** Pictures live next to the saved episode, one folder per story. */
     private val pictures = File(file.parentFile, "story_images")
+
+    /**
+     * The pictures [follow] has settled, by "storyId/name": the file on the device, or null when the server could not
+     * draw it (its scene then shows the app's own picture). The game takes them into the story it is playing.
+     */
+    private val _settled = MutableStateFlow<Map<String, String?>>(emptyMap())
+    val settled: StateFlow<Map<String, String?>> = _settled
+
+    /** Stories whose coming pictures are being fetched right now. */
+    private val following = mutableSetOf<String>()
 
     private var saved: Saved? = runCatching { load(JSONObject(file.readText())) }.getOrNull()
     private var writingFor: Setup? = null
@@ -125,6 +137,7 @@ class StoryRepo(
             }
             _status.value = Status.READY
             _preview.value = story
+            follow(story)
         }
     }
 
@@ -208,15 +221,63 @@ class StoryRepo(
         scope.launch(io) { runCatching { client.report(storyId, reason) } }
     }
 
-    /** Downloads the pictures the server drew; one that fails is left out and its scene keeps the app's picture. */
+    /**
+     * Downloads the pictures the server has drawn (the cover comes first, with the story). One still being drawn, or
+     * not reached just now, keeps its server path and [follow] brings it later; one the server does not have is left
+     * out, so its scene keeps the app's picture.
+     */
     private fun withLocalPictures(story: Story): Story {
         if (story.images.isEmpty()) return story
         val dir = File(pictures, story.storyId)
         val local = story.images.mapNotNull { (name, path) ->
+            if (!Story.drawing(path)) return@mapNotNull name to path
             val to = File(dir, "$name.webp")
-            runCatching { if (!to.isFile) client.download(path, to) }.map { name to to.absolutePath }.getOrNull()
+            if (to.isFile) return@mapNotNull name to to.absolutePath
+            when (runCatching { client.fetch(path, to) }.getOrNull()) {
+                Fetched.SAVED -> name to to.absolutePath
+                Fetched.MISSING -> null
+                Fetched.DRAWING, null -> name to path
+            }
         }.toMap()
         return story.copy(images = local)
+    }
+
+    /**
+     * Fetches the pictures of [story] the server is still drawing, every [FOLLOW_EVERY_MS] until each is saved or
+     * known to be missing; after [FOLLOW_ROUNDS] tries (about four minutes, the server long done) the rest count as
+     * missing, so a family never waits for a picture that will not come. Also after the app was switched off and on
+     * with the episode kept (이어 하기). Each picture settled goes to [settled].
+     */
+    fun follow(story: Story) {
+        val coming = story.images.filterValues(Story::drawing)
+        if (coming.isEmpty()) return
+        synchronized(following) { if (!following.add(story.storyId)) return }
+        scope.launch(io) {
+            val dir = File(pictures, story.storyId)
+            val left = coming.toMutableMap()
+            try {
+                for (round in 1..FOLLOW_ROUNDS) {
+                    for ((name, path) in left.toMap()) {
+                        val to = File(dir, "$name.webp")
+                        when (runCatching { if (to.isFile) Fetched.SAVED else client.fetch(path, to) }.getOrNull()) {
+                            Fetched.SAVED -> settle(story.storyId, name, to.absolutePath).also { left.remove(name) }
+                            Fetched.MISSING -> settle(story.storyId, name, null).also { left.remove(name) }
+                            // still being drawn, or the server not reached: asked again next round
+                            Fetched.DRAWING, null -> Unit
+                        }
+                    }
+                    if (left.isEmpty()) return@launch
+                    delay(FOLLOW_EVERY_MS)
+                }
+                left.keys.forEach { settle(story.storyId, it, null) }
+            } finally {
+                synchronized(following) { following.remove(story.storyId) }
+            }
+        }
+    }
+
+    private fun settle(storyId: String, name: String, path: String?) {
+        _settled.update { it + ("$storyId/$name" to path) }
     }
 
     /** The story a saved episode plays, read back after a restart: its pictures stay while the next one is prepared. */
@@ -248,6 +309,8 @@ class StoryRepo(
 
     companion object {
         const val WISH_MAX = 60
+        const val FOLLOW_EVERY_MS = 3_000L
+        const val FOLLOW_ROUNDS = 80
 
         /**
          * The lessons a story can carry, one picked at random for each episode the server writes, apart from the kind

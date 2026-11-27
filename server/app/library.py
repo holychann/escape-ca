@@ -4,6 +4,8 @@ A story is shelved in a folder named by its cell (friend, youngest age, minutes,
 ``library/{friend}/{youngest}/{minutes}m[/w-{wish digest}]/{storyId}/``. It holds ``draft.json`` (the writer's draft and
 the request it answered, without the install id and context), its pictures as ``img/{name}.webp``, and ``story.json``
 (what the car gets, with its meta). ``story.json`` is written last, so a folder without it is never indexed.
+Its lines read aloud are kept next to it as ``voice/{line key}.wav`` (the key of the voice cache), so a story played
+again weeks later needs no new recording; unlike the voice cache, the shelf is never pruned.
 
 No install id, IP or time of day is stored. The season is kept, and a story is offered only in its own season. The
 wish is kept, because it is what a wished story is found by:
@@ -18,6 +20,7 @@ import logging
 import os
 import random
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import date, datetime, timezone
 from collections.abc import Callable
@@ -45,6 +48,13 @@ LOAD_WORKERS = 16
 DEFAULT_LOAD_SECONDS = 60.0
 # a wished cell offers at least this many: a car that has played some of them still finds one it has not
 WISH_OFFER = 30
+# a line read aloud belongs to a story when it carries a piece of the story's text at least this long
+VOICE_PART_MIN = 10
+# the most recordings kept with one story (an episode is a few dozen lines)
+VOICE_PER_STORY = 80
+# a story just made is watched this long for its lines read aloud before it is shelved; then forgotten
+EXPECT_SECONDS = 30 * 60
+EXPECT_MAX = 50
 
 
 class Storage(Protocol):
@@ -184,6 +194,15 @@ class Library:
         # reports that took a story off the shelf today, per hashed address
         self._block_day = date.today()
         self._blocks: dict[str, int] = {}
+        # the pieces of each shelved story's text a line read aloud may carry
+        self.parts: dict[str, frozenset[str]] = {}
+        # recordings kept on the shelf: line key -> storage path, and the keys each story keeps
+        self.voices: dict[str, str] = {}
+        self.story_voices: dict[str, set[str]] = {}
+        # stories just made that may soon be shelved: id -> (deadline, text pieces, keys of the lines read so far)
+        self.expected: dict[str, tuple[float, frozenset[str], set[str]]] = {}
+        # where a line made before its story was shelved is read from (the voice cache, set by the server)
+        self.recording: Callable[[str], bytes | None] = lambda key: None
 
     def drain(self, timeout: float) -> None:
         """Waits until the default worker has finished the jobs it was given so far (for tests); nothing to wait for
@@ -200,6 +219,7 @@ class Library:
             if sid not in self.stories:
                 self.cells.setdefault(shelved.cell, []).append(sid)
             self.stories[sid] = shelved
+            self.parts[sid] = spoken_parts(shelved.episode)
 
     def add(self, shelved: Shelved, draft: Draft, request: EpisodeRequest,
             pictures: dict[str, bytes] | None = None) -> None:
@@ -214,6 +234,71 @@ class Library:
             self.storage.put(f"{base}/img/{name}.webp", data, "image/webp")
         self.storage.put(f"{base}/story.json", shelved.model_dump_json().encode("utf-8"), "application/json")
         self._index(shelved)
+        # the lines read aloud while the story was being drawn and checked
+        with self.lock:
+            early = self.expected.pop(shelved.episode.storyId, (0.0, frozenset(), set()))[2]
+        for key in sorted(early):
+            if (data := self.recording(key)) is not None:
+                self._put_voice(shelved.episode.storyId, key, data)
+
+    # ---------------------------------------------------------------- lines read aloud
+
+    def expect(self, ep: Episode, now: float | None = None) -> None:
+        """Watches a story just made for its lines read aloud, so the ones read before it is shelved are kept too."""
+        now = time.monotonic() if now is None else now
+        with self.lock:
+            for sid in [s for s, (deadline, _, _) in self.expected.items() if deadline < now]:
+                del self.expected[sid]
+            if len(self.expected) >= EXPECT_MAX:
+                del self.expected[min(self.expected, key=lambda s: self.expected[s][0])]
+            self.expected[ep.storyId] = (now + EXPECT_SECONDS, spoken_parts(ep), set())
+
+    def voice(self, key: str) -> bytes | None:
+        """A line's recording kept on the shelf, by its voice cache key; None when no shelved story keeps it."""
+        with self.lock:
+            path = self.voices.get(key)
+        if path is None:
+            return None
+        try:
+            return self.storage.get(path)
+        except Exception:
+            log.exception("shelf: the recording %s cannot be read", path)
+            return None
+
+    def keep_voice(self, text: str, key: str, data: bytes) -> None:
+        """Keeps a line just read aloud with every shelved story it belongs to (after the response), and remembers it
+        for the stories made a moment ago that are not shelved yet."""
+        try:
+            line = " ".join(text.split())
+            with self.lock:
+                shelved = [sid for sid, parts in self.parts.items() if sid not in self.blocked
+                           and key not in self.story_voices.get(sid, ()) and _carries(line, parts)]
+                for sid, (_, parts, keys) in self.expected.items():
+                    if sid not in self.stories and len(keys) < VOICE_PER_STORY and _carries(line, parts):
+                        keys.add(key)
+            for sid in shelved:
+                self.run(lambda sid=sid: self._put_voice(sid, key, data))
+        except Exception:
+            # the car already has its line: keeping it is a bonus
+            log.exception("shelf: a line could not be kept")
+
+    def _put_voice(self, story_id: str, key: str, data: bytes) -> None:
+        with self.lock:
+            shelved = self.stories.get(story_id)
+            kept = self.story_voices.setdefault(story_id, set())
+            if shelved is None or key in kept or len(kept) >= VOICE_PER_STORY:
+                return
+            kept.add(key)
+        path = f"{shelved.cell.path()}/{story_id}/voice/{key}.wav"
+        try:
+            self.storage.put(path, data, "audio/wav")
+        except Exception:
+            with self.lock:
+                kept.discard(key)
+            log.exception("shelf: the recording %s cannot be kept", path)
+            return
+        with self.lock:
+            self.voices.setdefault(key, path)
 
     def shelve_later(self, ep: Episode, draft: Draft, req: EpisodeRequest, bank_tag: str,
                      images: Path | None = None) -> bool:
@@ -345,7 +430,8 @@ class Library:
         blocked = [p.removeprefix(BLOCKED).removesuffix(".json") for p in self.storage.list(BLOCKED) if p.endswith(".json")]
         with self.lock:
             self.blocked.update(blocked)
-        paths = [p for p in self.storage.list(ROOT) if p.endswith("/story.json")]
+        everything = self.storage.list(ROOT)
+        paths = [p for p in everything if p.endswith("/story.json")]
         stop = threading.Event()
         pool = ThreadPoolExecutor(max_workers=LOAD_WORKERS)
         try:
@@ -359,6 +445,14 @@ class Library:
                             indexed, len(paths))
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
+        # the recordings of the stories indexed: .../{storyId}/voice/{key}.wav
+        with self.lock:
+            for p in everything:
+                parts = p.split("/")
+                if len(parts) >= 3 and parts[-2] == "voice" and p.endswith(".wav") and parts[-3] in self.stories:
+                    key = parts[-1].removesuffix(".wav")
+                    self.story_voices.setdefault(parts[-3], set()).add(key)
+                    self.voices.setdefault(key, p)
 
     def _load_one(self, path: str, check: Check | None, stop: threading.Event) -> None:
         if stop.is_set():
@@ -388,6 +482,32 @@ class Library:
             return
         if not stop.is_set():
             self._index(shelved)
+
+
+def spoken_parts(ep: Episode) -> frozenset[str]:
+    """Every piece of the story's own text (spaces collapsed) long enough not to turn up in another line by chance:
+    a line the app reads aloud is one of them, or one of them with the app's own words around it."""
+    out: set[str] = set()
+
+    def walk(value: object) -> None:
+        if isinstance(value, str):
+            piece = " ".join(value.split())
+            if len(piece) >= VOICE_PART_MIN:
+                out.add(piece)
+        elif isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
+
+    walk(ep.model_dump(exclude={"storyId", "model", "images", "pictures", "dropped"}))
+    return frozenset(out)
+
+
+def _carries(line: str, parts: frozenset[str]) -> bool:
+    """The line read aloud holds one of the story's pieces, or is a long enough part of one."""
+    return any(p in line for p in parts) or (len(line) >= VOICE_PART_MIN and any(line in p for p in parts))
 
 
 def _same_season(shelved: str | None, asked: str | None) -> bool:
