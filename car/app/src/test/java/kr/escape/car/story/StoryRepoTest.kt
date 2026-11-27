@@ -288,7 +288,7 @@ class StoryRepoTest {
         assertEquals(StoryRepo.Status.READY, r.status.value)
         assertEquals("a".repeat(32), r.preview.value?.storyId)
         val asked = client.libraryRequests.single()
-        assertEquals(setOf("ages", "minutes", "friend", "playable", "allowFresh"), asked.keys().asSequence().toSet())
+        assertEquals(setOf("ages", "minutes", "friend", "playable", "allowFresh", "season"), asked.keys().asSequence().toSet())
         assertEquals(true, asked.getBoolean("allowFresh"))
         assertEquals("BANTE", asked.getString("friend"))
         assertEquals(10, asked.getInt("minutes"))
@@ -429,14 +429,62 @@ class StoryRepoTest {
     }
 
     @Test
-    fun aWishNeverAsksTheShelf() = runTest {
+    fun aWishAsksTheShelfForThatSameWishFirst() = runTest {
         val client = FakeClient { storyOf("f".repeat(32)) }
         client.shelf = { listOf(shelved("a".repeat(32))) }
         val r = repoWith(client, keep = null, bank = shelfBank, heard = heardFile())
-        r.prepare(Setup(wish = "공룡 섬에서 보물찾기"), shelfCar)
+        r.prepare(Setup(wish = "  공룡 섬에서 펼쳐지는 보물찾기 이야기 "), shelfCar)
         advanceUntilIdle()
-        assertEquals(0, client.libraryRequests.size)
+        val asked = client.libraryRequests.single()
+        assertEquals("공룡 섬에서 펼쳐지는 보물찾기 이야기", asked.getString("wish"))
+        assertTrue(asked.getString("season") in setOf("SPRING", "SUMMER", "AUTUMN", "WINTER"))
+        assertEquals(0, client.calls)
+        assertEquals("a".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aWishWithEveryShelfStoryHeardIsWrittenNew() = runTest {
+        val heard = heardFile().also { it.add("a".repeat(32)) }
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heard)
+        r.prepare(Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기"), shelfCar)
+        advanceUntilIdle()
         assertEquals(1, client.calls)
+        assertEquals("f".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun aShelfStoryFoundForPlannedPuzzlesBringsItsOwnAndIsHeard() = runTest {
+        val heard = heardFile()
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heard)
+        val planned = listOf(Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1), Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5), Puzzle.BeltMission)
+        val wish = Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기")
+        r.prepare(wish, shelfCar, planned)
+        advanceUntilIdle()
+        assertEquals(0, client.calls)
+        val ready = r.takeWritten()!!
+        assertEquals("a".repeat(32), ready.story.storyId)
+        assertEquals(goodPuzzles, ready.puzzles)
+        assertTrue("a".repeat(32) in heard)
+        assertNull(r.takeWritten())
+    }
+
+    @Test
+    fun aStoryWrittenForPlannedPuzzlesKeepsThemAndIsHeard() = runTest {
+        val heard = heardFile()
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { emptyList() }
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heard)
+        val planned = listOf(Puzzle.Quiz(QuizKind.MATH, Dial.FAN, 5), Puzzle.Quiz(QuizKind.REASON, Dial.AC, 1), Puzzle.BeltMission)
+        r.prepare(Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기"), shelfCar, planned)
+        advanceUntilIdle()
+        assertEquals(1, client.calls)
+        val ready = r.takeWritten()!!
+        assertEquals(planned, ready.puzzles)
+        assertTrue("f".repeat(32) in heard)
     }
 
     @Test

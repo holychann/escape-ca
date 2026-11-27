@@ -1,7 +1,7 @@
 """The words the writer gets. Everything in them comes from enums and numbers the app sent, never free text."""
 from . import quiz
 from .models import AGE_LABEL, FRIEND_LABEL, LESSON_LABEL, THEME_LABEL, EpisodeRequest
-from .rules import EVERYWHERE_NEVER, LIMITS, rule_for
+from .rules import EVERYWHERE_NEVER, LIBRARY_NEVER, LIMITS, rule_for
 
 SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차한 차 안에서 아이와 부모가 함께 푸는 퀴즈 모험 이야기를, 아이가 고른 친구 한 명이 "나"로 직접 들려주는 말로 쓴다. 아이는 친구가 낸 문제를 풀고, 그 답만큼 차의 버튼(바람 세기, 온도, 독서등, 의자 열선)을 바꾸거나, 친구가 말하는 곤란한 상황을 듣고 알맞은 차 버튼(에어컨, 내기 순환, 성에 제거 등)을 찾아 조작해서 정답을 넣는다. 네가 쓴 말은 차 스피커로 아이에게 그대로 읽힌다.
 
@@ -91,7 +91,6 @@ SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차�
 
 
 SEASON = {"SPRING": "봄", "SUMMER": "여름", "AUTUMN": "가을", "WINTER": "겨울"}
-TIME = {"MORNING": "아침", "AFTERNOON": "낮", "EVENING": "저녁", "NIGHT": "밤"}
 
 
 def _quote(words) -> str:
@@ -125,25 +124,27 @@ def _scene(key: str, picks: dict) -> list[str]:
 
 def user_message(req: EpisodeRequest, picks: dict | None = None, timeless: bool = False) -> str:
     """``picks`` maps each quiz key to the bank question (and hint) its scene asks (service.pick_questions).
-    ``timeless`` leaves out the season, time and weather line, for a story written for the shelf."""
+    The writer is told the season, never the time of day. ``timeless`` (a story written for the shelf, which keeps
+    its season but may be played in any weather) leaves out the outside temperature too."""
     picks = picks or {}
     ctx = req.context
-    now = f"{SEASON[ctx.season]} {TIME[ctx.timeOfDay]}"
-    if ctx.outsideTempC is not None:
+    now = SEASON[ctx.season]
+    if ctx.outsideTempC is not None and not timeless:
         now += f", 바깥 기온 {ctx.outsideTempC}도"
     if req.wish:
         world = "가족이 바란 이야기의 장소를 world에 한 줄로 적고, theme에는 셋 중 가장 가까운 것을 적는다"
     elif req.theme:
         world = f"{THEME_LABEL[req.theme]} (theme에 {req.theme}, world에도 그대로)"
     else:
-        world = "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절과 시간에 어울리는 하나를 골라 theme와 world에 적는다"
+        world = "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절에 어울리는 하나를 골라 theme와 world에 적는다"
     age = req.youngest
     lines = [
         "오늘의 조건",
         friend_line(req.friend),
         f"- 함께 타는 아이: {', '.join(AGE_LABEL[a] for a in req.ages)}",
         f"- 기다리는 시간: 약 {req.minutes}분",
-        *([] if timeless else [f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)"]),
+        f"- 지금 계절: {now} (어울리면 이야기에 살짝 녹인다)",
+        f"- 하루 중 때를 나타내는 말({', '.join(LIBRARY_NEVER)})은 쓰지 않는다. 언제 들어도 어울리게 쓴다",
         f"- 세계: {world}",
         *([f"- 가족이 바란 이야기: «{req.wish}» (위 '가족이 바란 이야기' 규칙대로 반영한다)"] if req.wish else []),
         *([f"- 오늘의 교훈: {LESSON_LABEL[req.lesson][0]} (풀어 쓴 말: {LESSON_LABEL[req.lesson][1]}, "

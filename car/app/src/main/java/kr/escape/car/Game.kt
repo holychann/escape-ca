@@ -203,9 +203,19 @@ class Game(
         }
     }
 
-    /** The friend's hello once the story is here (the app's own without one), and every line fetched for later. */
-    private fun introduce(story: Story?) {
-        _ui.update { it.copy(story = story, writing = false) }
+    /**
+     * The friend's hello once the story is here (the app's own without one), and every line fetched for later. A story
+     * from the shelf brings its own puzzles in place of the planned ones, and the app's own questions follow them.
+     */
+    private fun introduce(ready: StoryRepo.Ready?) {
+        val story = ready?.story
+        _ui.update { ui ->
+            if (ready == null || ready.puzzles == ui.puzzles) return@update ui.copy(story = story, writing = false)
+            val youngest = Planner.youngest(ui.setup)
+            val own = ready.puzzles.filterIsInstance<Puzzle.Quiz>()
+                .mapNotNull { q -> bank?.pick(q, youngest, rnd)?.let { StoryKeys.key(q) to it } }.toMap()
+            ui.copy(story = story, writing = false, puzzles = ready.puzzles, own = own)
+        }
         save()
         val ui = _ui.value
         lumi.say(story?.intro ?: Lines.intro(ui.setup.friend))

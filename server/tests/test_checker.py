@@ -236,7 +236,7 @@ def test_prompt_carries_only_the_rules_not_free_text():
     assert "고른 친구('나'): 반테. 강아지 친구이고, 담고 있는 마음은 '용기'이다." in msg and "주인공 친구" not in msg
     assert "정답: 5 (답만큼 바람 세기(풍량)를 맞춘다). 이 수는 bubble, speech, art에 쓰지 않는다" in msg
     assert "speech에 꼭 넣을 말: \"딸깍\"" in msg and "쓰지 말 말: \"풀어\"" in msg
-    assert "겨울 저녁, 바깥 기온 3도" in msg
+    assert "- 지금 계절: 겨울, 바깥 기온 3도" in msg and "저녁" not in msg.split("하루 중 때")[0]
     assert "0123456789abcdef0123" not in msg
 
 

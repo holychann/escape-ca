@@ -104,11 +104,18 @@ def test_a_question_no_longer_in_the_bank_leaves_the_story_out(tmp_path):
     assert any("문제" in p for p in recheck(s, d, r, without_situations()))
 
 
-def test_season_words_found_at_start_leave_the_story_out(tmp_path):
+def test_time_words_found_at_start_leave_the_story_out(tmp_path):
+    s = story()
+    s.episode.intro += " 별이 뜬 밤이야."
+    d, r = request_for(s)
+    assert recheck(s, d, r, BANK)
+
+
+def test_season_words_are_kept_on_the_shelf(tmp_path):
     s = story()
     s.episode.intro += " 따뜻한 봄날이야."
     d, r = request_for(s)
-    assert recheck(s, d, r, BANK)
+    assert recheck(s, d, r, BANK) == []
 
 
 def test_a_clean_story_passes_the_recheck(tmp_path):

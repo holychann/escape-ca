@@ -1,10 +1,14 @@
 """The story shelf: checked stories kept for other cars to reuse.
 
-A story is shelved as two objects in a folder named by its cell (friend, youngest age, minutes):
-``library/{friend}/{youngest}/{minutes}m/{storyId}/draft.json`` (the writer's draft and the request it answered,
-without the install id, wish and context) and ``story.json`` (what the car gets, with its meta). ``story.json`` is written last, so a
-folder with only one of the two is never indexed. Nothing here is personal: no install id, IP, wish, season or time
-of day is stored.
+A story is shelved in a folder named by its cell (friend, youngest age, minutes, and the wish when there was one):
+``library/{friend}/{youngest}/{minutes}m[/w-{wish digest}]/{storyId}/``. It holds ``draft.json`` (the writer's draft and
+the request it answered, without the install id and context), its pictures as ``img/{name}.webp``, and ``story.json``
+(what the car gets, with its meta). ``story.json`` is written last, so a folder without it is never indexed.
+
+No install id, IP or time of day is stored. The season is kept, and a story is offered only in its own season. The
+wish is kept, because it is what a wished story is found by:
+it is offered only to a car that sends exactly the same wish, so it tells no family anything it did not type itself.
+Which stories a car has already played is kept on the car (HeardStories), never here.
 
 Storage is one bucket (S3) or a local folder (dev server, tests). The index of what is shelved lives in memory and is
 read back from the storage when the server starts.
@@ -19,7 +23,7 @@ from datetime import date, datetime, timezone
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, get_args
 
 from pydantic import BaseModel
 
@@ -27,7 +31,7 @@ from . import checker, quiz
 from .bank import Bank
 from .checker import result_problems, timeless_problems
 from .store import _digest
-from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, LibraryRequest, Theme
+from .models import Age, Draft, Episode, EpisodeRequest, FriendCode, Lesson, LibraryRequest, Season, Theme
 
 log = logging.getLogger("story")
 ROOT = "library/"
@@ -39,6 +43,8 @@ SHELF_CONTEXT = {"timeOfDay": "AFTERNOON", "season": "SPRING"}
 DEFAULT_MODELS = "claude"
 LOAD_WORKERS = 16
 DEFAULT_LOAD_SECONDS = 60.0
+# a wished cell offers at least this many: a car that has played some of them still finds one it has not
+WISH_OFFER = 30
 
 
 class Storage(Protocol):
@@ -102,14 +108,22 @@ class S3Storage:
         return out
 
 
+def wish_key(wish: str | None) -> str:
+    """The folder name part of a wish: a digest, so the stored paths carry no free text."""
+    return _digest(wish) if wish else ""
+
+
 @dataclass(frozen=True)
 class Cell:
     friend: str
     youngest: str
     minutes: int
+    # wish_key() of the family's wish; empty for the stories written without one
+    wish: str = ""
 
     def path(self) -> str:
-        return f"library/{self.friend}/{self.youngest}/{self.minutes}m"
+        base = f"library/{self.friend}/{self.youngest}/{self.minutes}m"
+        return f"{base}/w-{self.wish}" if self.wish else base
 
 
 class ShelfMeta(BaseModel):
@@ -124,6 +138,10 @@ class ShelfMeta(BaseModel):
     made: str
     # Bank.digest() when shelved
     bank: str
+    # the family's wish the story was written for (EpisodeRequest.wish); None when there was none
+    wish: str | None = None
+    # the season it was written in, and offered in; None for a story written without one (offered in any)
+    season: Season | None = None
 
 
 class Shelved(BaseModel):
@@ -132,13 +150,13 @@ class Shelved(BaseModel):
     meta: ShelfMeta
     # the request's slots, alternates included
     puzzles: list[list[str]]
-    # exactly what the car gets (no images)
+    # exactly what the car gets; its pictures are kept next to it (img/) and served by /v1/images
     episode: Episode
 
     @property
     def cell(self) -> Cell:
         youngest = min(self.meta.ages, key=["LITTLE", "CAPTAIN", "DETECTIVE"].index)
-        return Cell(self.meta.friend, youngest, self.meta.minutes)
+        return Cell(self.meta.friend, youngest, self.meta.minutes, wish_key(self.meta.wish))
 
 
 Check = Callable[[Shelved, Draft, EpisodeRequest], list[str]]
@@ -183,30 +201,36 @@ class Library:
                 self.cells.setdefault(shelved.cell, []).append(sid)
             self.stories[sid] = shelved
 
-    def add(self, shelved: Shelved, draft: Draft, request: EpisodeRequest) -> None:
+    def add(self, shelved: Shelved, draft: Draft, request: EpisodeRequest,
+            pictures: dict[str, bytes] | None = None) -> None:
         base = f"{shelved.cell.path()}/{shelved.episode.storyId}"
-        # the draft first and story.json last: a half-written folder is never indexed
-        draft_body = {"draft": draft.model_dump(), "request": request.model_dump(exclude={"installId", "wish", "context"})}
+        # the draft and the pictures first and story.json last: a half-written folder is never indexed
+        # a wish is kept only when there was one
+        left_out = {"installId", "context"} | ({"wish"} if request.wish is None else set())
+        draft_body = {"draft": draft.model_dump(), "request": request.model_dump(exclude=left_out)}
         self.storage.put(f"{base}/draft.json", json.dumps(draft_body, ensure_ascii=False).encode("utf-8"),
                          "application/json")
+        for name, data in (pictures or {}).items():
+            self.storage.put(f"{base}/img/{name}.webp", data, "image/webp")
         self.storage.put(f"{base}/story.json", shelved.model_dump_json().encode("utf-8"), "application/json")
         self._index(shelved)
 
-    def shelve_later(self, ep: Episode, draft: Draft, req: EpisodeRequest, bank_tag: str) -> bool:
-        """Queues putting a story on the shelf after the response. False when it is skipped up front: it came from a
-        wish, its writer is not allowed, a scene was dropped, it names a season or time of day, or its cell is full."""
+    def shelve_later(self, ep: Episode, draft: Draft, req: EpisodeRequest, bank_tag: str,
+                     images: Path | None = None) -> bool:
+        """Queues putting a story on the shelf after the response, with the pictures drawn for it (read from
+        ``images``/{storyId}/, where they are kept for a day only). ``images`` is None when no pictures were asked
+        for; when they were and not one is there, the story is not shelved, so later cars do not get it without
+        pictures. False when it is skipped up front: its writer is not allowed, a scene was dropped, it names a time
+        of day, or its cell is full."""
         try:
-            if req.wish is not None or not self.allows(ep.model) or ep.dropped or timeless_problems(ep):
+            if not self.allows(ep.model) or ep.dropped or timeless_problems(ep):
                 return False
-            # the shelf keeps no pictures: the drawn ones are on this server for a day only
-            bare = ep.model_copy(update={
-                "images": {}, "pictures": {},
-                "scenes": {k: s.model_copy(update={"picture": None}) for k, s in ep.scenes.items()}})
             shelved = Shelved(
                 meta=ShelfMeta(ages=req.ages, minutes=req.minutes, friend=req.friend, lesson=req.lesson,
                                theme=draft.theme, writer=ep.model,
-                               made=datetime.now(timezone.utc).date().isoformat(), bank=bank_tag),
-                puzzles=req.puzzles, episode=bare)
+                               made=datetime.now(timezone.utc).date().isoformat(), bank=bank_tag, wish=req.wish,
+                               season=req.context.season),
+                puzzles=req.puzzles, episode=ep)
             if self.size(shelved.cell) >= self.cap:
                 return False
 
@@ -215,11 +239,16 @@ class Library:
                     if self.check is not None:
                         # the request as ``load`` will rebuild it from what is stored
                         stored = EpisodeRequest(installId=SHELF_INSTALL, context=SHELF_CONTEXT,
-                                                **req.model_dump(exclude={"installId", "wish", "context"}))
+                                                **req.model_dump(exclude={"installId", "context"}))
                         if problems := self.check(shelved, draft, stored):
                             log.warning("shelf: %s fails its check, not shelved: %s", ep.storyId, problems)
                             return
-                    self.add(shelved, draft, req)
+                    pictures = _read_pictures(ep, images)
+                    if images is not None and not pictures:
+                        log.warning("shelf: %s has no picture, not shelved", ep.storyId)
+                        return
+                    kept = shelved.model_copy(update={"episode": _only_pictures(ep, set(pictures))})
+                    self.add(kept, draft, req, pictures)
                 except Exception:
                     log.exception("shelf: %s could not be shelved", ep.storyId)
 
@@ -240,20 +269,46 @@ class Library:
 
     def candidates(self, req: LibraryRequest, rnd: random.Random | None = None) -> list[Shelved]:
         """Up to ``offer`` shelved stories this car can play, chosen at random; none at all when a small cell asks the
-        car to have a new story written."""
+        car to have a new story written. A wished cell never holds back: the family waits for nothing when a story for
+        exactly their choices is there (the car skips the ones it has played and asks for a new one after the last),
+        and it offers more, since a car may have played several of a few stories."""
         rnd = rnd or random.Random()
-        cell = Cell(req.friend, req.youngest, req.minutes)
+        cell = Cell(req.friend, req.youngest, req.minutes, wish_key(req.wish))
         playable = set(req.playable) | {"BELT"}
         ages = sorted(req.ages)
         with self.lock:
             fits = [s for sid in self.cells.get(cell, ()) if sid not in self.blocked
                     for s in [self.stories[sid]]
-                    if sorted(s.meta.ages) == ages and self.allows(s.meta.writer)
+                    if sorted(s.meta.ages) == ages and s.meta.wish == req.wish and self.allows(s.meta.writer)
+                    and _same_season(s.meta.season, req.season)
                     and all(playable.intersection(slot) for slot in s.puzzles)]
             size = sum(1 for sid in self.cells.get(cell, ()) if sid not in self.blocked)
-        if req.allowFresh and size < self.min_fresh and rnd.random() < self.fresh:
+        if req.wish is None and req.allowFresh and size < self.min_fresh and rnd.random() < self.fresh:
             return []
-        return rnd.sample(fits, min(self.offer, len(fits)))
+        offer = max(self.offer, WISH_OFFER) if req.wish else self.offer
+        return rnd.sample(fits, min(offer, len(fits)))
+
+    def fresh_lesson(self, req: EpisodeRequest, rnd: random.Random | None = None) -> EpisodeRequest:
+        """The request with a lesson no story on its shelf carries yet (same friend, ages, minutes, wish and season), so a new
+        story for the same choices is a new one; as it was when its lesson is new there, or every lesson is taken."""
+        cell = Cell(req.friend, req.youngest, req.minutes, wish_key(req.wish))
+        ages = sorted(req.ages)
+        with self.lock:
+            taken = {s.meta.lesson for sid in self.cells.get(cell, ()) if sid not in self.blocked
+                     for s in [self.stories[sid]] if sorted(s.meta.ages) == ages and s.meta.wish == req.wish
+                     and _same_season(s.meta.season, req.context.season)}
+        if req.lesson not in taken:
+            return req
+        free = [lesson for lesson in get_args(Lesson) if lesson not in taken]
+        return req.model_copy(update={"lesson": (rnd or random).choice(free)}) if free else req
+
+    def picture(self, story_id: str, name: str) -> bytes | None:
+        """A shelved story's picture, for /v1/images once the day-long copy is gone; None when there is none."""
+        with self.lock:
+            shelved = self.stories.get(story_id)
+        if shelved is None or name not in shelved.episode.images:
+            return None
+        return self.storage.get(f"{shelved.cell.path()}/{story_id}/img/{name}.webp")
 
     def block(self, story_id: str, reason: str, ip: str, today: date | None = None) -> bool:
         """Takes a reported story off the shelf for good (its files stay). False when it is not on the shelf or this
@@ -333,6 +388,32 @@ class Library:
             return
         if not stop.is_set():
             self._index(shelved)
+
+
+def _same_season(shelved: str | None, asked: str | None) -> bool:
+    """A story written without a season suits any, and a car that does not say its season takes any."""
+    return shelved is None or asked is None or shelved == asked
+
+
+def _read_pictures(ep: Episode, folder: Path | None) -> dict[str, bytes]:
+    """The pictures drawn for ``ep`` that are still in ``folder``/{storyId}/, by name."""
+    if folder is None:
+        return {}
+    out = {}
+    for name in ep.images:
+        path = folder / ep.storyId / f"{name}.webp"
+        if path.is_file():
+            out[name] = path.read_bytes()
+    return out
+
+
+def _only_pictures(ep: Episode, names: set[str]) -> Episode:
+    """``ep`` naming only the pictures in ``names``: a scene whose picture is gone plays the app's own there."""
+    return ep.model_copy(update={
+        "images": {n: path for n, path in ep.images.items() if n in names},
+        "pictures": {k: n for k, n in ep.pictures.items() if n in names},
+        "scenes": {k: sc if sc.picture is None or sc.picture in names else sc.model_copy(update={"picture": None})
+                   for k, sc in ep.scenes.items()}})
 
 
 def recheck(shelved: Shelved, draft: Draft, request: EpisodeRequest, bank: Bank) -> list[str]:

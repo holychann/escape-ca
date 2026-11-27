@@ -55,7 +55,7 @@ class Rule(_Strict):
 
 
 class LibraryRules(_Strict):
-    # season and time-of-day words a story for the shelf may not hold (it is told in any season, at any hour)
+    # time-of-day words no story may hold (it is told at any hour; the season is kept with a shelved story)
     never: Annotated[list[Word], Field(min_length=1)]
 
 

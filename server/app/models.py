@@ -47,11 +47,15 @@ MAX_VARIANTS = 16
 WISH_MAX = 60
 
 
+Season = Literal["SPRING", "SUMMER", "AUTUMN", "WINTER"]
+
+
 class Context(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # sent by the car, never told to the writer: a story suits any hour
     timeOfDay: Literal["MORNING", "AFTERNOON", "EVENING", "NIGHT"]
-    season: Literal["SPRING", "SUMMER", "AUTUMN", "WINTER"]
+    season: Season
     # only on cars that report it; null otherwise
     outsideTempC: int | None = Field(default=None, ge=-30, le=50)
 
@@ -116,7 +120,8 @@ class EpisodeRequest(BaseModel):
 
 
 class LibraryRequest(BaseModel):
-    """What a car asks the shelf: its cell and the answer keys its car can play. Nothing personal."""
+    """What a car asks the shelf: its cell and the answer keys its car can play. The only free text is the family's
+    wish, and a wished story is offered only to a car that sends exactly the same wish."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -125,8 +130,17 @@ class LibraryRequest(BaseModel):
     friend: FriendCode
     # the quiz keys this car can play right now (the belt mission is always playable and is not listed)
     playable: list[str] = Field(max_length=80)
-    # may the answer be empty on purpose, so the car asks for a new story
+    # may the answer be empty on purpose, so the car asks for a new story (never for a wish: see Library.candidates)
     allowFresh: bool = True
+    # the story the family asked for, as it is sent to /v1/episode; None asks for the stories written without one
+    wish: str | None = Field(default=None, max_length=WISH_MAX)
+    # the season now (as in EpisodeRequest.context); None offers a story of any season
+    season: Season | None = None
+
+    @field_validator("wish")
+    @classmethod
+    def tidy_wish(cls, wish: str | None) -> str | None:
+        return EpisodeRequest.tidy_wish(wish)
 
     @field_validator("playable")
     @classmethod
@@ -288,7 +302,8 @@ class Report(BaseModel):
 
 
 class Shelf(BaseModel):
-    """One shelved story as the car gets it: its slots (alternates included) and the episode, without pictures."""
+    """One shelved story as the car gets it: its slots (alternates included) and the episode (its pictures are
+    fetched from /v1/images like a new story's)."""
 
     puzzles: list[list[str]]
     episode: Episode

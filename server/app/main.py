@@ -3,7 +3,8 @@
 POST /v1/episode                    the car sends this episode's answer keys (and maybe the family's story wish)
                                     and gets checked story lines back, with pictures when it asked for them
 GET  /v1/images/{storyId}/{name}    one of those pictures (WebP)
-POST /v1/library                    the car asks the shelf for stories it can play (no pictures); it picks among them
+POST /v1/library                    the car asks the shelf for stories it can play (for its choices and wish); it
+                                    picks one it has not played, and asks /v1/episode for a new one otherwise
 POST /v1/speak                      one of Lumi's lines read aloud (WAV), made once and kept
 POST /v1/report                     a parent reports a story (이야기 신고)
 GET  /health
@@ -108,10 +109,14 @@ def create_app(
         ip = client_ip(request, trust_proxy)
         if not limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        # a story for the shelf is written without the season, and only when no wish shapes it
-        timeless = library is not None and req.wish is None
-        if timeless:
+        # with a shelf every story is written for it: without the season or time of day, so it suits any drive.
+        # Without a wish the theme is picked here (the writer would pick it by the season); a wish picks its own
+        timeless = library is not None
+        if timeless and req.wish is None:
             req = timeless_request(req)
+        if library is not None:
+            # a new story for choices the shelf already has stories for carries a lesson they do not
+            req = library.fresh_lesson(req)
         made = make_episode(req, writer, bank, timeless=timeless)
         if made is None:
             # the car plays its own reviewed lines
@@ -121,8 +126,9 @@ def create_app(
             prune_images(images, image_ttl_hours)
             ep = paint_pictures(ep, draft, req, painter, images)
         store.episode(ep, req)
-        if timeless:
-            library.shelve_later(ep, draft, req, bank.digest())
+        if library is not None:
+            # with pictures asked for and drawn here, they go on the shelf too (and the story only with them)
+            library.shelve_later(ep, draft, req, bank.digest(), images if painter is not None and req.pictures else None)
         return ep
 
     @app.post("/v1/library", response_model=LibraryAnswer)
@@ -135,13 +141,17 @@ def create_app(
         return LibraryAnswer(stories=[Shelf(puzzles=s.puzzles, episode=s.episode) for s in library.candidates(req)])
 
     @app.get("/v1/images/{story_id}/{name}.webp")
-    def image(story_id: str, name: str) -> FileResponse:
+    def image(story_id: str, name: str) -> Response:
         if not re.fullmatch(r"[0-9a-f]{32}", story_id) or not re.fullmatch(r"cover|ending|p[1-6](_ok)?", name):
             raise HTTPException(status_code=404)
         path = images / story_id / f"{name}.webp"
-        if not path.is_file():
+        if path.is_file():
+            return FileResponse(path, media_type="image/webp")
+        # the day-long copy is gone: a shelved story keeps its own
+        data = library.picture(story_id, name) if library is not None else None
+        if data is None:
             raise HTTPException(status_code=404)
-        return FileResponse(path, media_type="image/webp")
+        return Response(content=data, media_type="image/webp")
 
     @app.post("/v1/speak")
     def speak(req: SpeakRequest, request: Request) -> Response:

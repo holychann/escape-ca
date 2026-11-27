@@ -67,8 +67,11 @@ class StoryRepo(
     private var playing: String? = null
 
     /**
-     * Writes the episode for [setup]. With [planned] (소원 빌기: the puzzles the game is about to play) it is always
-     * written anew around exactly those; without, a story kept for the same setup is used if the car can play it.
+     * Gets the episode for [setup]: from the story shelf when it has one for exactly these choices (friend, ages,
+     * minutes, wish and season) that this car has not played and can play now, otherwise written anew around
+     * [planned] (소원 빌기: the puzzles the game is about to play). A shelf story brings its own puzzles, which
+     * [takeWritten] hands over in place of [planned]. Without [planned], a story kept for the same setup is used if
+     * the car can play it.
      */
     fun prepare(setup: Setup, car: CarState, planned: List<Puzzle>? = null) {
         val ready = if (planned == null) fits(setup, car) else null
@@ -90,13 +93,14 @@ class StoryRepo(
         writingFor = wanted
         _status.value = Status.WRITING
         _rejection.value = emptyList()
-        val body = request(installId, setup, puzzles, Calendar.getInstance())
-        // a family's own wish is always written new; the shelf only serves a story chosen by the app, and never when the
-        // game has already planned the puzzles (소원 빌기): a shelf story brings its own
-        val askShelf = planned == null && wanted.wish.isEmpty() && bank != null && bank.size > 0 && heard != null
+        val now = Calendar.getInstance()
+        val body = request(installId, setup, puzzles, now)
+        // the shelf is asked first whenever the app can hold a shelved story to its own question bank and knows what
+        // this car has played; a story there for the same choices plays at once, with no wait for one to be written
+        val askShelf = bank != null && bank.size > 0 && heard != null
         job = scope.launch {
             val result = withContext(io) {
-                runCatching { if (askShelf) viaShelf(setup, car, puzzles, body) else Found(withLocalPictures(client.episode(body)), puzzles) }
+                runCatching { if (askShelf) viaShelf(setup, car, puzzles, body, now) else Found(withLocalPictures(client.episode(body)), puzzles) }
             }
             if (writingFor != wanted) return@launch
             writingFor = null
@@ -128,15 +132,15 @@ class StoryRepo(
      * one is written; if that fails and the shelf had nothing at all, the shelf is asked once more for any story it
      * would not have kept back for a fresh one. Blocking; throws when nothing could be had.
      */
-    private fun viaShelf(setup: Setup, car: CarState, puzzles: List<Puzzle>, body: JSONObject): Found {
+    private fun viaShelf(setup: Setup, car: CarState, puzzles: List<Puzzle>, body: JSONObject, now: Calendar): Found {
         val playable = Planner.playable(setup, car, questions)
-        val offered = runCatching { client.library(libraryRequest(setup, playable, allowFresh = true)) }.getOrNull()
+        val offered = runCatching { client.library(libraryRequest(setup, playable, allowFresh = true, now)) }.getOrNull()
         offered?.let { pick(it, setup, car) }?.let { return it }
         try {
             return Found(withLocalPictures(client.episode(body)), puzzles)
         } catch (e: Exception) {
             if (offered?.isEmpty() != true) throw e
-            val again = runCatching { client.library(libraryRequest(setup, playable, allowFresh = false)) }.getOrNull()
+            val again = runCatching { client.library(libraryRequest(setup, playable, allowFresh = false, now)) }.getOrNull()
             return again?.let { pick(it, setup, car) } ?: throw e
         }
     }
@@ -164,18 +168,21 @@ class StoryRepo(
     }
 
     /**
-     * The story [prepare] just wrote around the puzzles it was given, once it is ready; it is used up. Unlike [take] it
-     * does not ask the car again: those puzzles were checked when the game planned them.
+     * The story [prepare] got, once it is ready, with the puzzles it plays: the ones the game planned, or a shelf
+     * story's own. It is used up, and this car will not be offered it from the shelf again. Unlike [take] it does not
+     * ask the car again: those puzzles were checked when they were planned or picked.
      */
-    fun takeWritten(): Story? {
+    fun takeWritten(): Ready? {
         if (_status.value != Status.READY) return null
         val s = saved ?: return null
+        val puzzles = s.keys.map { StoryKeys.puzzle(it) ?: return null }
         saved = null
         file.delete()
+        heard?.add(s.story.storyId)
         playing = s.story.storyId
         _status.value = Status.NONE
         _preview.value = null
-        return s.story
+        return Ready(puzzles, s.story)
     }
 
     /** The ready episode if it was written for this setup and this car can play it; it is used up. */
@@ -247,15 +254,31 @@ class StoryRepo(
             "PROMISE", "FRIENDSHIP")
 
         /**
-         * What the story shelf is asked: only enums, numbers and answer keys ([playable] holds quiz keys only), never an
-         * install id, a context, a wish or a lesson. With [allowFresh] false the shelf may offer any story it has.
+         * What the story shelf is asked: enums, numbers and answer keys ([playable] holds quiz keys only), the season,
+         * and the family's wish exactly as [request] sends it (a wished story is offered only for that same wish).
+         * Never an install id, the time of day or a lesson. With [allowFresh] false the shelf may offer any story it has.
          */
-        fun libraryRequest(setup: Setup, playable: List<Puzzle.Quiz>, allowFresh: Boolean): JSONObject = JSONObject()
-            .put("ages", JSONArray(setup.ages.map { it.name }))
-            .put("minutes", setup.minutes)
-            .put("friend", setup.friend.name)
-            .put("playable", JSONArray(playable.map(StoryKeys::key)))
-            .put("allowFresh", allowFresh)
+        fun libraryRequest(
+            setup: Setup, playable: List<Puzzle.Quiz>, allowFresh: Boolean, now: Calendar = Calendar.getInstance(),
+        ): JSONObject {
+            val body = JSONObject()
+                .put("ages", JSONArray(setup.ages.map { it.name }))
+                .put("minutes", setup.minutes)
+                .put("friend", setup.friend.name)
+                .put("playable", JSONArray(playable.map(StoryKeys::key)))
+                .put("allowFresh", allowFresh)
+                .put("season", seasonOf(now))
+            val wish = setup.wish.trim().take(WISH_MAX)
+            if (wish.isNotEmpty()) body.put("wish", wish)
+            return body
+        }
+
+        fun seasonOf(now: Calendar): String = when (now.get(Calendar.MONTH) + 1) {
+            3, 4, 5 -> "SPRING"
+            6, 7, 8 -> "SUMMER"
+            9, 10, 11 -> "AUTUMN"
+            else -> "WINTER"
+        }
 
         private fun Setup.forStory() = copy(wish = wish.trim())
 
@@ -273,12 +296,7 @@ class StoryRepo(
                 in 17..20 -> "EVENING"
                 else -> "NIGHT"
             }
-            val season = when (now.get(Calendar.MONTH) + 1) {
-                3, 4, 5 -> "SPRING"
-                6, 7, 8 -> "SUMMER"
-                9, 10, 11 -> "AUTUMN"
-                else -> "WINTER"
-            }
+            val season = seasonOf(now)
             val youngest = Planner.youngest(setup)
             // the server refuses a request that names a key twice
             val named = puzzles.map(StoryKeys::key).toMutableSet()
