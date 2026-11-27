@@ -210,19 +210,32 @@ class GameTest {
         g.reset()
         assertEquals(Phase.SETUP, g.ui.value.phase)
         assertNotNull(g.saved.value)
-        assertFalse(g.canContinue(car.value))
+        // the rest is suggested on the card, but the family may go on before it is over
         assertEquals(ProgressStore.REST_MS, g.restLeftMs())
-        now += ProgressStore.REST_MS
         assertTrue(g.canContinue(car.value))
     }
 
     @Test
     fun twentyMinutesLeaveARestEvenWithoutTheButton() {
         playing().playTwentyMinutes()
-        // the car is switched off on the pause screen and on again: the app starts anew
+        // the car is switched off on the pause screen and on again: the app starts anew, the episode kept
         val again = game()
         assertNotNull(again.saved.value)
-        assertFalse(again.canContinue(car.value))
+        assertTrue(again.restLeftMs() > 0)
+        assertTrue(again.canContinue(car.value))
+    }
+
+    @Test
+    fun goingOnAtOnceAfterTwentyMinutesCountsThemAgainFromNow() {
+        val g = playing()
+        val t = g.playTwentyMinutes()
+        g.keepGoing()
+        g.tick(t + 1_000)
+        // the pause is gone, the 20 minutes start again and no rest is kept
+        assertNull(g.ui.value.stopped)
+        assertEquals(Phase.PLAYING, g.ui.value.phase)
+        assertTrue(g.ui.value.playedMs < 60_000)
+        assertNull(store.read()!!.restUntil)
     }
 
     @Test

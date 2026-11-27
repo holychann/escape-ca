@@ -38,6 +38,15 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     private val _noSound = MutableStateFlow(false)
     val noSound: StateFlow<Boolean> = _noSound
 
+    /** Every line said since [forget], as the subtitles show it, for 지난 자막; a line said again in a row is kept once. */
+    private val _said = MutableStateFlow<List<String>>(emptyList())
+    val said: StateFlow<List<String>> = _said
+
+    /** A new episode: 지난 자막 starts empty. */
+    fun forget() {
+        _said.value = emptyList()
+    }
+
     /** Tags the subtitle steps posted on [main], so a new line or stop() takes them all back. */
     private val steps = Any()
 
@@ -55,6 +64,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         _speaking.value = false
         _noSound.value = false
         val pieces = Subtitles.pieces(text)
+        Subtitles.clean(text).takeIf { it.isNotEmpty() && it != _said.value.lastOrNull() }?.let { _said.value = _said.value + it }
         // the first piece is up at once; the rest follow the recording when it starts, or reading pace without one
         show(pieces, mine, null, keepLast, afterSilent)
         val c = cache ?: return silent(pieces, mine, keepLast, afterSilent)
@@ -99,7 +109,11 @@ class Lumi(private val cache: VoiceCache?) : Voice {
      * a recording the last piece goes away a moment after the sound ends; without sound a puzzle line stays for the
      * child to read, while an [aside] ("다시 생각해 볼까?") restores [afterSilent] once read.
      */
-    private fun show(pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null) {
+    private fun show(
+        pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null,
+        /** Where the recording pauses, so each piece turns as its words begin. */
+        gaps: List<Pauses.Gap> = emptyList(),
+    ) {
         main.removeCallbacksAndMessages(steps)
         if (pieces.isEmpty()) {
             _subtitle.value = null
@@ -107,7 +121,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         }
         _subtitle.value = pieces.first()
         if (totalMs != null) {
-            val starts = Subtitles.starts(pieces, totalMs)
+            val starts = Subtitles.starts(pieces, totalMs, gaps)
             pieces.zip(starts).drop(1).forEach { (piece, at) ->
                 main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
             }
@@ -132,6 +146,8 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     }
 
     private fun play(file: File, pieces: List<String>, mine: Int, keepLast: Boolean, afterSilent: String?) {
+        // read while the player gets ready; a recording of a few seconds is a few hundred kilobytes
+        val gaps = if (pieces.size > 1) Pauses.of(file) else emptyList()
         val mp = MediaPlayer()
         runCatching {
             mp.setAudioAttributes(
@@ -145,7 +161,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
                 if (player === it && mine == turn) {
                     it.start()
                     _speaking.value = true
-                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs))
+                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs), gaps = gaps)
                 }
             }
             mp.setOnCompletionListener { done ->

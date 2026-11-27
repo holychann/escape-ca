@@ -40,6 +40,22 @@ class SubtitlesTest {
     }
 
     @Test
+    fun aLongSentenceIsCutWhereItPausesIntoEvenPieces() {
+        val pieces = Subtitles.pieces("오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대.")
+        assertEquals(listOf("오늘 밤 별 축제에 가야 하는데", "별빛 기차 칸 곳곳이 고장 났대."), pieces)
+    }
+
+    @Test
+    fun piecesAndTheirLinesBreakBetweenPhrases() {
+        val pieces = Subtitles.pieces("냄새가 밖에서 바람을 타고 들어오니 자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.")
+        assertEquals(listOf("냄새가 밖에서 바람을 타고 들어오니", "자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐."), pieces)
+        assertEquals("냄새가 밖에서\n바람을 타고 들어오니", Subtitles.lines(pieces[0]))
+        assertEquals("자동차 그림 안에서 화살표가\n빙글 도는 버튼을 찾아봐.", Subtitles.lines(pieces[1]))
+        // a piece that fits one line stays on one
+        assertEquals("고쳤다! 최고야!", Subtitles.lines("고쳤다! 최고야!"))
+    }
+
+    @Test
     fun shortSentencesShareAPiece() {
         assertEquals(listOf("고쳤다! 우리 탐험대장 최고야!"), Subtitles.pieces("고쳤다!  우리 탐험대장 최고야!"))
     }

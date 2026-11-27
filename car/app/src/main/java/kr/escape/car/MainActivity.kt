@@ -5,6 +5,13 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.viewModels
 import androidx.compose.foundation.Canvas
@@ -20,6 +27,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -28,11 +36,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -45,12 +56,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +85,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,7 +108,6 @@ import kr.escape.car.story.Question
 import kr.escape.car.story.Story
 import kr.escape.car.story.StoryRepo
 import kr.escape.car.ui.AssetImage
-import kr.escape.car.ui.Badge
 import kr.escape.car.ui.BodyText
 import kr.escape.car.ui.CheckLabel
 import kr.escape.car.ui.ChoiceTile
@@ -111,6 +124,7 @@ import kr.escape.car.ui.Portrait
 import kr.escape.car.ui.StatusChip
 import kr.escape.car.ui.starPath
 import kr.escape.car.voice.Lumi
+import kr.escape.car.voice.Subtitles
 
 class MainActivity : ComponentActivity() {
     /** The car, Lumi and the game live here, so a rebuilt screen goes on with the same episode. */
@@ -142,6 +156,9 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val speaking by lumi.speaking.collectAsState()
     val subtitle by lumi.subtitle.collectAsState()
     val noSound by lumi.noSound.collectAsState()
+    // 지난 자막: what the friend has said this episode; back on the setup screen it starts empty for the next one
+    val said by lumi.said.collectAsState()
+    LaunchedEffect(ui.phase) { if (ui.phase == Phase.SETUP) lumi.forget() }
     // 아이 화면 자막: on unless the parent turned it off, remembered across drives
     val prefs = LocalContext.current.getSharedPreferences("screen", android.content.Context.MODE_PRIVATE)
     var subtitlesOn by remember { mutableStateOf(prefs.getBoolean("subtitles", true)) }
@@ -155,25 +172,65 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val view = StoryView(storyStatus, preview, rejection, waited)
     // the story server is asked only by 소원 빌기 (game.begin); its answer moves the episode's first screen on
     LaunchedEffect(storyStatus) { game.storyDone(storyStatus) }
-    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Clay.NightTop, Clay.NightBottom)))) {
-        val portrait = maxWidth < maxHeight
-        Column(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 28.dp, bottom = 36.dp)) {
-            Header(ui, car)
-            Spacer(Modifier.height(24.dp))
-            if (portrait) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxWidth())
-                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.fillMaxWidth())
+    // 처음 사용 가이드: once, the first time the app is opened with nothing played yet, split between the setup screen
+    // and the episode's first screen ("--ez guide true" shows both again)
+    val saved by game.saved.collectAsState()
+    val activity = LocalContext.current as? android.app.Activity
+    val forced = activity?.intent?.getBooleanExtra("guide", false) == true
+    var setupGuide by rememberSaveable {
+        mutableStateOf(forced || (Guide.fresh(friends, saved) && !prefs.getBoolean(Guide.SEEN, false)))
+    }
+    var introGuide by rememberSaveable {
+        mutableStateOf(forced || (Guide.fresh(friends, saved) && !prefs.getBoolean(Guide.SEEN_INTRO, false)))
+    }
+    val guide = when {
+        setupGuide && ui.phase == Phase.SETUP && saved == null -> Guide.SETUP
+        introGuide && ui.phase == Phase.INTRO && !ui.paused -> Guide.INTRO
+        else -> null
+    }
+    val spots = remember { GuideSpots() }
+    // the parts of the screen the guide points at report where they are only while it is open
+    CompositionLocalProvider(LocalGuideSpots provides spots.takeIf { guide != null }) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Clay.NightTop, Clay.NightBottom)))) {
+            val portrait = maxWidth < maxHeight
+            // why the episode cannot start yet, on the setup screen (the 이어 하기 card tells its own rest and readings)
+            val waits = if (ui.phase != Phase.SETUP) emptyList() else Safety.startBlockers(car).let { blockers ->
+                blockers.map { it.message } + listOfNotNull(
+                    "차량 장치(공조, 독서등)를 아직 읽지 못했어요".takeIf { blockers.isEmpty() && saved == null && !game.playable(car) },
+                )
+            }
+            Column(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 28.dp, bottom = if (waits.isEmpty()) 36.dp else 20.dp)) {
+                Header(ui, car)
+                Spacer(Modifier.height(24.dp))
+                if (portrait) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        KidStage(game, ui, friends, speaking, shown, said, view, Modifier.weight(1f).fillMaxWidth())
+                        ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                        val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
+                        ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.width(panelWidth).fillMaxHeight())
+                        KidStage(game, ui, friends, speaking, shown, said, view, Modifier.weight(1f).fillMaxHeight())
+                    }
                 }
-            } else {
-                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
-                    ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.width(panelWidth).fillMaxHeight())
-                    KidStage(game, ui, friends, speaking, shown, view, Modifier.weight(1f).fillMaxHeight())
+                if (waits.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    WaitBanner(waits)
                 }
             }
+            if (ui.paused && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED)) PauseOverlay(game, ui)
+            if (guide != null) GuideOverlay(guide, spots) { skipped ->
+                // 건너뛰기 on the setup screen skips the part on the episode's first screen too
+                if (guide == Guide.SETUP) {
+                    setupGuide = false
+                    if (skipped) introGuide = false
+                } else {
+                    introGuide = false
+                }
+                prefs.edit().putBoolean(Guide.SEEN, !setupGuide).putBoolean(Guide.SEEN_INTRO, !introGuide).apply()
+            }
         }
-        if (ui.paused && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED)) PauseOverlay(game, ui)
     }
 }
 
@@ -184,10 +241,31 @@ private fun Header(ui: GameUi, car: CarState) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         FriendFace(ui.setup.friend.picture, ui.setup.friend.label, 64.dp, ringWidth = 0.dp)
         KidText("차근차근 탐험단", 42.sp, color = Clay.Cream)
-        StatusChip("주차 중", car.gear == Gear.PARK && !car.uxRestricted)
-        StatusChip("운전석 보호자", car.driverSeated == true)
+        Row(Modifier.guideSpot(Spot.STATUS), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            StatusChip("주차 중", car.gear == Gear.PARK && !car.uxRestricted)
+            StatusChip("운전석 보호자", car.driverSeated == true)
+        }
         Spacer(Modifier.weight(1f))
         if (ui.puzzles.isNotEmpty() && ui.phase !in listOf(Phase.SETUP, Phase.RESTORE)) ProgressBeads(ui)
+    }
+}
+
+/** What still keeps the episode from starting: a big coral band across the bottom of the screen, under both sides. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WaitBanner(lines: List<String>) {
+    val shape = RoundedCornerShape(32.dp)
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Clay.Coral).padding(horizontal = 24.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+    ) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+            ClayGlyph(ClayIcon.ALERT, Clay.Coral, Modifier.size(24.dp))
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(36.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            lines.forEach { KidText(it, 26.sp, color = Color.White) }
+        }
     }
 }
 
@@ -260,14 +338,47 @@ private fun ColumnScope.Middle(gap: Dp = 18.dp, content: @Composable ColumnScope
     )
 }
 
+/**
+ * Like [Middle] for the setup card: its groups [gap] apart, and the room left over shared out evenly between them, up
+ * to [extra] more each, so the card neither ends in a gap above 소원 빌기 nor spreads apart; it still scrolls when
+ * there is too little room.
+ */
+@Composable
+private fun ColumnScope.EvenMiddle(gap: Dp, extra: Dp, content: @Composable ColumnScope.() -> Unit) {
+    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
+            verticalArrangement = object : Arrangement.Vertical {
+                override val spacing = gap
+
+                override fun Density.arrange(totalSize: Int, sizes: IntArray, outPositions: IntArray) {
+                    val more = if (sizes.size > 1) ((totalSize - sizes.sum()) / (sizes.size - 1) - gap.roundToPx()) else 0
+                    val each = gap.roundToPx() + more.coerceIn(0, extra.roundToPx())
+                    var y = 0
+                    sizes.forEachIndexed { i, s ->
+                        outPositions[i] = y
+                        y += s + each
+                    }
+                }
+            },
+            content = content,
+        )
+    }
+}
+
 /** One setup choice on a single row: its numbered name on the left, the choices filling the rest. */
 @Composable
-private fun SetupRow(label: String, content: @Composable RowScope.() -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.width(118.dp)) { FieldLabel(label) }
+private fun SetupRow(label: String, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SetupLabel(label, Modifier.width(150.dp))
         content()
     }
 }
+
+/** A step's name on the setup card, bold and dark. Set in the plain font: the round one spaces "함께" apart. */
+@Composable
+private fun SetupLabel(text: String, modifier: Modifier = Modifier) =
+    BodyText(text, modifier, size = 22.sp, color = Clay.Ink, weight = FontWeight.Bold)
 
 @Composable
 private fun ParentPanel(
@@ -288,27 +399,28 @@ private fun ParentPanel(
             if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, modifier)
         }
         Phase.INTRO -> PanelCard(modifier) {
-            Badge("안전 지킴이 · 부모님")
             PanelTitle(ui.story?.title ?: "오늘의 이야기")
             BodyText(if (ui.story != null) "이야기는 AI가 만들었어요. 정답은 규칙 엔진이 정해요" else "정답은 규칙 엔진이 정해요")
             Notice(Lines.AUTO_OFF_PARENT)
             Middle {
-                FieldLabel("오늘의 퍼즐")
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ui.puzzles.forEachIndexed { i, p -> PuzzleRow(i + 1, p.title, first = i == 0) }
+                Column(Modifier.guideSpot(Spot.PUZZLES), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    FieldLabel("오늘의 퍼즐")
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // only what kind each puzzle is: its title would give the answer away
+                        ui.puzzles.forEachIndexed { i, p -> PuzzleRow(i + 1, p.category, first = i == 0) }
+                    }
                 }
             }
             ReportRow(game, ui)
-            SafetyLine(ui, car)
+            SafetyLine(ui, car, Modifier.guideSpot(Spot.SAFETY))
             // the story is written while the parent gets the car ready here; 탐험 시작 waits for it
             ClayButton(
-                if (ui.writing) "이야기를 쓰고 있어요 · ${view.waited}초" else "탐험 시작", ClayStyle.SUN, Modifier.fillMaxWidth(),
+                if (ui.writing) "이야기를 쓰고 있어요 · ${view.waited}초" else "탐험 시작", ClayStyle.SUN, Modifier.fillMaxWidth().guideSpot(Spot.START),
                 height = 112.dp, enabled = !ui.writing,
             ) { game.startPuzzle(0) }
         }
         Phase.PLAYING -> PlayingPanel(game, ui, car, speaking, lumi, subs, modifier)
         Phase.SOLVED -> PanelCard(modifier) {
-            Badge("안전 지킴이 · 부모님")
             PanelTitle("정답이에요!")
             BodyText("아이를 듬뿍 칭찬해 주세요. 별 하나를 모았어요")
             Middle { }
@@ -319,7 +431,6 @@ private fun ParentPanel(
             ClayButton("멈춤", ClayStyle.CORAL, Modifier.fillMaxWidth(), height = 104.dp, icon = ClayIcon.PAUSE) { game.hold() }
         }
         Phase.TREASURE -> PanelCard(modifier) {
-            Badge("안전 지킴이 · 부모님")
             PanelTitle("탐험 배지를 받았어요")
             BodyText("끝까지 해낸 아이를 꼭 안아 칭찬해 주세요")
             Middle {
@@ -328,7 +439,6 @@ private fun ParentPanel(
             ClayButton("처음 설정으로", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 112.dp) { game.finish() }
         }
         Phase.RESTORE -> PanelCard(modifier) {
-            Badge("안전 지킴이 · 부모님")
             PanelTitle("처음 설정으로")
             // live: as the car reports each value back, its line disappears
             val changes = ui.snapshot?.changes(car).orEmpty()
@@ -368,34 +478,38 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, s
     var kind by remember(ui.setup.wish) { mutableStateOf(wishParts(ui.setup.wish).second) }
     val wish = kind?.takeIf { place.isNotBlank() }?.let { wishOf(place, it) }
     PanelCard(modifier) {
-        PanelTitle("시작하기 전에 골라 주세요", 38)
+        Column {
+            PanelTitle("시작하기 전에 골라 주세요", 38)
+            BodyText("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", size = 18.sp, color = Clay.Sub, weight = FontWeight.Medium)
+        }
         // everything on one screen with no scrolling, in the order the parent goes: the wish comes last, so
-        // everything the story depends on is chosen when 소원 빌기 asks for it
-        Middle(gap = 12.dp) {
-            SetupRow("1. 함께할 친구") { ChosenFriend(ui.setup.friend, Modifier.weight(1f)) }
-            SetupRow("2. 아이 나이") {
+        // everything the story depends on is chosen when 소원 빌기 asks for it. Fixed gaps, no outlined boxes: the
+        // choices are big enough to fill the card, and 소원 빌기 stays at its bottom
+        EvenMiddle(gap = 28.dp, extra = 26.dp) {
+            SetupRow("1. 함께할 친구") {
+                ChosenFriend(ui.setup.friend, Modifier.weight(1f))
+                SubtitleSwitch(subs)
+            }
+            SetupRow("2. 아이 나이", Modifier.guideSpot(Spot.AGE)) {
                 for (age in Age.entries) {
-                    ChoiceTile(age.years, age.label, ui.setup.ages.firstOrNull() == age, Modifier.weight(1f), compact = true) {
+                    ChoiceTile(age.years, age.label, ui.setup.ages.firstOrNull() == age, Modifier.weight(1f)) {
                         game.setup { it.copy(ages = listOf(age)) }
                     }
                 }
             }
-            SetupRow("3. 기다릴 시간") {
+            SetupRow("3. 기다릴 시간", Modifier.guideSpot(Spot.TIME)) {
                 for (m in listOf(5, 10, 15)) {
-                    ChoiceTile("${m}분", "퍼즐 ${Planner.puzzleCount(m)}개", ui.setup.minutes == m, Modifier.weight(1f), compact = true) {
+                    ChoiceTile("${m}분", "퍼즐 ${Planner.puzzleCount(m)}개", ui.setup.minutes == m, Modifier.weight(1f)) {
                         game.setup { it.copy(minutes = m) }
                     }
                 }
             }
-            SubtitleToggle(subs, compact = true)
             WishBox(place, kind, view, onPlace = { place = it.take(PLACE_MAX) }, onKind = { kind = it })
-            blockers.forEach { Notice(it.message) }
-            if (blockers.isEmpty() && !playable) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
-            BodyText("아이가 버튼을 찾아 가리키면, 안전 지킴이가 확인하고 눌러 줘요", size = 16.sp)
         }
+        // why 소원 빌기 cannot be pressed yet is told big across the bottom of the screen (WaitBanner), not here
         // the one button: it asks the story server for this episode and goes on to the episode's first screen, where
         // the story is written while the parent gets the car ready
-        ClayButton("소원 빌기", ClayStyle.SUN, Modifier.fillMaxWidth(), height = 96.dp, enabled = wish != null && blockers.isEmpty() && playable) {
+        ClayButton("소원 빌기", ClayStyle.SUN, Modifier.fillMaxWidth().guideSpot(Spot.WISH_BUTTON), height = 88.dp, enabled = wish != null && blockers.isEmpty() && playable) {
             if (wish != null) {
                 game.setup { it.copy(wish = wish) }
                 game.begin()
@@ -415,23 +529,23 @@ private fun ResumePanel(game: Game, saved: Progress, car: CarState, modifier: Mo
             delay(1_000)
         }
     }
-    // restLeft is read first, never skipped: the card then redraws when the rest ends and asks again whether it may go on
-    // (read after a false canContinue, only the notices below would redraw and the button would stay off)
-    val ready = restLeft == 0L && game.canContinue(car)
-    val where = if (saved.next < saved.puzzles.size) "${saved.next + 1}번째 퍼즐부터" else "보물만 남았어요"
+    // the rest is only suggested: 이어 하기 waits for the car, not for the rest to be over
+    val ready = game.canContinue(car)
+    val with = Lines.withAnd(saved.setup.friend.label)
+    val where = if (saved.next < saved.puzzles.size) "$with ${saved.next + 1}번째 퍼즐부터 이어서 해요." else "$with 보물만 열면 돼요."
+    val stars = if (saved.stars > 0) " 지금까지 별 ${saved.stars}개를 모았어요." else ""
     PanelCard(modifier) {
-        Badge("안전 지킴이 · 부모님")
         PanelTitle("하다 만 탐험이 있어요", 48)
         Middle {
             FieldLabel("이어 할 이야기")
             BodyText("‘${saved.story?.title ?: "기본 이야기"}’", size = 28.sp, weight = FontWeight.Bold)
-            BodyText("함께한 친구 ${saved.setup.friend.label} · $where · 별 ${saved.stars}개", size = 22.sp)
+            BodyText(where + stars, size = 22.sp)
             Spacer(Modifier.height(4.dp))
             // the car may have put AUTO back on while it was off
             Notice(Lines.AUTO_OFF_PARENT)
-            blockers.forEach { Notice(it.message) }
-            if (restLeft > 0) Notice("${(restLeft + 59_999) / 60_000}분 뒤에 이어 할 수 있어요")
-            if (blockers.isEmpty() && restLeft == 0L && !ready) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
+            // what the car still needs (gear, doors, seat, 공조) is told across the bottom of the screen
+            if (restLeft > 0) BodyText("${(restLeft + 59_999) / 60_000}분쯤 쉬었다 하면 좋아요", size = 20.sp, color = Clay.Sub, weight = FontWeight.Medium)
+            if (blockers.isEmpty() && !ready) Notice("차량 장치(공조, 독서등)를 아직 읽지 못했어요. 잠시 기다려 주세요")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ClayButton("이어 하기", ClayStyle.SUN, Modifier.weight(1f), height = 112.dp, enabled = ready) { game.continueSaved() }
@@ -488,31 +602,23 @@ private fun wishParts(wish: String): Pair<String, String?> =
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WishBox(place: String, kind: String?, view: StoryView, onPlace: (String) -> Unit, onKind: (String) -> Unit) {
-    val made = kind != null && place.isNotBlank()
-    val shape = RoundedCornerShape(28.dp)
-    Column(
-        Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, if (made) Clay.Sun else Clay.Line, shape)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ClayGlyph(ClayIcon.STAR, Clay.SunLip, Modifier.size(24.dp))
-            KidText("4. 오늘의 이야기 소원", 26.sp)
-        }
-        BodyText("장소를 적고 이야기 종류를 골라 주세요. AI가 오늘 퍼즐에 맞춰 이야기와 그림을 새로 만들어요", size = 14.sp)
-        BodyText("장소", size = 17.sp, weight = FontWeight.Medium)
-        val field = RoundedCornerShape(18.dp)
+    // on the card itself, like the rows above: a label, the place field with its dice, the kinds of story
+    Column(Modifier.fillMaxWidth().guideSpot(Spot.WISH)) {
+        SetupLabel("4. 오늘의 이야기 소원")
+        Spacer(Modifier.height(14.dp))
+        val field = RoundedCornerShape(22.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // the one outlined thing on the card: a field to type in
             BasicTextField(
                 value = place,
                 onValueChange = onPlace,
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 22.sp, color = Clay.Ink),
+                textStyle = TextStyle(fontSize = 24.sp, color = Clay.Ink),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                modifier = Modifier.weight(1f).height(60.dp).clip(field).background(Clay.Cream).border(2.dp, Clay.LineSoft, field),
+                modifier = Modifier.weight(1f).height(72.dp).clip(field).background(Color.White).border(2.dp, Clay.Line, field),
                 decorationBox = { inner ->
-                    Box(Modifier.fillMaxSize().padding(horizontal = 18.dp), contentAlignment = Alignment.CenterStart) {
-                        if (place.isEmpty()) BodyText("예: 공룡 섬", size = 20.sp, color = Clay.Muted)
+                    Box(Modifier.fillMaxSize().padding(horizontal = 22.dp), contentAlignment = Alignment.CenterStart) {
+                        if (place.isEmpty()) BodyText("장소 (예: 공룡 섬)", size = 22.sp, color = Clay.Muted)
                         inner()
                     }
                 },
@@ -520,35 +626,36 @@ private fun WishBox(place: String, kind: String?, view: StoryView, onPlace: (Str
             // typing on the car screen is the slowest part of the setup: the dice fills in a place, and pressing again
             // always gives another one
             Box(
-                Modifier.size(60.dp).clip(field).background(Clay.CreamDeep).border(2.dp, Clay.LineSoft, field)
+                Modifier.size(72.dp).clip(field).background(Clay.CreamDeep)
                     .semantics { contentDescription = "장소 아무거나 고르기" }
                     .clickable { onPlace(Places.next(place)) },
                 contentAlignment = Alignment.Center,
-            ) { ClayGlyph(ClayIcon.DICE, Clay.Ink, Modifier.size(34.dp)) }
+            ) { ClayGlyph(ClayIcon.DICE, Clay.Ink, Modifier.size(36.dp)) }
         }
-        BodyText("이야기 종류", size = 17.sp, weight = FontWeight.Medium)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(18.dp))
+        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             STORY_KINDS.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { k -> WishChip(k, k == kind, Modifier.weight(1f)) { onKind(k) } }
                 }
             }
         }
         // a wish the server refused comes back here with why
         if (view.status == StoryRepo.Status.REJECTED) {
+            Spacer(Modifier.height(12.dp))
             Notice("이 소원은 다르게 적어 주세요 (${view.rejection.joinToString(", ").ifEmpty { "안전 규칙" }})")
         }
-        BodyText("아이 이름이나 사는 곳은 적지 말아 주세요", size = 14.sp, color = Clay.Muted)
     }
 }
 
+/** A kind of story: deep cream, sun when picked, as tall as the other choices on the card are easy to press. */
 @Composable
 private fun WishChip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    KidText(
-        text, 19.sp, maxLines = 1, textAlign = TextAlign.Center,
-        modifier = modifier.clip(RoundedCornerShape(50)).background(if (selected) Clay.Sun else Clay.CreamDeep)
-            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp),
-    )
+    Box(
+        modifier.height(72.dp).clip(RoundedCornerShape(22.dp)).background(if (selected) Clay.Sun else Clay.CreamDeep)
+            .selectable(selected, role = Role.RadioButton, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { KidText(text, 23.sp, maxLines = 1, textAlign = TextAlign.Center) }
 }
 
 @Composable
@@ -562,7 +669,7 @@ private fun CheckLabelText(text: String) {
 }
 
 @Composable
-private fun Notice(text: String) = BodyText("• $text", size = 20.sp, color = Clay.CoralLip, weight = FontWeight.Medium)
+private fun Notice(text: String) = BodyText("• $text", size = 20.sp, color = Clay.CoralLip, weight = FontWeight.Medium, balanced = true)
 
 @Composable
 private fun PuzzleRow(number: Int, title: String, first: Boolean) {
@@ -594,20 +701,26 @@ private fun RestoreRow(text: String) {
     }
 }
 
-/** The friend picked in the child's friend book, on the parent's setup panel. */
+/** The friend picked in the child's friend book, on the parent's setup panel: its face and name, nothing around them. */
 @Composable
 private fun ChosenFriend(friend: Friend, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(22.dp)
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        FriendFace(friend.picture, friend.label, 60.dp, ring = Clay.Sun, ringWidth = 3.dp)
+        KidText(friend.label, 30.sp)
+    }
+}
+
+/** 아이 화면 자막 on the friend's row of the setup panel: its name and the switch, the whole of it pressable. */
+@Composable
+private fun SubtitleSwitch(subs: Subs) {
     Row(
-        modifier.clip(shape).background(Color.White).border(3.dp, Clay.Line, shape).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.clip(RoundedCornerShape(50)).toggleable(value = subs.on, role = Role.Switch, onValueChange = subs.set)
+            .padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        FriendFace(friend.picture, friend.label, 48.dp, ring = Clay.Sun, ringWidth = 3.dp)
-        Column(Modifier.weight(1f)) {
-            KidText(friend.label, 24.sp)
-            BodyText("아이 화면의 친구 도감에서 바꿀 수 있어요", size = 15.sp)
-        }
+        BodyText("아이 화면 자막", size = 20.sp, color = Clay.Ink, weight = FontWeight.Medium)
+        SlideSwitch(subs.on, compact = true)
     }
 }
 
@@ -631,9 +744,9 @@ private fun CloserCard(friend: Friend, hearts: Int) {
 }
 
 @Composable
-private fun SafetyLine(ui: GameUi, car: CarState) {
+private fun SafetyLine(ui: GameUi, car: CarState, modifier: Modifier = Modifier) {
     val sec = ui.playedMs / 1000
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             CheckLabel("주차", car.gear == Gear.PARK)
             CheckLabel("문 닫힘", !car.doorOpen)
@@ -680,8 +793,8 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
     val belt = p == Puzzle.BeltMission
     var reveal by remember(ui.index) { mutableStateOf(false) }
     PanelCard(modifier) {
-        Badge("안전 지킴이 · 부모님")
-        PanelTitle(p.title)
+        // the kind of puzzle, not its answer: the answer is behind 정답 보기's long press
+        PanelTitle(p.category)
         BodyText(if (belt) "다음 곳으로 가기 전 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 말한 답과 버튼을 확인하고 눌러 주세요")
         Middle {
             if (belt) {
@@ -781,7 +894,9 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 // ---------------------------------------------------------------- kid stage
 
 @Composable
-private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, view: StoryView, modifier: Modifier) {
+private fun KidStage(
+    game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, said: List<String>, view: StoryView, modifier: Modifier,
+) {
     val preview = view.preview
     val buddy = ui.setup.friend
     val p = ui.puzzle
@@ -818,17 +933,32 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subt
                 .background(Brush.verticalGradient(listOf(Clay.NightBottom.copy(alpha = 0.55f), Color.Transparent))),
         )
         if (ui.phase == Phase.RESTORE) Box(Modifier.fillMaxSize().background(Clay.NightBottom.copy(alpha = 0.35f)))
-        Row(Modifier.padding(start = 36.dp, top = 30.dp, end = 36.dp)) {
+        // 지난 자막 is offered once the friend has said something in this episode
+        val canLookBack = said.isNotEmpty() && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED, Phase.TREASURE)
+        var lookingBack by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth().padding(start = 36.dp, top = 30.dp, end = 36.dp)) {
             Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
             Spacer(Modifier.width(22.dp))
-            Column(Modifier.padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                SpeechBubble(bubble)
+            // the bubble takes the room up to the button, so a long title never runs under it
+            Column(Modifier.weight(1f).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // on the episode's first screen the bubble also says who today's friend is, under the title; the
+                // bottom of the stage stays free for what the friend is saying
+                SpeechBubble(bubble, friend = buddy.label.takeIf { ui.phase == Phase.INTRO })
                 if (speaking) SpeakingTag()
+            }
+            if (canLookBack) {
+                Spacer(Modifier.width(16.dp))
+                KidText(
+                    "지난 자막", 26.sp, maxLines = 1,
+                    modifier = Modifier.padding(top = 22.dp).shadow(10.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
+                        .background(Clay.Cream).clickable { lookingBack = true }.padding(horizontal = 26.dp, vertical = 16.dp),
+                )
             }
         }
         when (ui.phase) {
-            Phase.SETUP -> FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
-            Phase.INTRO -> GuestPop("오늘 함께할 친구", buddy.label, buddy.picture, buddy.message.takeIf { it.isNotBlank() }?.let { "“$it”" } ?: buddy.symbol)
+            // an episode to go on with keeps the friend it was played with, so the book is shown only for a new one
+            Phase.SETUP -> if (resume == null) FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
+            Phase.INTRO -> Unit
             Phase.PLAYING, Phase.SOLVED -> TagAlong(buddy.label, buddy.picture)
             Phase.TREASURE -> ui.heartsNow?.let { CloserPop(buddy, it) }
             Phase.RESTORE -> Unit
@@ -837,10 +967,11 @@ private fun KidStage(game: Game, ui: GameUi, book: Book, speaking: Boolean, subt
         val card = if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.takeIf { Lines.card(it) != null } else null
         card?.let { QuestionCard(it) }
         // what the friend is saying, a piece at a time, above the question card when there is one
-        subtitle?.let { SubtitleBar(it, aboveCard = card != null) }
+        subtitle?.let { SubtitleBar(it, aboveCard = card != null, clearCorner = ui.phase in listOf(Phase.PLAYING, Phase.SOLVED)) }
         // the friend waits with the child on the episode's first screen while its story is written
         if (ui.phase == Phase.INTRO && ui.writing) WishingOverlay(ui.setup.wish, buddy, view.waited)
         ui.invited?.let { InvitePop(it, game::closeInvite) }
+        if (lookingBack && canLookBack) LookBack(said) { lookingBack = false }
     }
 }
 
@@ -852,18 +983,20 @@ private data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
  * through cream at the bottom of the stage, clear of the question card and the friend in the corner.
  */
 @Composable
-private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean) {
+private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean, clearCorner: Boolean) {
     val shape = RoundedCornerShape(36.dp)
     Box(
         Modifier.align(Alignment.BottomCenter)
-            .padding(start = 40.dp, end = 220.dp, bottom = if (aboveCard) 232.dp else 40.dp)
+            // the friend in the corner (TagAlong) keeps its room; with no one there the bar sits in the middle
+            .padding(start = 40.dp, end = if (clearCorner && !aboveCard) 220.dp else 40.dp, bottom = if (aboveCard) 232.dp else 40.dp)
             .widthIn(max = 1240.dp)
             .shadow(12.dp, shape).clip(shape).background(Clay.Cream.copy(alpha = 0.9f))
             .padding(horizontal = 36.dp, vertical = 18.dp),
         contentAlignment = Alignment.Center,
     ) {
         Crossfade(text, label = "subtitle") { piece ->
-            KidText(piece, 46.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2)
+            // the line break where the phrase allows (Subtitles.lines), never in the middle of a word
+            KidText(Subtitles.lines(piece), 46.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2, balanced = true)
         }
     }
 }
@@ -874,18 +1007,28 @@ private fun SubtitleToggle(subs: Subs, compact: Boolean = false) {
     val shape = RoundedCornerShape(if (compact) 22.dp else 28.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape).background(Color.White).border(3.dp, Clay.Line, shape)
-            .clickable { subs.set(!subs.on) }.padding(horizontal = if (compact) 16.dp else 22.dp, vertical = if (compact) 8.dp else 16.dp),
+            .toggleable(value = subs.on, role = Role.Switch, onValueChange = subs.set)
+            .padding(horizontal = if (compact) 16.dp else 22.dp, vertical = if (compact) 8.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            KidText("아이 화면 자막", if (compact) 22.sp else 28.sp)
-            BodyText("친구가 하는 말을 글자로도 보여 줘요", size = if (compact) 15.sp else 18.sp)
-        }
+        KidText("아이 화면 자막", if (compact) 22.sp else 28.sp, modifier = Modifier.weight(1f))
+        SlideSwitch(subs.on, compact)
+    }
+}
+
+/** An on/off switch: a white knob that slides right onto mint when on, left onto grey when off. */
+@Composable
+private fun SlideSwitch(on: Boolean, compact: Boolean) {
+    val width = if (compact) 68.dp else 80.dp
+    val height = if (compact) 38.dp else 44.dp
+    val knob = height - 8.dp
+    val x by animateDpAsState(if (on) width - knob - 4.dp else 4.dp, tween(160), label = "switch knob")
+    Box(Modifier.size(width, height).clip(RoundedCornerShape(50)).background(if (on) Clay.Mint else Clay.Line)) {
         Box(
-            Modifier.clip(RoundedCornerShape(50)).background(if (subs.on) Clay.Mint else Clay.Line)
-                .padding(horizontal = if (compact) 18.dp else 22.dp, vertical = if (compact) 7.dp else 10.dp),
-        ) { KidText(if (subs.on) "켜짐" else "꺼짐", if (compact) 20.sp else 24.sp, color = if (subs.on) Color.White else Clay.Sub) }
+            Modifier.align(Alignment.CenterStart).offset(x = x).size(knob).shadow(3.dp, CircleShape).clip(CircleShape)
+                .background(Color.White),
+        )
     }
 }
 
@@ -910,17 +1053,50 @@ private fun BoxScope.WishingOverlay(wish: String, buddy: Friend, waited: Int) {
     }
 }
 
+/**
+ * 지난 자막: everything the friend has said this episode, oldest first, scrolled to the newest, over the stage. A touch
+ * outside the card or 닫기 closes it.
+ */
 @Composable
-private fun SpeechBubble(text: String) {
+private fun BoxScope.LookBack(lines: List<String>, onClose: () -> Unit) {
+    Box(Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.72f)).pointerInput(Unit) { detectTapGestures { onClose() } })
+    val shape = RoundedCornerShape(44.dp)
+    Column(
+        Modifier.align(Alignment.Center).fillMaxWidth(0.86f).fillMaxHeight(0.84f).shadow(32.dp, shape).clip(shape)
+            .background(Clay.Cream).pointerInput(Unit) { detectTapGestures { } }
+            .padding(start = 44.dp, end = 32.dp, top = 28.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            KidText("지난 자막", 44.sp, modifier = Modifier.weight(1f))
+            ClayButton("닫기", ClayStyle.GHOST, Modifier.width(180.dp), height = 72.dp, onClick = onClose)
+        }
+        val list = rememberLazyListState()
+        LaunchedEffect(lines.size) { if (lines.isNotEmpty()) list.scrollToItem(lines.lastIndex) }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            items(lines) { line -> KidText(line, 32.sp, balanced = true) }
+        }
+    }
+}
+
+/** The friend's bubble at the top of the stage; [friend], when given, is named under the title as today's friend. */
+@Composable
+private fun SpeechBubble(text: String, friend: String? = null) {
     if (text.isBlank()) return
     val shape = RoundedCornerShape(44.dp)
     Box {
         Box(Modifier.matchParentSize().padding(top = 8.dp).clip(shape).background(Clay.Line))
-        KidText(
-            text, 56.sp, maxLines = 2,
-            modifier = Modifier.padding(bottom = 8.dp).widthIn(max = 760.dp).clip(shape).background(Clay.Cream)
-                .padding(start = 44.dp, end = 44.dp, top = 24.dp, bottom = 28.dp),
-        )
+        Column(
+            Modifier.padding(bottom = 8.dp).widthIn(max = 760.dp).clip(shape).background(Clay.Cream)
+                .padding(start = 44.dp, end = 44.dp, top = 24.dp, bottom = 26.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            KidText(text, 56.sp, maxLines = 2, balanced = true)
+            if (friend != null) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                KidText("오늘 함께할 친구", 26.sp, color = Clay.SunLip, maxLines = 1)
+                KidText(friend, 26.sp, maxLines = 1)
+            }
+        }
     }
 }
 
@@ -943,7 +1119,7 @@ private fun SpeakingTag() {
 @Composable
 private fun BoxScope.FriendShelf(book: Book, picked: Friend, onPick: (Friend) -> Unit, onInvite: (Friend) -> Unit) {
     Column(
-        Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 32.dp).fillMaxWidth()
+        Modifier.align(Alignment.BottomCenter).padding(horizontal = 28.dp, vertical = 32.dp).fillMaxWidth().guideSpot(Spot.FRIENDS)
             .shadow(24.dp, RoundedCornerShape(36.dp)).clip(RoundedCornerShape(36.dp)).background(Clay.Cream.copy(alpha = 0.95f))
             .padding(top = 20.dp, bottom = 22.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -965,7 +1141,8 @@ private fun BoxScope.FriendShelf(book: Book, picked: Friend, onPick: (Friend) ->
                     name = f.label, picture = if (open) f.picture else "${f.picture}_silhouette",
                     ring = when { f == picked -> Clay.Sun; open -> Clay.Mint; else -> Color(0xFFD9CBB1) },
                     dim = !open, hidden = !open, hearts = book.hearts(f).takeIf { open },
-                    label = when { !open -> "누구일까?"; f == picked -> "함께해요"; else -> null },
+                    label = if (open) null else "누구일까?",
+                    picked = f == picked,
                     invite = book.canInvite(f), bubbleRoom = asking,
                     onInvite = { onInvite(f) },
                     onClick = if (open) ({ onPick(f) }) else null,
@@ -978,25 +1155,30 @@ private fun BoxScope.FriendShelf(book: Book, picked: Friend, onPick: (Friend) ->
 @Composable
 private fun PalItem(
     name: String, picture: String?, ring: Color, dim: Boolean = false, hidden: Boolean = false,
-    hearts: Int? = null, label: String? = null, invite: Boolean = false, bubbleRoom: Boolean = false,
+    hearts: Int? = null, label: String? = null, picked: Boolean = false, invite: Boolean = false, bubbleRoom: Boolean = false,
     onInvite: () -> Unit = {}, onClick: (() -> Unit)? = null,
 ) {
+    // the friend picked for the next episode stands on a sun tile, its ring white against it. Every friend keeps the
+    // same padding, so the faces stay in one line
     Column(
-        Modifier.width(140.dp).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        Modifier.width(148.dp)
+            .then(if (picked) Modifier.clip(RoundedCornerShape(30.dp)).background(Clay.Sun) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (bubbleRoom) Box(Modifier.height(64.dp), contentAlignment = Alignment.BottomCenter) { if (invite) InviteBubble(onInvite) }
         // a silhouette is shown as it is; only a friend with no picture at all gets the grey "?"
         val outline = hidden && picture?.endsWith("_silhouette") == true
         FriendFace(
-            picture, name, 112.dp, ring = ring, ringWidth = if (dim) 3.dp else 5.dp,
+            picture, name, 112.dp, ring = if (picked) Color.White else ring, ringWidth = if (dim) 3.dp else 5.dp,
             dim = dim && !outline, hidden = hidden && !outline,
         )
         if (hidden) BodyText(label ?: "", size = 18.sp, color = Clay.Muted, weight = FontWeight.Medium, textAlign = TextAlign.Center)
-        else KidText(name, 22.sp, textAlign = TextAlign.Center, maxLines = 1)
-        Box(Modifier.height(14.dp), contentAlignment = Alignment.Center) { if (hearts != null) Hearts(hearts, Friend.MAX_HEARTS, 14.dp) }
-        Box(Modifier.height(22.dp), contentAlignment = Alignment.Center) {
-            if (label != null && !hidden) BodyText(label, size = 16.sp, color = Clay.SunLip, weight = FontWeight.Medium, textAlign = TextAlign.Center)
+        else KidText(name, if (picked) 24.sp else 22.sp, textAlign = TextAlign.Center, maxLines = 1)
+        // big enough to count at a glance; the empty ones darker than the card, white on the picked friend's sun tile
+        Box(Modifier.height(24.dp), contentAlignment = Alignment.Center) {
+            if (hearts != null) Hearts(hearts, Friend.MAX_HEARTS, 22.dp, empty = if (picked) Color.White else Color(0xFFD9CBB1))
         }
     }
 }
@@ -1027,28 +1209,6 @@ private fun BoxScope.InvitePop(friend: Friend, onClose: () -> Unit) {
             KidText(friend.label, 56.sp, textAlign = TextAlign.Center)
             BodyText("${friend.animal} · ${friend.symbol}", size = 24.sp, color = Clay.Ink, textAlign = TextAlign.Center)
             BodyText("아무 곳이나 누르면 닫혀요", size = 17.sp, color = Clay.Muted)
-        }
-    }
-}
-
-/** The friend going through the episode, at the start ("오늘 함께할 친구"). */
-@Composable
-private fun BoxScope.GuestPop(title: String, name: String, picture: String?, line: String) {
-    val shape = RoundedCornerShape(40.dp)
-    Box(Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 40.dp, end = 40.dp)) {
-        Box(Modifier.matchParentSize().padding(top = 10.dp).clip(shape).background(Clay.Sun))
-        Row(
-            Modifier.padding(bottom = 10.dp).shadow(24.dp, shape).clip(shape).background(Clay.Cream)
-                .padding(start = 24.dp, end = 40.dp, top = 22.dp, bottom = 22.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
-        ) {
-            FriendFace(picture, name, 170.dp, ring = Clay.Sun, ringWidth = 6.dp)
-            Column(Modifier.widthIn(max = 620.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                KidText(title, 34.sp, color = Clay.SunLip)
-                KidText(name, 60.sp, maxLines = 1)
-                if (line.isNotBlank()) BodyText(line, size = 22.sp, color = Clay.Sub, weight = FontWeight.Medium)
-            }
         }
     }
 }
@@ -1130,9 +1290,12 @@ private fun PauseOverlay(game: Game, ui: GameUi) {
             KidText(if (reason == null) "잠깐 멈췄어요" else "잠깐 쉬어요!", 60.sp)
             BodyText(reason?.message ?: "준비되면 이어 하기를 눌러 주세요", size = 26.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
             if (reason == StopReason.TIME_UP || ui.restUntil != null) {
-                // the episode is kept: after the rest the setup screen offers 이어 하기. Once the 20 minutes are up this
-                // stays the only way out, also while an open door or the gear is what the pause shows
-                ClayButton("저장하고 쉬기", ClayStyle.SUN, Modifier.fillMaxWidth()) { game.restAndSave() }
+                // after 20 minutes a rest is suggested, not forced: 저장하고 쉬기 keeps the episode for later (the setup
+                // screen offers 이어 하기), 바로 이어 하기 goes on at once with the 20 minutes counted from now
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ClayButton("저장하고 쉬기", ClayStyle.SUN, Modifier.weight(1f)) { game.restAndSave() }
+                    ClayButton("바로 이어 하기", ClayStyle.GHOST, Modifier.width(300.dp)) { game.keepGoing() }
+                }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     ClayButton("이어 하기", ClayStyle.SUN, Modifier.weight(1f), enabled = reason == null) { game.resume() }

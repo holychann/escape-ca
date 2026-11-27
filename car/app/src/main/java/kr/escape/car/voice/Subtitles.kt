@@ -56,36 +56,92 @@ object Subtitles {
         return out
     }
 
+    // where a Korean sentence pauses by itself: after a comma or a word that ends a clause ("가야 하는데", "들어오니")
+    private val CLAUSE_END = Regex("""(,|는데|니까|니|지만|어서|아서|해서|하고|타고|으면|려고|는지|다가)$""")
+    // a place or a way ("밖에서", "안으로") ends a phrase too, if less clearly
+    private val PLACE_END = Regex("""(에서|에게|으로|까지|부터)$""")
+    // an object ("바람을") belongs with the verb after it, so a cut right after it reads badly
+    private val OBJECT_END = Regex("""[을를]$""")
+
+    /** How good a place to cut after [word] is, at [at] letters where [ideal] would be even: lower is better. */
+    private fun cutScore(word: String, at: Int, ideal: Int): Int = kotlin.math.abs(at - ideal) -
+        (if (CLAUSE_END.containsMatchIn(word)) 6 else 0) - (if (PLACE_END.containsMatchIn(word)) 3 else 0) +
+        (if (OBJECT_END.containsMatchIn(word)) 5 else 0)
+
+    /** About one line of the child's subtitle at its size: a longer piece is shown on two. */
+    const val LINE_CHARS = 16
+
+    /**
+     * [piece] with its line break put where the phrase allows, near the middle ("냄새가 밖에서 / 바람을 타고 들어오니"),
+     * instead of wherever the screen runs out ("바람을 / 타고"). A piece that fits one line is left as it is.
+     */
+    fun lines(piece: String): String {
+        if (piece.length <= LINE_CHARS) return piece
+        val words = piece.split(" ")
+        if (words.size < 2) return piece
+        val ends = words.runningReduce { a, b -> "$a $b" }.map { it.length }
+        val best = (0 until words.size - 1).minBy { i -> cutScore(words[i], ends[i], piece.length / 2) }
+        return words.subList(0, best + 1).joinToString(" ") + "\n" + words.subList(best + 1, words.size).joinToString(" ")
+    }
+
+    /**
+     * A sentence too long for one piece, in as few pieces as fit, of about the same length, each cut at the word
+     * boundary nearest its share and, when one is close, where the sentence pauses ("가야 하는데 / 별빛 기차 칸
+     * 곳곳이 고장 났대", never "기차 / 칸").
+     */
     private fun split(sentence: String, max: Int): List<String> {
         if (sentence.length <= max) return listOf(sentence)
         val words = sentence.split(" ")
-        val out = mutableListOf<String>()
-        var cur = ""
-        for (w in words) {
-            val next = if (cur.isEmpty()) w else "$cur $w"
-            // a comma close to the limit is a better place to cut than the limit itself
-            if (next.length > max && cur.isNotEmpty()) {
-                out += cur
-                cur = w
-            } else {
-                cur = next
-                if (cur.endsWith(",") && cur.length >= max * 2 / 3) {
-                    out += cur
-                    cur = ""
-                }
-            }
+        for (count in (sentence.length + max - 1) / max..words.size) {
+            val cut = balanced(words, count)
+            if (cut.all { it.length <= max }) return cut
         }
-        if (cur.isNotEmpty()) out += cur
+        return words
+    }
+
+    private fun balanced(words: List<String>, count: Int): List<String> {
+        // ends[i]: the length of the words up to and with words[i], spaces included
+        val ends = words.runningReduce { a, b -> "$a $b" }.map { it.length }
+        val total = ends.last()
+        val out = mutableListOf<String>()
+        var start = 0
+        for (k in 1 until count) {
+            val ideal = total * k / count
+            // leave at least one word for each piece still to come
+            val best = (start..words.size - 1 - (count - k)).minByOrNull { i -> cutScore(words[i], ends[i], ideal) } ?: break
+            out += words.subList(start, best + 1).joinToString(" ")
+            start = best + 1
+        }
+        out += words.subList(start, words.size).joinToString(" ")
         return out
     }
 
     /** When each piece starts, in ms from the start of a recording [totalMs] long: by letters, spaces not counted. */
-    fun starts(pieces: List<String>, totalMs: Long): List<Long> {
-        val weights = pieces.map { p -> p.count { !it.isWhitespace() }.coerceAtLeast(1).toLong() }
+    fun starts(pieces: List<String>, totalMs: Long, gaps: List<Pauses.Gap> = emptyList()): List<Long> {
+        // the guess: a share by letters, the voice also resting a little at a comma and longer at a sentence's end
+        val weights = pieces.map { p ->
+            p.count { !it.isWhitespace() }.coerceAtLeast(1).toLong() * 2 + p.count { it == ',' } * 2 + p.count { it in ".!?…~" } * 5
+        }
         val sum = weights.sum().coerceAtLeast(1)
         var at = 0L
-        return weights.map { w -> at.also { at += totalMs * w / sum } }
+        val guess = weights.map { w -> at.also { at += totalMs * w / sum } }
+        if (gaps.isEmpty() || pieces.size < 2) return guess
+        // each turn goes to the real pause nearest its guess, at the moment the voice starts again after it, so a
+        // piece never comes up before its words are said; a turn with no pause near it keeps its guess
+        val reach = totalMs / pieces.size
+        val out = mutableListOf(0L)
+        var used = -1
+        for (k in 1 until pieces.size) {
+            val pick = gaps.withIndex().filter { (i, g) -> i > used && g.endMs > out.last() && kotlin.math.abs(g.middleMs - guess[k]) <= reach }
+                .minByOrNull { (_, g) -> kotlin.math.abs(g.middleMs - guess[k]) }
+            if (pick != null) used = pick.index
+            out += maxOf(pick?.value?.endMs?.minus(TURN_LEAD_MS) ?: guess[k], out.last())
+        }
+        return out
     }
+
+    /** A piece comes up this much before the voice starts again, as the eye is a moment slower than the ear. */
+    const val TURN_LEAD_MS = 120L
 
     /** How long a piece stays up when there is no sound to follow. */
     fun readMs(piece: String): Long = (piece.count { !it.isWhitespace() } * READ_MS_PER_CHAR).coerceAtLeast(MIN_PIECE_MS)

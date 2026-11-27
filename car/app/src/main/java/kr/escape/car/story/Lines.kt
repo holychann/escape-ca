@@ -41,7 +41,7 @@ object Lines {
      * itself, which the app cannot read. Lumi says it in Korean letters so the speech engine does not spell it out.
      */
     const val AUTO_OFF = "안전 지킴이, 공조 오토를 꺼 주세요."
-    const val AUTO_OFF_PARENT = "공조 AUTO를 꺼 주세요. AUTO가 바람, 에어컨, 내기 순환을 저절로 바꿔요"
+    const val AUTO_OFF_PARENT = "공조 AUTO를 꺼 주세요.\nAUTO가 바람, 에어컨, 내기 순환을 저절로 바꿔요"
 
     fun intro(f: Friend) = "안녕, 탐험대장! 나는 ${isName(f.label)}. 오늘 밤 별 축제에 가야 하는데 별빛 기차 칸 곳곳이 고장 났대. " +
         "나랑 같이 문제를 풀어서 기차를 고쳐 보자! 답을 찾으면, 그 답으로 버튼을 어떻게 바꿀지 안전 지킴이에게 알려 줘."

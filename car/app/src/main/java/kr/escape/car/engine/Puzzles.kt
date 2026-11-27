@@ -72,6 +72,21 @@ enum class Dial(val label: String, val device: Device, val range: IntRange, val 
  * is that value; it can never move the answer. A quiz is solved by the car state and nothing else.
  */
 sealed class Puzzle(val title: String, val devices: Set<Device>) {
+    /**
+     * What kind of puzzle it is, without its answer ("추론하기", not "추론: 내기 순환 켜기"): the name the screens show,
+     * since the child may see the parent's side too.
+     */
+    val category: String
+        get() = when (this) {
+            is Quiz -> when (kind) {
+                QuizKind.REASON -> "추론하기"
+                QuizKind.MATH -> "수리 문제"
+                QuizKind.PATTERN -> "규칙 맞추기"
+                QuizKind.ENGLISH -> "언어 문제"
+            }
+            BeltMission -> title
+        }
+
     data class Quiz(val kind: QuizKind, val dial: Dial, val value: Int) :
         Puzzle(if (kind == QuizKind.REASON) "${kind.label}: ${dial.action(value)}" else "${dial.label} ${kind.label}", setOf(dial.device)) {
 
