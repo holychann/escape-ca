@@ -592,7 +592,7 @@ private fun wishStep(waited: Int) = when {
 }
 
 // kinds that suit any place the family types and need no character beyond the friend book, and carry any lesson
-private val STORY_KINDS = listOf("보물찾기", "구조대", "탐정 놀이", "고장 수리", "축제 준비", "발명 대회")
+private val STORY_KINDS = listOf("보물찾기", "구조대", "탐정 놀이", "수리하러 가기", "축제 준비", "발명 대회")
 private const val PLACE_MAX = 20
 private val WISH_FORM = Regex("^(.+)에서 펼쳐지는 (.+) 이야기$")
 
@@ -603,18 +603,41 @@ private class WishDraft(place: String, kind: String?) {
     var place by mutableStateOf(place)
     var kind by mutableStateOf(kind)
 
-    /** The child's bubble for it ("롯데월드에서 보물찾기!"), or null while nothing is filled in. */
-    val line: String?
-        get() {
-            val where = place.trim()
-            val what = kind
-            return when {
-                where.isNotEmpty() && what != null -> "${where}에서 $what!"
-                where.isNotEmpty() -> "$where 좋아!"
-                what != null -> "$what 좋아!"
-                else -> null
-            }
-        }
+    /** The child's bubble for it, or null while nothing is filled in. */
+    val line: String? get() = wishLine(place, kind)
+}
+
+// what the friend says for each kind, so a kind that is a team (구조대) still reads as something to do
+private val KIND_LINES = mapOf(
+    "보물찾기" to "보물찾기 하자!",
+    "구조대" to "구조대 출동!",
+    "탐정 놀이" to "탐정 놀이 하자!",
+    "수리하러 가기" to "수리하러 가자!",
+    "축제 준비" to "축제 준비하자!",
+    "발명 대회" to "발명 대회 열자!",
+)
+
+private val TOWARD_KINDS = setOf("구조대", "수리하러 가기")
+
+/** The child's bubble while the wish is filled in ("우주 정거장으로 구조대 출동!"), or null while nothing is. */
+internal fun wishLine(place: String, kind: String?): String? {
+    val where = place.trim()
+    val what = kind?.let { KIND_LINES[it] ?: "$it 하자!" }
+    return when {
+        what == null -> if (where.isEmpty()) null else "$where 좋아!"
+        where.isEmpty() -> what
+        // a rescue team or a repair trip sets out for the place; every other kind happens there
+        kind in TOWARD_KINDS -> "$where${toward(where)} $what"
+        else -> "${where}에서 $what"
+    }
+}
+
+/** 으로 or 로 after [word], as its last letter asks ("정거장으로", "마을로", "별로"). */
+internal fun toward(word: String): String {
+    val last = word.lastOrNull()
+    if (last == null || last !in '가'..'힣') return "로"
+    val tail = (last - '가') % 28
+    return if (tail == 0 || tail == 8) "로" else "으로"
 }
 
 /** The place and the kind of story a wish was made from, so the box shows them again. */
