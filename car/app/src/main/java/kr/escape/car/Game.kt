@@ -372,6 +372,8 @@ class Game(
 
     /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
     fun finish() {
+        // the friend stops at once: the game is over, so the puzzle being read is not read to its end
+        lumi.stop()
         // after its 20 minutes the episode is kept for after the rest, whichever reason the pause shows by then
         _ui.update {
             it.copy(
