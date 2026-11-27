@@ -2,6 +2,7 @@ package kr.escape.car
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kr.escape.car.car.VehicleSource
@@ -30,6 +31,7 @@ class GameModel(app: Application) : AndroidViewModel(app) {
     val stories = StoryRepo(
         File(app.filesDir, "next_episode.json"), install, client, viewModelScope,
         questions = bank.questions, bank = bank, heard = HeardStories(File(app.filesDir, "heard_stories.json")),
+        log = { Log.i("EscapeCar", it) },
     )
     val book = FriendBook(File(app.filesDir, "friend_book"))
     val game = Game(

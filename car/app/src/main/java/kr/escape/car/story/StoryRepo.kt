@@ -39,6 +39,8 @@ class StoryRepo(
     private val bank: QuestionBank? = null,
     /** The stories this car already played; the shelf is not asked without it. */
     private val heard: HeardStories? = null,
+    /** Where a story came from, for logcat (tag EscapeCar): the shelf or written new. */
+    private val log: (String) -> Unit = {},
 ) {
     enum class Status { NONE, WRITING, READY, OFFLINE, REJECTED }
 
@@ -102,6 +104,7 @@ class StoryRepo(
             val result = withContext(io) {
                 runCatching { if (askShelf) viaShelf(setup, car, puzzles, body, now) else Found(withLocalPictures(client.episode(body)), puzzles) }
             }
+            result.getOrNull()?.let { log("이야기 ${if (it.fromShelf) "창고에서 꺼냄" else "새로 만듦"}: ${it.story.storyId}") }
             if (writingFor != wanted) return@launch
             writingFor = null
             val found = result.getOrElse { e ->
@@ -125,7 +128,7 @@ class StoryRepo(
         }
     }
 
-    private class Found(val story: Story, val puzzles: List<Puzzle>)
+    private class Found(val story: Story, val puzzles: List<Puzzle>, val fromShelf: Boolean = false)
 
     /**
      * The shelf first: a story other cars got that this car and the app's own question bank accept. Otherwise a new
@@ -162,7 +165,7 @@ class StoryRepo(
                 val p = StoryKeys.puzzle(key) as? Puzzle.Quiz ?: return@all true
                 words.question?.let { bank.asks(p, youngest, it, words.hint) } ?: true
             }
-            if (asked) return Found(withLocalPictures(candidate.story), chosen)
+            if (asked) return Found(withLocalPictures(candidate.story), chosen, fromShelf = true)
         }
         return null
     }

@@ -102,13 +102,14 @@ class StoryRepoTest {
 
     private fun TestScope.repoWith(
         client: StoryClient, keep: String? = stored, bank: QuestionBank? = null, heard: HeardStories? = null,
+        log: (String) -> Unit = {},
     ): StoryRepo {
         val d = StandardTestDispatcher(testScheduler)
         val file = tmp.root.resolve("next_episode.json")
         if (keep == null) file.delete() else file.writeText(keep)
         return StoryRepo(
             file, "00000000-0000-0000-0000-000000000000", client, CoroutineScope(d), io = d,
-            questions = bank?.questions ?: Questions.ANY, bank = bank, heard = heard,
+            questions = bank?.questions ?: Questions.ANY, bank = bank, heard = heard, log = log,
         )
     }
 
@@ -440,6 +441,22 @@ class StoryRepoTest {
         assertTrue(asked.getString("season") in setOf("SPRING", "SUMMER", "AUTUMN", "WINTER"))
         assertEquals(0, client.calls)
         assertEquals("a".repeat(32), r.preview.value?.storyId)
+    }
+
+    @Test
+    fun theLogSaysWhereTheStoryCameFrom() = runTest {
+        val lines = mutableListOf<String>()
+        val client = FakeClient { storyOf("f".repeat(32)) }
+        client.shelf = { listOf(shelved("a".repeat(32))) }
+        val heard = heardFile()
+        val r = repoWith(client, keep = null, bank = shelfBank, heard = heard, log = { lines += it })
+        val wish = Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기")
+        r.prepare(wish, shelfCar)
+        advanceUntilIdle()
+        r.takeWritten()
+        r.prepare(wish, shelfCar)
+        advanceUntilIdle()
+        assertEquals(listOf("이야기 창고에서 꺼냄: ${"a".repeat(32)}", "이야기 새로 만듦: ${"f".repeat(32)}"), lines)
     }
 
     @Test
