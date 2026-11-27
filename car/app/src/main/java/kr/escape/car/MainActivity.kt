@@ -78,6 +78,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import kr.escape.car.ui.rememberAsset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -194,6 +196,9 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val view = StoryView(storyStatus, preview, rejection, waited)
     // the story server is asked only by 소원 빌기 (game.begin); its answer moves the episode's first screen on
     LaunchedEffect(storyStatus) { game.storyDone(storyStatus) }
+    // pictures the server finished drawing after the story came
+    val settled by stories.settled.collectAsState()
+    LaunchedEffect(settled) { game.picturesSettled(settled) }
     // 처음 사용 가이드: once, the first time the app is opened with nothing played yet, split between the setup screen
     // and the episode's first screen ("--ez guide true" shows both again)
     val saved by game.saved.collectAsState()
@@ -1019,7 +1024,7 @@ private fun KidStage(
     }
     val shape = RoundedCornerShape(48.dp)
     Box(modifier.clip(shape).background(Clay.NightBottom)) {
-        AssetImage(picture, Modifier.fillMaxSize())
+        StagePicture(picture, buddy, Modifier.fillMaxSize())
         // a soft shade at the top keeps the bubble readable over any picture
         Box(
             Modifier.fillMaxWidth().height(420.dp)
@@ -1081,6 +1086,8 @@ private fun KidStage(
         subtitle?.let { SubtitleBar(it, aboveCard = card != null) }
         // the friend waits with the child on the episode's first screen while its story is written
         if (ui.phase == Phase.INTRO && ui.writing) WishingOverlay(ui.setup.wish, buddy, view.waited)
+        val drawnFor = rememberElapsedSeconds(ui.drawing != null, ui.drawing)
+        if (ui.drawing != null) DrawingOverlay(buddy, drawnFor)
         ui.invited?.let { InvitePop(it, game::closeInvite) }
         if (lookingBack && canLookBack) LookBack(said) { lookingBack = false }
     }
@@ -1139,6 +1146,38 @@ private fun SlideSwitch(on: Boolean, compact: Boolean) {
                 .background(Color.White),
         )
     }
+}
+
+/** While the next puzzle's picture is still being drawn: the friend waits inside a spinning ring, as for a wish. */
+@Composable
+private fun BoxScope.DrawingOverlay(buddy: Friend, waited: Int) {
+    Box(Modifier.matchParentSize().background(Clay.NightBottom.copy(alpha = 0.72f)))
+    Column(
+        Modifier.align(Alignment.Center).padding(horizontal = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        Box(Modifier.size(220.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                Modifier.fillMaxSize(), color = Clay.Sun, strokeWidth = 10.dp,
+                trackColor = Color.White.copy(alpha = 0.15f), strokeCap = StrokeCap.Round,
+            )
+            FriendFace(buddy.picture, buddy.label, 176.dp, ringWidth = 0.dp)
+        }
+        KidText("다음 장면을 그리고 있어!", 48.sp, color = Clay.Cream, textAlign = TextAlign.Center)
+        BodyText("${waited}초째, 다 그리면 바로 시작해요", size = 22.sp, color = Clay.Cream.copy(alpha = 0.8f), textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * A stage picture: the app's own scene picture in the friend's version when there is one ("scene_fog_konyang"),
+ * otherwise as it is ("scene_fog"); a drawn picture or any other picture as it is.
+ */
+@Composable
+private fun StagePicture(picture: String, buddy: Friend, modifier: Modifier) {
+    val own = if (picture.startsWith("scene_")) rememberAsset("${picture}_${buddy.name.lowercase()}") else null
+    if (own != null) Image(own, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    else AssetImage(picture, modifier)
 }
 
 /** While a wish is being made: the stage dims and the friend waits inside a spinning ring, with what is happening. */

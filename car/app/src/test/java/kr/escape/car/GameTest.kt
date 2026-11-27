@@ -5,7 +5,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kr.escape.car.engine.CarState
 import kr.escape.car.engine.Device
@@ -19,6 +21,7 @@ import kr.escape.car.engine.Seat
 import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
+import kr.escape.car.story.Fetched
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Progress
 import kr.escape.car.story.ProgressStore
@@ -351,7 +354,16 @@ class GameTest {
             asked += request
             return answer()
         }
-        override fun download(path: String, to: java.io.File) {}
+        /** What every picture of a story is when the game asks for it. */
+        var picture = Fetched.SAVED
+
+        override fun fetch(path: String, to: java.io.File): Fetched {
+            if (picture == Fetched.SAVED) {
+                to.parentFile?.mkdirs()
+                to.writeText(path)
+            }
+            return picture
+        }
     }
 
     private val written = Story.parse(JSONObject(
@@ -385,6 +397,91 @@ class GameTest {
         val slots = server.asked.single().getJSONArray("puzzles")
         assertEquals(g.ui.value.puzzles.map(StoryKeys::key), List(slots.length()) { slots.getJSONArray(it).getString(0) })
         assertEquals(written, store.read()!!.story)
+    }
+
+    /** A story whose first puzzle's picture (p1) the server is still drawing when it arrives. */
+    private fun drawingServer(): Server {
+        lateinit var server: Server
+        server = Server {
+            val slots = server.asked.last().getJSONArray("puzzles")
+            written.copy(images = mapOf("p1" to "/v1/images/c/p1.webp"), scenePictures = mapOf(slots.getJSONArray(0).getString(0) to "p1"))
+        }
+        server.picture = Fetched.DRAWING
+        return server
+    }
+
+    private fun TestScope.storyWithItsFirstPictureComing(server: Server): Pair<Game, StoryRepo> {
+        val (g, repo) = gameWith(server)
+        g.setup { it.copy(wish = "구름 위 놀이공원에서 펼쳐지는 보물찾기 이야기") }
+        g.begin()
+        runCurrent()
+        g.storyDone(repo.status.value)
+        assertTrue(g.ui.value.story!!.drawing("p1"))
+        return g to repo
+    }
+
+    @Test
+    fun aPuzzleWhosePictureIsStillDrawnWaitsForItAndStartsOnceItIsIn() = runTest {
+        val server = drawingServer()
+        val (g, repo) = storyWithItsFirstPictureComing(server)
+        g.startPuzzle(0)
+        // the friend waits with the child instead of showing the app's own picture
+        assertEquals(0, g.ui.value.drawing)
+        assertEquals(Phase.INTRO, g.ui.value.phase)
+        assertEquals(Lines.DRAWING, voice.said.last())
+        g.startPuzzle(0)  // 탐험 시작 pressed again: still waiting, said once
+        assertEquals(1, voice.said.count { it == Lines.DRAWING })
+        server.picture = Fetched.SAVED
+        advanceTimeBy(StoryRepo.FOLLOW_EVERY_MS + 1)
+        runCurrent()
+        g.picturesSettled(repo.settled.value)
+        assertEquals(Phase.PLAYING, g.ui.value.phase)
+        assertNull(g.ui.value.drawing)
+        assertFalse(g.ui.value.story!!.drawing("p1"))
+        // the picture is kept with the episode, for 이어 하기
+        assertFalse(store.read()!!.story!!.drawing("p1"))
+    }
+
+    @Test
+    fun aPictureThatCouldNotBeDrawnStartsThePuzzleWithTheAppsOwnPicture() = runTest {
+        val server = drawingServer()
+        val (g, repo) = storyWithItsFirstPictureComing(server)
+        g.startPuzzle(0)
+        server.picture = Fetched.MISSING
+        advanceTimeBy(StoryRepo.FOLLOW_EVERY_MS + 1)
+        runCurrent()
+        g.picturesSettled(repo.settled.value)
+        assertEquals(Phase.PLAYING, g.ui.value.phase)
+        assertFalse("p1" in g.ui.value.story!!.images)
+        assertEquals(Lines.scene(g.ui.value.puzzle!!).pictures, g.ui.value.scene(g.ui.value.puzzle!!).pictures)
+    }
+
+    @Test
+    fun aPictureThatComesWhileTheGameIsHeldStartsItsPuzzleOnResume() = runTest {
+        val server = drawingServer()
+        val (g, repo) = storyWithItsFirstPictureComing(server)
+        g.startPuzzle(0)
+        g.hold()
+        server.picture = Fetched.SAVED
+        advanceTimeBy(StoryRepo.FOLLOW_EVERY_MS + 1)
+        runCurrent()
+        g.picturesSettled(repo.settled.value)
+        assertEquals(Phase.INTRO, g.ui.value.phase)
+        g.resume()
+        assertEquals(Phase.PLAYING, g.ui.value.phase)
+    }
+
+    @Test
+    fun endingWhileAPictureIsComingNeverStartsThePuzzleLater() = runTest {
+        val server = drawingServer()
+        val (g, repo) = storyWithItsFirstPictureComing(server)
+        g.startPuzzle(0)
+        g.finish()
+        server.picture = Fetched.SAVED
+        advanceTimeBy(StoryRepo.FOLLOW_EVERY_MS + 1)
+        runCurrent()
+        g.picturesSettled(repo.settled.value)
+        assertEquals(Phase.RESTORE, g.ui.value.phase)
     }
 
     @Test

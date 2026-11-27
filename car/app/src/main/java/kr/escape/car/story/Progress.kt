@@ -88,8 +88,9 @@ class ProgressStore(private val file: File, val now: () -> Long = System::curren
             }.toMap()
         }
         val story = if (o.isNull("story")) null else Story.parse(o.getJSONObject("story")).let { s ->
-            // a picture gone from the device is left out: its scene shows the app's own
-            s.copy(images = s.images.filterValues { !it.startsWith("/v1/") && (it.startsWith("/") || File(it).isAbsolute) && File(it).isFile })
+            // a picture gone from the device is left out: its scene shows the app's own. One the server was still
+            // drawing keeps its server path: 이어 하기 fetches it again (StoryRepo.follow)
+            s.copy(images = s.images.filterValues { Story.drawing(it) || ((it.startsWith("/") || File(it).isAbsolute) && File(it).isFile) })
         }
         return Progress(
             setup = StoryRepo.setupOf(o.getJSONObject("setup")),

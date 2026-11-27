@@ -36,6 +36,9 @@ object Lines {
     /** 이어 하기: before the puzzle the family comes back to, after the car was switched off. */
     const val WELCOME_BACK = "다시 만났네! 하던 탐험을 이어서 해 보자."
 
+    /** While the next puzzle's picture is still being drawn. */
+    const val DRAWING = "잠깐만! 다음 장면을 그리고 있어."
+
     /**
      * At the start of play: the climate's AUTO mode changes the fan, the air conditioner and the recirculation by
      * itself, which the app cannot read. Lumi says it in Korean letters so the speech engine does not spell it out.

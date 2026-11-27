@@ -9,6 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -105,6 +106,15 @@ class ProgressStoreTest {
         val gone = File(tmp.root, "gone/p1.webp").absolutePath
         store.write(progress(story(mapOf("cover" to picture("cover"), "p1" to gone))))
         assertEquals(setOf("cover"), store.read()!!.story!!.images.keys)
+    }
+
+    @Test
+    fun aPictureStillBeingDrawnIsKeptToBeFetchedOnGoingOn() {
+        val coming = "/v1/images/${"a".repeat(32)}/p1.webp"
+        store.write(progress(story(mapOf("cover" to picture("cover"), "p1" to coming))))
+        val back = store.read()!!.story!!
+        assertEquals(setOf("cover", "p1"), back.images.keys)
+        assertTrue(back.drawing("p1"))
     }
 
     @Test

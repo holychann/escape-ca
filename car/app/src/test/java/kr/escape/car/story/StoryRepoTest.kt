@@ -3,6 +3,8 @@ package kr.escape.car.story
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -93,10 +95,16 @@ class StoryRepoTest {
             return answer()
         }
 
-        override fun download(path: String, to: java.io.File) {
-            if ("broken" in path) throw IOException("gone")
+        /** How many times a picture whose path says "drawing" is still being drawn when asked. */
+        var drawingRounds = 0
+        private val asked = mutableMapOf<String, Int>()
+
+        override fun fetch(path: String, to: java.io.File): Fetched {
+            if ("broken" in path) return Fetched.MISSING
+            if ("drawing" in path && asked.merge(path, 1, Int::plus)!! <= drawingRounds) return Fetched.DRAWING
             to.parentFile?.mkdirs()
             to.writeText(path)
+            return Fetched.SAVED
         }
     }
 
@@ -160,6 +168,56 @@ class StoryRepoTest {
         // a story written for a wish is only played for that wish
         assertNull(r.take(Setup(), parked))
         assertNotNull(r.take(wish, parked))
+    }
+
+    private fun drawingStory() = Story.parse(JSONObject(stored).getJSONObject("story")).copy(
+        storyId = "d".repeat(32),
+        images = mapOf("cover" to "/v1/images/d/cover.webp", "p1" to "/v1/images/d/p1-drawing.webp"),
+    )
+
+    @Test
+    fun aPictureStillBeingDrawnComesAfterTheStory() = runTest {
+        val client = FakeClient { drawingStory() }.also { it.drawingRounds = 2 }
+        val r = repoWith(client, keep = null)
+        r.prepare(Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기"), parked)
+        runCurrent()
+        // the story is ready with its cover on the device; the picture still being drawn keeps its server path
+        assertEquals(StoryRepo.Status.READY, r.status.value)
+        val ready = r.preview.value!!
+        assertFalse(Story.drawing(ready.images.getValue("cover")))
+        assertTrue(ready.drawing("p1"))
+        assertTrue(r.settled.value.isEmpty())
+        advanceTimeBy(StoryRepo.FOLLOW_EVERY_MS * 2 + 1)
+        runCurrent()
+        val got = r.settled.value.getValue("${"d".repeat(32)}/p1")
+        assertTrue(java.io.File(got!!).isFile)
+        // taken into the story, it is a picture on the device
+        assertFalse(ready.settledWith(r.settled.value).drawing("p1"))
+    }
+
+    @Test
+    fun aPictureThatNeverComesIsGivenUpSoNobodyWaitsForever() = runTest {
+        val client = FakeClient { drawingStory() }.also { it.drawingRounds = Int.MAX_VALUE }
+        val r = repoWith(client, keep = null)
+        r.prepare(Setup(wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기"), parked)
+        advanceUntilIdle()
+        val key = "${"d".repeat(32)}/p1"
+        assertTrue(key in r.settled.value)
+        assertNull(r.settled.value[key])
+        // left out of the story, so its scene shows the app's own picture
+        assertFalse("p1" in r.preview.value!!.settledWith(r.settled.value).images)
+    }
+
+    @Test
+    fun followingAKeptStoryFetchesWhatIsStillComing() = runTest {
+        val client = FakeClient { drawingStory() }
+        val r = repoWith(client, keep = null)
+        val kept = drawingStory()
+        r.follow(kept)
+        r.follow(kept)  // asked twice (the card's 이어 하기 and the story arriving): fetched once
+        advanceUntilIdle()
+        assertTrue(java.io.File(r.settled.value.getValue("${"d".repeat(32)}/p1")!!).isFile)
+        assertTrue(java.io.File(r.settled.value.getValue("${"d".repeat(32)}/cover")!!).isFile)
     }
 
     @Test

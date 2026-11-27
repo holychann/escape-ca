@@ -81,6 +81,10 @@ data class GameUi(
     val rebase: Boolean = false,
     /** 소원 빌기 asked the story server for this episode and it is still writing: 탐험 시작 waits for it. */
     val writing: Boolean = false,
+    /** The puzzle (index) waiting for its picture, still being drawn; it starts once the picture is in or has failed. */
+    val drawing: Int? = null,
+    /** What the friend says before that puzzle once it starts (이어 하기's welcome back). */
+    val drawingIntro: String? = null,
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
@@ -222,9 +226,37 @@ class Game(
             ui.copy(story = story, writing = false, puzzles = ready.puzzles, own = own)
         }
         save()
+        // the pictures still being drawn are fetched now, and the ones already in are taken in
+        story?.let { stories?.follow(it) }
+        stories?.let { picturesSettled(it.settled.value) }
         val ui = _ui.value
         lumi.say(story?.intro ?: Lines.intro(ui.setup.friend))
         lumi.prefetch(lines(ui))
+    }
+
+    /**
+     * Pictures the story server finished (or could not draw) since the story came, taken into it; a puzzle waiting for
+     * its picture starts once it is settled (not while the game is paused: 이어 하기 starts it then).
+     */
+    fun picturesSettled(settled: Map<String, String?>) {
+        val story = _ui.value.story ?: return
+        val now = story.settledWith(settled)
+        if (now != story) {
+            _ui.update { it.copy(story = now) }
+            save()
+        }
+        val ui = _ui.value
+        val waiting = ui.drawing ?: return
+        val p = ui.puzzles.getOrNull(waiting) ?: return
+        if (!ui.paused && !pictureComing(ui, p)) startPuzzle(waiting, ui.drawingIntro)
+    }
+
+    /** Whether puzzle [p]'s picture is still being drawn by the story server. */
+    private fun pictureComing(ui: GameUi, p: Puzzle): Boolean {
+        val story = ui.story ?: return false
+        val key = StoryKeys.key(p)
+        val name = story.scenes[key]?.picture ?: story.scenePictures[key] ?: return false
+        return story.drawing(name)
     }
 
     /** [intro] is said before the puzzle's own words (이어 하기's welcome back). */
@@ -246,11 +278,21 @@ class Game(
             treasure()
             return
         }
+        if (pictureComing(ui, p)) {
+            // its picture is still being drawn: the friend waits with the child (the app's own picture is used only
+            // when the server could not draw it at all)
+            if (_ui.value.drawing != index) lumi.say(Lines.DRAWING)
+            _ui.value = ui.copy(drawing = index, drawingIntro = intro)
+            return
+        }
         val quiz = p as? Puzzle.Quiz
         hold = quiz?.let { q -> HoldJudge({ s -> q.solvedBy(s, start) }) }
         // the belt mission reads no car value, so it has no wrong answer
         wrong = quiz?.let { WrongJudge(it, start) }
-        _ui.value = ui.copy(phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start) })
+        _ui.value = ui.copy(
+            phase = Phase.PLAYING, index = index, hintHeard = false, answerNote = quiz?.let { note(it, start) },
+            drawing = null, drawingIntro = null,
+        )
         save()
         lumi.say(listOfNotNull(intro, _ui.value.scene(p).speech).joinToString(" "))
         // a quiz swapped just now has new words for after the answer
@@ -270,6 +312,8 @@ class Game(
         }
         // the few fixed lines for a wrong answer, so "다시 생각해 볼까?" comes at once
         WrongJudge.Kind.values().forEach { kind -> (0 until 3).forEach { n -> add(Lines.wrong(kind, n)) } }
+        // said only when a picture is late, so it plays at once then
+        if (ui.story?.images?.values?.any(Story::drawing) == true) add(Lines.DRAWING)
         val treasure = ui.story?.treasureBadge ?: Lines.TREASURE_BADGE
         add(treasure)
         add("$treasure ${Lines.CLOSER}")
@@ -341,7 +385,9 @@ class Game(
         if (ui.stopped != null) return
         if (!ui.rebase) {
             _ui.update { it.copy(held = false) }
-            lumi.repeat()
+            // a puzzle that was waiting for its picture starts now if the picture came during the pause
+            val waiting = ui.drawing
+            if (waiting != null) startPuzzle(waiting, ui.drawingIntro) else lumi.repeat()
             return
         }
         // back after the car was off: the climate to put back and the 20 minutes start again from now
@@ -378,7 +424,7 @@ class Game(
         _ui.update {
             it.copy(
                 phase = Phase.RESTORE, held = false, keepSave = it.keepSave || it.restUntil != null,
-                restoreItems = it.snapshot?.changes(car.value).orEmpty(),
+                restoreItems = it.snapshot?.changes(car.value).orEmpty(), drawing = null, drawingIntro = null,
             )
         }
         if (!_ui.value.keepSave) clearSave()
@@ -441,6 +487,9 @@ class Game(
             snapshot = Snapshot.of(s),
         )
         lastTickMs = null
+        // pictures the server was still drawing when the app was switched off are fetched again
+        p.story?.let { stories?.follow(it) }
+        stories?.let { picturesSettled(it.settled.value) }
         // the car may have put the climate's AUTO back on while it was off, as at a new start Lumi asks for it off
         if (p.next < p.puzzles.size) {
             startPuzzle(p.next, intro = "${Lines.WELCOME_BACK} ${Lines.AUTO_OFF}")

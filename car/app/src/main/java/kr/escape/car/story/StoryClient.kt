@@ -7,6 +7,9 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
+/** How a picture stands on the story server: saved on the device now, still being drawn, or not there at all. */
+enum class Fetched { SAVED, DRAWING, MISSING }
+
 /** The server refused the family's story wish before writing anything; [reasons] say why, for the parent. */
 class WishRejected(val reasons: List<String>) : IOException("wish rejected: $reasons")
 
@@ -52,16 +55,25 @@ open class StoryClient(private val baseUrl: String) {
     }
 
     /** Blocking. Saves one picture the server drew ([path] as the episode gave it) to [to]. */
-    open fun download(path: String, to: File) {
+    /**
+     * One picture of a story: saved to [to] when the server has it, [Fetched.DRAWING] while it is still being drawn
+     * (202), [Fetched.MISSING] when it is not there and will not be (404). IOException when the server cannot be reached.
+     */
+    open fun fetch(path: String, to: File): Fetched {
         val conn = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 5_000
             conn.readTimeout = 60_000
-            if (conn.responseCode !in 200..299) throw IOException("story server $path: HTTP ${conn.responseCode}")
+            when (conn.responseCode) {
+                202 -> return Fetched.DRAWING
+                404 -> return Fetched.MISSING
+                !in 200..299 -> throw IOException("story server $path: HTTP ${conn.responseCode}")
+            }
             to.parentFile?.mkdirs()
             val part = File(to.path + ".part")
             conn.inputStream.use { input -> part.outputStream().use { input.copyTo(it) } }
             if (!part.renameTo(to)) throw IOException("could not save $to")
+            return Fetched.SAVED
         } finally {
             conn.disconnect()
         }
