@@ -919,10 +919,21 @@ private fun CarButton(label: String) {
         ) {
             // a button without a drawn glyph shows its name large instead of a picture that is not its own
             glyphFor(label)?.let { AssetImage(it, Modifier.size(68.dp), scale = ContentScale.Fit) }
-                ?: KidText(label, 24.sp, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp))
+                ?: ButtonName(label)
         }
         BodyText(label, size = 18.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
     }
+}
+
+/**
+ * A button's name in place of its picture: one word a line ("시트" / "열선", never "시트 열" / "선"), as large as the
+ * longest word allows in the 88 dp square.
+ */
+@Composable
+private fun ButtonName(label: String) {
+    val words = label.trim().split(Regex("\\s+"))
+    val size = minOf(24f, 60f / words.maxOf { it.length }).sp
+    KidText(words.joinToString("\n"), size, maxLines = words.size, textAlign = TextAlign.Center)
 }
 
 private fun glyphFor(label: String) = when {
@@ -931,6 +942,8 @@ private fun glyphFor(label: String) = when {
     "독서등" in label -> "hvac_light"
     "성에" in label -> "hvac_defrost"
     "내기 순환" in label -> "hvac_recirc"
+    "열선" in label -> "hvac_seat_heat"
+    "에어컨" in label -> "hvac_ac"
     else -> null
 }
 
