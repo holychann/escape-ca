@@ -49,6 +49,10 @@ NAMES_GUIDE = (
     "Read every word exactly as written: do not add, drop or change words or sentence endings."
 )
 NAMES = tuple(label for label, *_ in FRIEND_LABEL.values())
+# A name the speech model says wrong whatever it is told, spelled for the speech model the way it comes out right; the
+# subtitles keep the name as written, and a listener may write it either way. 파삐 came out with a soft 피, and 팝삐
+# gives the tight 삐 (picked by ear, 2026-11-27).
+RESPELL = {"파삐": "팝삐"}
 # hearing a recording back: Gemini writes down what it hears, and every name in the line must be in it
 # light and quick (about 2 s for a line); it heard 반테 read as 방테 where the full flash model did too
 LISTEN_MODEL = "gemini-3.5-flash-lite"
@@ -88,23 +92,32 @@ def _sounds(text: str) -> str:
     return "".join(out)
 
 
+def respelled(text: str) -> str:
+    """[text] with every name in RESPELL as it goes to the speech model."""
+    for written, said in RESPELL.items():
+        text = text.replace(written, said)
+    return text
+
+
 def sayable(text: str) -> str:
-    """An English word in capitals (THREE, ON) is read letter by letter, so it goes to the speech model in small
-    letters, wherever the line came from (a question, a hint)."""
+    """The words as they go to the speech model. An English word in capitals (THREE, ON) is read letter by letter, so
+    it goes in small letters, wherever the line came from (a question, a hint); a name in RESPELL goes respelled."""
     # a Hangul particle right after the word (THREE가) is no boundary for \b, so only Latin letters count around it
-    return re.sub(r"(?<![A-Za-z])[A-Z]{2,}(?![A-Za-z])", lambda m: m.group().lower(), text)
+    return re.sub(r"(?<![A-Za-z])[A-Z]{2,}(?![A-Za-z])", lambda m: m.group().lower(), respelled(text))
 
 
 def alike(text: str, heard: str) -> float:
-    """How much of [text] came back in what was [heard], 0 to 1. A listener writes 빼기 as - and 더하기 as +."""
-    heard = heard.replace("-", " 빼기 ").replace("+", " 더하기 ")
-    return difflib.SequenceMatcher(None, _sounds(text), _sounds(heard)).ratio()
+    """How much of [text] came back in what was [heard], 0 to 1, as written or as respelled for the speech model.
+    A listener writes 빼기 as - and 더하기 as +."""
+    heard = _sounds(heard.replace("-", " 빼기 ").replace("+", " 더하기 "))
+    return max(difflib.SequenceMatcher(None, _sounds(t), heard).ratio() for t in {text, respelled(text)})
 
 
 def misheard(text: str, heard: str) -> list[str]:
-    """The friend names in [text] that do not sound in what was [heard]."""
+    """The friend names in [text] that do not sound in what was [heard], as written or as respelled."""
     said = _sounds(heard)
-    return [name for name in NAMES if name in _plain(text) and _sounds(name) not in said]
+    return [name for name in NAMES
+            if name in _plain(text) and _sounds(name) not in said and _sounds(respelled(name)) not in said]
 
 
 class VoiceError(Exception):
@@ -134,9 +147,10 @@ def configured_identity() -> str:
 
 def cache_key(voice: object | None, text: str) -> str:
     """Same words, same voice, same style: the same recording. [voice] names itself with ``identity``; with no voice
-    the configured one is used, so a line made before is still found."""
+    the configured one is used, so a line made before is still found. A line with a name in RESPELL is keyed as it is
+    said, so a recording made before the name was respelled is made again; every other line keeps its key."""
     who = configured_identity() if voice is None else getattr(voice, "identity", type(voice).__name__)
-    return hashlib.sha256(f"{who}\n{text}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{who}\n{respelled(text)}".encode("utf-8")).hexdigest()
 
 
 class Quota:
