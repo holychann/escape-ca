@@ -463,21 +463,27 @@ private fun ParentPanel(
         }
         Phase.RESTORE -> PanelCard(modifier) {
             PanelTitle("처음 설정으로")
-            // live: as the car reports each value back, its line disappears
+            // live: what still differs from the climate as the parent left it
             val changes = ui.snapshot?.changes(car).orEmpty()
+            // every item that differed when the game ended, checked off as the car reports it back, and anything the
+            // car changed since
+            val items = ui.restoreItems + changes.filter { it !in ui.restoreItems }
             Middle {
                 when {
                     ui.restoring -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(Modifier.size(28.dp), color = Clay.Mint, strokeWidth = 4.dp, trackColor = Clay.MintSoft, strokeCap = StrokeCap.Round)
                         BodyText("게임 전에 저장해 둔 설정으로 차를 되돌리는 중이에요", size = 21.sp, color = Clay.MintDeep, weight = FontWeight.Medium)
                     }
-                    changes.isEmpty() -> CheckLabelText(if (ui.restoreTried) "공조와 독서등을 게임 전 설정으로 모두 되돌렸어요" else "모두 처음 설정과 같아요")
+                    items.isEmpty() -> CheckLabelText("모두 처음 설정과 같아요")
+                    changes.isEmpty() -> CheckLabelText("게임 전 설정으로 모두 되돌렸어요")
                     else -> BodyText(
-                        if (ui.restoreTried) "아래는 되돌리지 못했어요. 직접 돌려 주세요"
+                        if (ui.restoreTried) "체크되지 않은 곳은 되돌리지 못했어요. 직접 돌려 주세요"
                         else "게임 전에 저장해 둔 설정과 달라진 곳이에요",
                     )
                 }
-                if (changes.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { changes.forEach { RestoreRow(it) } }
+                if (items.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { items.forEach { RestoreRow(it, done = it !in changes) } }
+                }
                 ui.restoreNote?.let { Notice(it) }
                 if (changes.isNotEmpty() && !ui.restoring) {
                     ClayButton("다시 되돌리기", ClayStyle.GHOST, Modifier.fillMaxWidth()) { game.restore() }
@@ -751,7 +757,7 @@ private fun PuzzleRow(number: Int, title: String, first: Boolean) {
 }
 
 @Composable
-private fun RestoreRow(text: String) {
+private fun RestoreRow(text: String, done: Boolean) {
     val shape = RoundedCornerShape(24.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape).background(Color.White).border(2.dp, Clay.LineSoft, shape)
@@ -759,7 +765,15 @@ private fun RestoreRow(text: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Clay.Cream).border(3.dp, Color(0xFFD9CBB1), RoundedCornerShape(9.dp)))
+        val box = RoundedCornerShape(9.dp)
+        // put back: a filled box with a check; still different: an empty box for the parent
+        if (done) {
+            Box(Modifier.size(30.dp).clip(box).background(Clay.Mint), contentAlignment = Alignment.Center) {
+                ClayGlyph(ClayIcon.CHECK, Color.White, Modifier.size(20.dp))
+            }
+        } else {
+            Box(Modifier.size(30.dp).clip(box).background(Clay.Cream).border(3.dp, Color(0xFFD9CBB1), box))
+        }
         KidText(text, 30.sp)
     }
 }

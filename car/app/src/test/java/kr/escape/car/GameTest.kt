@@ -180,6 +180,17 @@ class GameTest {
         assertNull(g.saved.value)
     }
 
+    @Test
+    fun endingTheGameKeepsWhatDifferedForTheChecklist() {
+        val g = playing()
+        car.value = car.value.copy(fanSpeed = (car.value.fanSpeed ?: 0) + 2)
+        g.finish()
+        val ui = g.ui.value
+        assertEquals(Phase.RESTORE, ui.phase)
+        assertEquals(ui.snapshot!!.changes(car.value), ui.restoreItems)
+        assertTrue(ui.restoreItems.single().startsWith("풍량"))
+    }
+
     // ------------------------------------------------------------ 20 minutes, and the time the car was off
 
     /** A saved episode the family went on with, at its quiz. */
