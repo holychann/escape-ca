@@ -140,6 +140,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Fonts.load(assets)
         val m = model
+        val prefs = getSharedPreferences("screen", MODE_PRIVATE)
+        val askTerms = !prefs.getBoolean(Terms.AGREED, false) || intent.getBooleanExtra("terms", false)
         setContent {
             MaterialTheme(colorScheme = lightColorScheme(primary = Clay.Ink, background = Clay.NightBottom, surface = Clay.Cream)) {
                 LaunchedEffect(Unit) {
@@ -148,7 +150,16 @@ class MainActivity : ComponentActivity() {
                         delay(200)
                     }
                 }
-                App(m.game, m.source, m.lumi, m.stories, m.book)
+                // the logo first, with the terms the first time; the first-run guide comes after it, on the app itself
+                var opening by rememberSaveable { mutableStateOf(true) }
+                if (opening) {
+                    Splash(askTerms) {
+                        if (askTerms) prefs.edit().putBoolean(Terms.AGREED, true).apply()
+                        opening = false
+                    }
+                } else {
+                    App(m.game, m.source, m.lumi, m.stories, m.book)
+                }
             }
         }
     }
