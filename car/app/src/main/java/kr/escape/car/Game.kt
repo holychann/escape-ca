@@ -18,6 +18,7 @@ import kr.escape.car.engine.Setup
 import kr.escape.car.engine.Snapshot
 import kr.escape.car.engine.StopReason
 import kr.escape.car.engine.WrongJudge
+import kr.escape.car.story.FriendIntro
 import kr.escape.car.story.Lines
 import kr.escape.car.story.Progress
 import kr.escape.car.story.ProgressStore
@@ -88,6 +89,9 @@ data class GameUi(
 ) {
     val puzzle: Puzzle? get() = puzzles.getOrNull(index)
     val paused: Boolean get() = stopped != null || held
+
+    /** The friend on screen: on the setup screen, while an episode waits to go on, the friend it was played with. */
+    fun friendShown(saved: Progress?): Friend = if (phase == Phase.SETUP && saved != null) saved.setup.friend else setup.friend
 
     fun scene(p: Puzzle): Scene =
         own[StoryKeys.key(p)].let { mine -> story?.scene(p, mine) ?: Lines.scene(p, mine) }
@@ -191,7 +195,23 @@ class Game(
         }
         // the parent turns AUTO off while the story is written; the friend says hello once it is here
         lumi.say(Lines.AUTO_OFF)
+        lumi.prefetch(FriendIntro.ALL)
         stories.prepare(setup, s, _ui.value.puzzles)
+    }
+
+    /**
+     * A line from the waiting screen's cards (the friend telling about itself), said only while the story is still
+     * being written, so it never talks over the friend's hello once the story is here.
+     */
+    fun whileWriting(line: String) {
+        val ui = _ui.value
+        if (ui.phase == Phase.INTRO && ui.writing) lumi.say(line)
+    }
+
+    /** The waiting screen turned to another card: a line left up to be read (no recording) goes with its card. */
+    fun hushWhileWriting() {
+        val ui = _ui.value
+        if (ui.phase == Phase.INTRO && ui.writing) lumi.stop()
     }
 
     /**

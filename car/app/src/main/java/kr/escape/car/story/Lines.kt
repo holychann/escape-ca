@@ -87,6 +87,9 @@ object Lines {
     /** [word] with 이 or 가 ("코냥이", "반테가"). */
     fun subject(word: String): String = word + if (closed(word)) "이" else "가"
 
+    /** [word] with 을 or 를 ("투싼을", "아반떼를"). */
+    fun objectOf(word: String): String = word + if (closed(word)) "을" else "를"
+
     /** [word] with 의 ("반테의"). */
     fun of(word: String): String = word + "의"
 
