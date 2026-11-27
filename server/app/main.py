@@ -26,9 +26,9 @@ from .library import Library, make_library, recheck
 from .models import Episode, EpisodeRequest, LibraryAnswer, LibraryRequest, Report, Shelf, SpeakRequest
 from .painter import Painter, make_painter
 from .pictures import PENDING, Drawing
-from .service import make_episode, speak_line, timeless_request
+from .service import make_episode, speak_line, tidy_line, timeless_request
 from .store import DailyLimit, IpLimit, ReportLimit, Store, prune_audio, prune_images
-from .voice import Voice, make_voice
+from .voice import Voice, cache_key, make_voice
 from .writer import Writer, make_writer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -43,6 +43,13 @@ _drawers = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pictures")
 def _run_pictures(job: Callable[[], None]) -> object:
     """Where an episode's drawing runs (tests put it on their own thread)."""
     return _drawers.submit(job)
+
+
+def _read(path: Path) -> bytes | None:
+    try:
+        return path.read_bytes() if path.is_file() else None
+    except OSError:
+        return None
 
 
 def client_ip(request: Request, trust_proxy: bool) -> str:
@@ -86,6 +93,9 @@ def create_app(
     audio_cache = folder / "audio_cache"
     audio_ttl_hours = float(os.environ.get("STORY_AUDIO_TTL_HOURS", "72"))
     audio_max_files = int(os.environ.get("STORY_AUDIO_MAX_FILES", "2000"))
+    if library is not None:
+        # a line read before its story was shelved is copied to the shelf from here
+        library.recording = lambda key: _read(audio_cache / f"{key}.wav")
     limit = DailyLimit(
         per_install=int(os.environ.get("STORY_DAILY_PER_INSTALL", "20")),
         per_ip=int(os.environ.get("STORY_DAILY_PER_IP", "200")),
@@ -137,6 +147,9 @@ def create_app(
             # the car plays its own reviewed lines
             raise HTTPException(status_code=502, detail="story_rejected")
         ep, draft = made
+        if library is not None:
+            # its lines read aloud before it is shelved are kept with it too
+            library.expect(ep)
         if painter is None or not req.pictures:
             store.episode(ep, req)
             if library is not None:
@@ -198,10 +211,16 @@ def create_app(
         ip = client_ip(request, trust_proxy)
         if not speak_limit.take(req.installId, ip):
             raise HTTPException(status_code=429, detail="daily_limit")
-        data = speak_line(req.text, voice, audio_cache)
+        key = cache_key(voice, tidy_line(req.text))
+        # a shelved story keeps its lines for good: no new recording, even long after the cache has dropped it
+        data = library.voice(key) if library is not None else None
+        if data is None:
+            data = speak_line(req.text, voice, audio_cache)
         if data is None:
             # no sound for this line: the app shows it as a caption
             raise HTTPException(status_code=503, detail="no_voice")
+        if library is not None:
+            library.keep_voice(req.text, key, data)
         prune_audio(audio_cache, audio_ttl_hours, audio_max_files)
         return Response(content=data, media_type="audio/wav")
 
