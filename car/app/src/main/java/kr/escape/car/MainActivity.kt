@@ -1078,7 +1078,7 @@ private fun KidStage(
         val card = if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.takeIf { Lines.card(it) != null } else null
         card?.let { QuestionCard(it) }
         // what the friend is saying, a piece at a time, above the question card when there is one
-        subtitle?.let { SubtitleBar(it, aboveCard = card != null, clearCorner = ui.phase in listOf(Phase.PLAYING, Phase.SOLVED)) }
+        subtitle?.let { SubtitleBar(it, aboveCard = card != null) }
         // the friend waits with the child on the episode's first screen while its story is written
         if (ui.phase == Phase.INTRO && ui.writing) WishingOverlay(ui.setup.wish, buddy, view.waited)
         ui.invited?.let { InvitePop(it, game::closeInvite) }
@@ -1091,15 +1091,14 @@ private data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
 
 /**
  * The child's subtitles: what the friend is saying now, one or two lines, in the round kid font, dark on a light see-
- * through cream at the bottom of the stage, clear of the question card and the friend in the corner.
+ * through cream at the bottom of the stage, clear of the question card.
  */
 @Composable
-private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean, clearCorner: Boolean) {
+private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean) {
     val shape = RoundedCornerShape(36.dp)
     Box(
         Modifier.align(Alignment.BottomCenter)
-            // the friend in the corner (TagAlong) keeps its room; with no one there the bar sits in the middle
-            .padding(start = 40.dp, end = if (clearCorner && !aboveCard) 220.dp else 40.dp, bottom = if (aboveCard) 232.dp else 40.dp)
+            .padding(start = 40.dp, end = 40.dp, bottom = if (aboveCard) 232.dp else 40.dp)
             .widthIn(max = 1240.dp)
             .shadow(12.dp, shape).clip(shape).background(Clay.Cream.copy(alpha = 0.9f))
             .padding(horizontal = 36.dp, vertical = 18.dp),
