@@ -115,14 +115,17 @@ data class Snapshot(
     val acOn: Boolean? = null,
     val seatHeat: Int? = null,
 ) {
+    /** 22 for 22.0, 22.5 as it is. */
+    private fun degrees(c: Float) = if (c % 1f == 0f) c.toInt().toString() else c.toString()
+
     /** What differs now, as short lines for the "처음 설정으로" screen. */
     fun changes(now: CarState): List<String> = buildList {
         if (recirculation != null && now.recirculation != recirculation) add(if (recirculation) "내기 순환" else "외기 유입")
         if (fanSpeed != null && now.fanSpeed != fanSpeed) add("풍량 ${fanSpeed}단")
         if (fanDirection != FanDir.UNKNOWN && now.fanDirection != fanDirection) add("풍향")
         if (dual != null && now.dual != dual) add(if (dual) "좌우 온도 같이" else "좌우 온도 따로")
-        if (tempLeft != null && now.tempLeft != tempLeft) add("운전석 온도 ${tempLeft}도")
-        if (tempRight != null && now.tempRight != tempRight) add("조수석 온도 ${tempRight}도")
+        if (tempLeft != null && now.tempLeft != tempLeft) add("운전석 온도 ${degrees(tempLeft)}도")
+        if (tempRight != null && now.tempRight != tempRight) add("조수석 온도 ${degrees(tempRight)}도")
         if (defrostFront != null && now.defrostFront != defrostFront) add(if (defrostFront) "앞 유리 성에 제거 켜기" else "앞 유리 성에 제거 끄기")
         for ((seat, on) in readingLights) if (now.readingLights[seat] != on) add("${seat.label} 독서등 ${if (on) "켜기" else "끄기"}")
         if (acOn != null && now.acOn != acOn) add(if (acOn) "에어컨 켜기" else "에어컨 끄기")

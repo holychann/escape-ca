@@ -463,21 +463,27 @@ private fun ParentPanel(
         }
         Phase.RESTORE -> PanelCard(modifier) {
             PanelTitle("처음 설정으로")
-            // live: as the car reports each value back, its line disappears
+            // live: what still differs from the climate as the parent left it
             val changes = ui.snapshot?.changes(car).orEmpty()
+            // every item that differed when the game ended, checked off as the car reports it back, and anything the
+            // car changed since
+            val items = ui.restoreItems + changes.filter { it !in ui.restoreItems }
             Middle {
                 when {
                     ui.restoring -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator(Modifier.size(28.dp), color = Clay.Mint, strokeWidth = 4.dp, trackColor = Clay.MintSoft, strokeCap = StrokeCap.Round)
                         BodyText("게임 전에 저장해 둔 설정으로 차를 되돌리는 중이에요", size = 21.sp, color = Clay.MintDeep, weight = FontWeight.Medium)
                     }
-                    changes.isEmpty() -> CheckLabelText(if (ui.restoreTried) "공조와 독서등을 게임 전 설정으로 모두 되돌렸어요" else "모두 처음 설정과 같아요")
+                    items.isEmpty() -> CheckLabelText("모두 처음 설정과 같아요")
+                    changes.isEmpty() -> CheckLabelText("게임 전 설정으로 모두 되돌렸어요")
                     else -> BodyText(
-                        if (ui.restoreTried) "아래는 되돌리지 못했어요. 직접 돌려 주세요"
+                        if (ui.restoreTried) "체크되지 않은 곳은 되돌리지 못했어요. 직접 돌려 주세요"
                         else "게임 전에 저장해 둔 설정과 달라진 곳이에요",
                     )
                 }
-                if (changes.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { changes.forEach { RestoreRow(it) } }
+                if (items.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { items.forEach { RestoreRow(it, done = it !in changes) } }
+                }
                 ui.restoreNote?.let { Notice(it) }
                 if (changes.isNotEmpty() && !ui.restoring) {
                     ClayButton("다시 되돌리기", ClayStyle.GHOST, Modifier.fillMaxWidth()) { game.restore() }
@@ -751,7 +757,7 @@ private fun PuzzleRow(number: Int, title: String, first: Boolean) {
 }
 
 @Composable
-private fun RestoreRow(text: String) {
+private fun RestoreRow(text: String, done: Boolean) {
     val shape = RoundedCornerShape(24.dp)
     Row(
         Modifier.fillMaxWidth().clip(shape).background(Color.White).border(2.dp, Clay.LineSoft, shape)
@@ -759,7 +765,15 @@ private fun RestoreRow(text: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(Clay.Cream).border(3.dp, Color(0xFFD9CBB1), RoundedCornerShape(9.dp)))
+        val box = RoundedCornerShape(9.dp)
+        // put back: a filled box with a check; still different: an empty box for the parent
+        if (done) {
+            Box(Modifier.size(30.dp).clip(box).background(Clay.Mint), contentAlignment = Alignment.Center) {
+                ClayGlyph(ClayIcon.CHECK, Color.White, Modifier.size(20.dp))
+            }
+        } else {
+            Box(Modifier.size(30.dp).clip(box).background(Clay.Cream).border(3.dp, Color(0xFFD9CBB1), box))
+        }
         KidText(text, 30.sp)
     }
 }
@@ -919,10 +933,21 @@ private fun CarButton(label: String) {
         ) {
             // a button without a drawn glyph shows its name large instead of a picture that is not its own
             glyphFor(label)?.let { AssetImage(it, Modifier.size(68.dp), scale = ContentScale.Fit) }
-                ?: KidText(label, 24.sp, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp))
+                ?: ButtonName(label)
         }
         BodyText(label, size = 18.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
     }
+}
+
+/**
+ * A button's name in place of its picture: one word a line ("시트" / "열선", never "시트 열" / "선"), as large as the
+ * longest word allows in the 88 dp square.
+ */
+@Composable
+private fun ButtonName(label: String) {
+    val words = label.trim().split(Regex("\\s+"))
+    val size = minOf(24f, 60f / words.maxOf { it.length }).sp
+    KidText(words.joinToString("\n"), size, maxLines = words.size, textAlign = TextAlign.Center)
 }
 
 private fun glyphFor(label: String) = when {
@@ -931,6 +956,8 @@ private fun glyphFor(label: String) = when {
     "독서등" in label -> "hvac_light"
     "성에" in label -> "hvac_defrost"
     "내기 순환" in label -> "hvac_recirc"
+    "열선" in label -> "hvac_seat_heat"
+    "에어컨" in label -> "hvac_ac"
     else -> null
 }
 
@@ -1003,7 +1030,13 @@ private fun KidStage(
         val canLookBack = said.isNotEmpty() && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED, Phase.TREASURE)
         var lookingBack by remember { mutableStateOf(false) }
         Row(Modifier.fillMaxWidth().padding(start = 36.dp, top = 30.dp, end = 36.dp)) {
-            Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
+            // the friend going through the episode, with its name under it
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
+                KidText(buddy.label, 24.sp, color = Clay.Ink, maxLines = 1,
+                    modifier = Modifier.shadow(8.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
+                        .background(Clay.Cream).padding(horizontal = 18.dp, vertical = 6.dp))
+            }
             Spacer(Modifier.width(22.dp))
             // the bubble takes the room up to the button, so a long title never runs under it
             Column(Modifier.weight(1f).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1028,26 +1061,24 @@ private fun KidStage(
             }
             if (canLookBack) {
                 Spacer(Modifier.width(16.dp))
-                KidText(
-                    "지난 자막", 26.sp, maxLines = 1,
-                    modifier = Modifier.padding(top = 22.dp).shadow(10.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
-                        .background(Clay.Cream).clickable { lookingBack = true }.padding(horizontal = 26.dp, vertical = 16.dp),
-                )
+                // 지난 자막: a clock turned back
+                Box(
+                    Modifier.padding(top = 22.dp).size(76.dp).shadow(10.dp, CircleShape).clip(CircleShape)
+                        .background(Clay.Cream).clickable { lookingBack = true }.semantics { contentDescription = "지난 자막" },
+                    contentAlignment = Alignment.Center,
+                ) { ClayGlyph(ClayIcon.HISTORY, Clay.Ink, Modifier.size(46.dp)) }
             }
         }
         when (ui.phase) {
             // an episode to go on with keeps the friend it was played with, so the book is shown only for a new one
             Phase.SETUP -> if (resume == null) FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
-            Phase.INTRO -> Unit
-            Phase.PLAYING, Phase.SOLVED -> TagAlong(buddy.label, buddy.picture)
-            Phase.TREASURE -> Unit
-            Phase.RESTORE -> Unit
+            Phase.INTRO, Phase.PLAYING, Phase.SOLVED, Phase.TREASURE, Phase.RESTORE -> Unit
         }
         val quiz = p as? Puzzle.Quiz
         val card = if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.takeIf { Lines.card(it) != null } else null
         card?.let { QuestionCard(it) }
         // what the friend is saying, a piece at a time, above the question card when there is one
-        subtitle?.let { SubtitleBar(it, aboveCard = card != null, clearCorner = ui.phase in listOf(Phase.PLAYING, Phase.SOLVED)) }
+        subtitle?.let { SubtitleBar(it, aboveCard = card != null) }
         // the friend waits with the child on the episode's first screen while its story is written
         if (ui.phase == Phase.INTRO && ui.writing) WishingOverlay(ui.setup.wish, buddy, view.waited)
         ui.invited?.let { InvitePop(it, game::closeInvite) }
@@ -1060,15 +1091,14 @@ private data class Subs(val on: Boolean, val set: (Boolean) -> Unit)
 
 /**
  * The child's subtitles: what the friend is saying now, one or two lines, in the round kid font, dark on a light see-
- * through cream at the bottom of the stage, clear of the question card and the friend in the corner.
+ * through cream at the bottom of the stage, clear of the question card.
  */
 @Composable
-private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean, clearCorner: Boolean) {
+private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean) {
     val shape = RoundedCornerShape(36.dp)
     Box(
         Modifier.align(Alignment.BottomCenter)
-            // the friend in the corner (TagAlong) keeps its room; with no one there the bar sits in the middle
-            .padding(start = 40.dp, end = if (clearCorner && !aboveCard) 220.dp else 40.dp, bottom = if (aboveCard) 232.dp else 40.dp)
+            .padding(start = 40.dp, end = 40.dp, bottom = if (aboveCard) 232.dp else 40.dp)
             .widthIn(max = 1240.dp)
             .shadow(12.dp, shape).clip(shape).background(Clay.Cream.copy(alpha = 0.9f))
             .padding(horizontal = 36.dp, vertical = 18.dp),
@@ -1349,19 +1379,6 @@ private fun BoxScope.QuestionCard(q: Question) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         KidText(line, 72.sp, maxLines = 1)
-    }
-}
-
-/** The friend going through the episode, in the corner while the puzzles go on. */
-@Composable
-private fun BoxScope.TagAlong(name: String, picture: String?) {
-    Column(
-        Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(picture, name, 128.dp, ring = Clay.Sun, ringWidth = 5.dp) }
-        KidText(name, 24.sp, color = Clay.Ink, maxLines = 1,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Clay.Cream).padding(horizontal = 18.dp, vertical = 6.dp))
     }
 }
 

@@ -66,6 +66,11 @@ data class GameUi(
     val restoring: Boolean = false,
     /** The app has tried to put the car back at least once (what is still different is left to the parent). */
     val restoreTried: Boolean = false,
+    /**
+     * What differed from the climate as the parent left it when 처음 설정으로 was pressed, as the screen lists it: the
+     * restore screen checks off each one as the car reports it back.
+     */
+    val restoreItems: List<String> = emptyList(),
     /** Why the app did not put the car back (not parked); the parent can try again. */
     val restoreNote: String? = null,
     /** Wall-clock ms before which this episode cannot go on after its 20 minutes (kept with the save). */
@@ -367,8 +372,15 @@ class Game(
 
     /** 끝내기 or the treasure's 처음 설정으로: the app puts back what the game changed. */
     fun finish() {
+        // the friend stops at once: the game is over, so the puzzle being read is not read to its end
+        lumi.stop()
         // after its 20 minutes the episode is kept for after the rest, whichever reason the pause shows by then
-        _ui.update { it.copy(phase = Phase.RESTORE, held = false, keepSave = it.keepSave || it.restUntil != null) }
+        _ui.update {
+            it.copy(
+                phase = Phase.RESTORE, held = false, keepSave = it.keepSave || it.restUntil != null,
+                restoreItems = it.snapshot?.changes(car.value).orEmpty(),
+            )
+        }
         if (!_ui.value.keepSave) clearSave()
         restore()
     }

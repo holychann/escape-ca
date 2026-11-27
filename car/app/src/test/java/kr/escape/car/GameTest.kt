@@ -59,7 +59,10 @@ class GameTest {
         override fun repeat() {
             last?.let { said += it }
         }
-        override fun stop() {}
+        var stops = 0
+        override fun stop() {
+            stops++
+        }
         override fun prefetch(lines: Collection<String>) {
             prefetched += lines
         }
@@ -178,6 +181,25 @@ class GameTest {
         g.finish()
         assertNull(store.read())
         assertNull(g.saved.value)
+    }
+
+    @Test
+    fun endingTheGameKeepsWhatDifferedForTheChecklist() {
+        val g = playing()
+        car.value = car.value.copy(fanSpeed = (car.value.fanSpeed ?: 0) + 2)
+        g.finish()
+        val ui = g.ui.value
+        assertEquals(Phase.RESTORE, ui.phase)
+        assertEquals(ui.snapshot!!.changes(car.value), ui.restoreItems)
+        assertTrue(ui.restoreItems.single().startsWith("풍량"))
+    }
+
+    @Test
+    fun endingTheGameStopsTheFriendAtOnce() {
+        val g = playing()
+        val before = voice.stops
+        g.finish()
+        assertEquals(before + 1, voice.stops)
     }
 
     // ------------------------------------------------------------ 20 minutes, and the time the car was off

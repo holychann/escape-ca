@@ -66,11 +66,39 @@ object Subtitles {
     // the end of a sentence ("탐험대장!") is the clearest place of all: a piece of two short sentences breaks between them
     private val SENTENCE_WORD_END = Regex("""[.!?…~]$""")
 
-    /** How good a place to cut after [word] is, at [at] letters where [ideal] would be even: lower is better. */
-    private fun cutScore(word: String, at: Int, ideal: Int): Int = kotlin.math.abs(at - ideal) -
-        (if (SENTENCE_WORD_END.containsMatchIn(word)) 12 else 0) -
-        (if (CLAUSE_END.containsMatchIn(word)) 6 else 0) - (if (PLACE_END.containsMatchIn(word)) 3 else 0) +
-        (if (OBJECT_END.containsMatchIn(word)) 5 else 0)
+    // a word that ends in a particle or an ending closes its phrase ("햇살이", "사이로", "구름에도"); any other word (a
+    // bare noun "물결", "구름", a word that points at the next "그", "온", a sound "딸깍", "흔들리지") goes with the next
+    private val PHRASE_END = Regex("""([이가은는을를에도만와과로랑아어여워]|처럼|보다|한테|께서|하고|[,.!?…~])$""")
+    private val LINKING_END = Regex("""[아어여워]$""")
+    // words that end like a topic ("나는") but describe the next word ("알맞은 / 차량 버튼", "켜져 있는 / 화살표")
+    private val DESCRIBES = Regex("""^(알맞은|같은|맞는|있는|없는|하는|되는|가는|오는|나오는|켜는|쓰는|만드는|바꾸는|도는|주는|켜진|꺼진|작은|큰|새|온|첫|그|이|저|내|네|한|두|세|몇|여러|모든|어느)$""")
+    // a word that leans on the one before it: "흔들리지 / 않게", "접은 / 뒤", "그 / 수만큼", "물결 / 사이로", "건드려 / 놓고",
+    // "데워 / 준", "한 / 번"
+    private val LEANS_BACK = Regex(
+        """^(않|못\s?하|놓|주|줘|줬|준|줄|뒤|사이|속|위|옆|밑|아래|것|때|곳|쪽|만큼|뿐|듯)|^수(만큼|와|가|를|는|도|로)?$""" +
+            """|^(번|개|명|칸|단)(이|을|를|은|는|도|만|에|째|씩|으로|만큼)?[,.!?]?$""" +
+            // inside something ("탐사선 / 안이"), not the "안" of "안 들어와"
+            """|^안(이|에|을|은|도|에서|으로)[,.!?]?$""",
+    )
+    // the parent's name in the story, and the seat that goes with it, are one phrase ("안전 지킴이 의자")
+    private fun oneName(word: String, next: String) =
+        (word == "안전" && next.startsWith("지킴이")) || (word.endsWith("지킴이") && next.startsWith("의자"))
+
+    /**
+     * How good a place to cut after [word] (and before [next]) is, at [at] letters where [ideal] would be even: lower
+     * is better.
+     */
+    private fun cutScore(word: String, next: String, at: Int, ideal: Int): Int {
+        val closes = !DESCRIBES.matches(word) &&
+            (PHRASE_END.containsMatchIn(word) || CLAUSE_END.containsMatchIn(word) || PLACE_END.containsMatchIn(word))
+        return kotlin.math.abs(at - ideal) -
+            (if (SENTENCE_WORD_END.containsMatchIn(word)) 12 else 0) -
+            (if (CLAUSE_END.containsMatchIn(word)) 6 else 0) - (if (PLACE_END.containsMatchIn(word)) 3 else 0) -
+            // one doing word leading into the next ("찾아 / 나를 도와줘") is a short rest
+            (if (LINKING_END.containsMatchIn(word)) 3 else 0) +
+            (if (OBJECT_END.containsMatchIn(word)) 2 else 0) +
+            (if (!closes) 8 else 0) + (if (LEANS_BACK.containsMatchIn(next)) 8 else 0) + (if (oneName(word, next)) 8 else 0)
+    }
 
     /**
      * A cut that leaves one side under a quarter of [whole] ("안녕, / 탐험대장! 나는 강아지 반테야.") is never taken while
@@ -91,7 +119,7 @@ object Subtitles {
         if (words.size < 2) return piece
         val ends = words.runningReduce { a, b -> "$a $b" }.map { it.length }
         val best = (0 until words.size - 1).minBy { i ->
-            cutScore(words[i], ends[i], piece.length / 2) + lopsided(ends[i], piece.length - ends[i] - 1, piece.length)
+            cutScore(words[i], words[i + 1], ends[i], piece.length / 2) + lopsided(ends[i], piece.length - ends[i] - 1, piece.length)
         }
         return words.subList(0, best + 1).joinToString(" ") + "\n" + words.subList(best + 1, words.size).joinToString(" ")
     }
@@ -120,7 +148,7 @@ object Subtitles {
         for (k in 1 until count) {
             val ideal = total * k / count
             // leave at least one word for each piece still to come
-            val best = (start..words.size - 1 - (count - k)).minByOrNull { i -> cutScore(words[i], ends[i], ideal) } ?: break
+            val best = (start..words.size - 1 - (count - k)).minByOrNull { i -> cutScore(words[i], words[i + 1], ends[i], ideal) } ?: break
             out += words.subList(start, best + 1).joinToString(" ")
             start = best + 1
         }

@@ -84,6 +84,11 @@ class SubtitlesTest {
         assertEquals("고쳤다! 최고야!", Subtitles.lines("고쳤다! 최고야!"))
         // two sentences in one piece break between them, never after the comma of the first
         assertEquals("안녕, 탐험대장!\n나는 강아지 반테야.", Subtitles.lines("안녕, 탐험대장! 나는 강아지 반테야."))
+        // a line breaks after a word that closes its phrase, never inside one ("물결 / 사이로", "안전 / 지킴이")
+        assertEquals("가을 햇살이 물결 사이로\n살랑살랑 내려와.", Subtitles.lines("가을 햇살이 물결 사이로 살랑살랑 내려와."))
+        assertEquals("알맞은 차량 버튼을 찾아\n나를 도와줘!", Subtitles.lines("알맞은 차량 버튼을 찾아 나를 도와줘!"))
+        assertEquals("안전 지킴이 의자가\n차가워졌어.", Subtitles.lines("안전 지킴이 의자가 차가워졌어."))
+        assertEquals("이슬 씨앗 상자가\n흔들리지 않게 꼭", Subtitles.lines("이슬 씨앗 상자가 흔들리지 않게 꼭"))
         // "마음이 / 쓰이니까" is never cut apart: "차가우면" ends a clause too, and a one-word line is too short
         val warm = Subtitles.pieces("함께 온 친구 자리가 차가우면 내 마음이 쓰이니까, 내가 먼저 데워 주고 싶어!")
         assertEquals(listOf("함께 온 친구 자리가 차가우면", "내 마음이 쓰이니까, 내가 먼저 데워 주고 싶어!"), warm)
