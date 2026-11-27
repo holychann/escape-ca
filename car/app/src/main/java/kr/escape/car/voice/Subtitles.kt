@@ -117,31 +117,48 @@ object Subtitles {
     }
 
     /** When each piece starts, in ms from the start of a recording [totalMs] long: by letters, spaces not counted. */
-    fun starts(pieces: List<String>, totalMs: Long, gaps: List<Pauses.Gap> = emptyList()): List<Long> {
-        // the guess: a share by letters, the voice also resting a little at a comma and longer at a sentence's end
+    fun starts(pieces: List<String>, totalMs: Long, timeline: Pauses.Timeline? = null): List<Long> {
+        if (timeline != null && pieces.size > 1 && timeline.voicedMs > 0) return along(pieces, timeline)
+        // no recording to read: a share by letters, the voice also resting a little at a comma and longer at a
+        // sentence's end
         val weights = pieces.map { p ->
             p.count { !it.isWhitespace() }.coerceAtLeast(1).toLong() * 2 + p.count { it == ',' } * 2 + p.count { it in ".!?…~" } * 5
         }
         val sum = weights.sum().coerceAtLeast(1)
         var at = 0L
-        val guess = weights.map { w -> at.also { at += totalMs * w / sum } }
-        if (gaps.isEmpty() || pieces.size < 2) return guess
-        // each turn goes to the real pause nearest its guess, at the moment the voice starts again after it, so a
-        // piece never comes up before its words are said; a turn with no pause near it keeps its guess
-        val reach = totalMs / pieces.size
+        return weights.map { w -> at.also { at += totalMs * w / sum } }
+    }
+
+    /**
+     * Along the recording itself. The friend's pace is measured on the voiced stretches only (the pauses left out),
+     * so a long line with many commas does not drift: where piece k ends is the moment the voice has said that share
+     * of the line's syllables. A pause within [SNAP_MS] of that moment is where the voice really turns to the next
+     * piece, and the piece comes up as the voice starts again after it; with no pause near, it comes up at the
+     * measured moment.
+     */
+    private fun along(pieces: List<String>, timeline: Pauses.Timeline): List<Long> {
+        val sizes = pieces.map { p -> p.count { it.isLetterOrDigit() }.coerceAtLeast(1).toLong() }
+        val total = sizes.sum()
         val out = mutableListOf(0L)
+        var said = 0L
         var used = -1
         for (k in 1 until pieces.size) {
-            val pick = gaps.withIndex().filter { (i, g) -> i > used && g.endMs > out.last() && kotlin.math.abs(g.middleMs - guess[k]) <= reach }
-                .minByOrNull { (_, g) -> kotlin.math.abs(g.middleMs - guess[k]) }
-            if (pick != null) used = pick.index
-            out += maxOf(pick?.value?.endMs?.minus(TURN_LEAD_MS) ?: guess[k], out.last())
+            said += sizes[k - 1]
+            val end = timeline.at(timeline.voicedMs * said / total)
+            val pause = timeline.gaps.withIndex()
+                .filter { (i, g) -> i > used && g.endMs > out.last() && kotlin.math.abs(g.middleMs - end) <= SNAP_MS }
+                .minByOrNull { (_, g) -> kotlin.math.abs(g.middleMs - end) }
+            if (pause != null) used = pause.index
+            out += maxOf(pause?.value?.endMs?.minus(TURN_LEAD_MS) ?: end, out.last())
         }
         return out
     }
 
     /** A piece comes up this much before the voice starts again, as the eye is a moment slower than the ear. */
     const val TURN_LEAD_MS = 120L
+
+    /** How far from the measured end of a piece a pause may be and still be the one the voice turns at. */
+    const val SNAP_MS = 700L
 
     /** How long a piece stays up when there is no sound to follow. */
     fun readMs(piece: String): Long = (piece.count { !it.isWhitespace() } * READ_MS_PER_CHAR).coerceAtLeast(MIN_PIECE_MS)

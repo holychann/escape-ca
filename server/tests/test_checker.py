@@ -233,7 +233,7 @@ def test_prompt_carries_only_the_rules_not_free_text():
     msg = user_message(req, picks(req))
     assert "[key=Q:MATH:FAN:5]" in msg and "[key=Q:REASON:DEFROST:1]" in msg and "[key=BELT]" in msg
     # the chosen friend tells the story; nobody else is named for a scene
-    assert "고른 친구('나'): 반테. 강아지 친구이고, 말버릇은 \"먼저 해볼래!\"" in msg and "주인공 친구" not in msg
+    assert "고른 친구('나'): 반테. 강아지 친구이고, 담고 있는 마음은 '용기'이다." in msg and "주인공 친구" not in msg
     assert "정답: 5 (답만큼 바람 세기(풍량)를 맞춘다). 이 수는 bubble, speech, art에 쓰지 않는다" in msg
     assert "speech에 꼭 넣을 말: \"딸깍\"" in msg and "쓰지 말 말: \"풀어\"" in msg
     assert "겨울 저녁, 바깥 기온 3도" in msg
@@ -280,16 +280,12 @@ def test_prompt_keeps_puzzle_order_and_only_the_chosen_friend():
         assert word not in SYSTEM and word not in msg
 
 
-def test_a_rare_friend_gets_no_made_up_catchphrase():
-    req = request([[MATH]]).model_copy(update={"friend": "CASPIN"})
-    assert "고른 친구('나'): 캐스핀. 상어 친구이고, 말버릇은 정해져 있지 않다" in user_message(req)
-
-
-def test_a_catchphrase_comes_with_the_moment_it_fits():
-    req = request([[MATH]]).model_copy(update={"friend": "KONYANG"})
-    assert '말버릇은 "자세히 보면 보여"(무언가를 자세히 살펴서 단서나 달라진 점을 찾아냈을 때 쓴다)' in user_message(req)
-    # never tacked onto the greeting
-    assert "intro나 treasureBadge 끝에 인사처럼 따로 붙이지 않고" in SYSTEM
+def test_no_friend_is_given_a_catchphrase_to_repeat():
+    # said scene after scene, a catchphrase made the script read oddly: the writer is given none and told not to repeat one
+    for friend in ("BANTE", "KONYANG", "CASPIN"):
+        msg = user_message(request([[MATH]]).model_copy(update={"friend": friend}))
+        assert "말버릇" not in msg and "먼저 해볼래" not in msg and "자세히 보면 보여" not in msg
+    assert "말버릇이나 입버릇처럼 정해진 말을 여러 장면에 되풀이하지 않는다" in SYSTEM
 
 
 def test_the_greeting_never_announces_the_lesson():

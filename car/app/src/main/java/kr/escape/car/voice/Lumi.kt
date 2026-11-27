@@ -111,8 +111,8 @@ class Lumi(private val cache: VoiceCache?) : Voice {
      */
     private fun show(
         pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null,
-        /** Where the recording pauses, so each piece turns as its words begin. */
-        gaps: List<Pauses.Gap> = emptyList(),
+        /** Where the voice is and pauses in the recording, so each piece turns as its words begin. */
+        timeline: Pauses.Timeline? = null,
     ) {
         main.removeCallbacksAndMessages(steps)
         if (pieces.isEmpty()) {
@@ -121,7 +121,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         }
         _subtitle.value = pieces.first()
         if (totalMs != null) {
-            val starts = Subtitles.starts(pieces, totalMs, gaps)
+            val starts = Subtitles.starts(pieces, totalMs, timeline)
             pieces.zip(starts).drop(1).forEach { (piece, at) ->
                 main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
             }
@@ -147,7 +147,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
 
     private fun play(file: File, pieces: List<String>, mine: Int, keepLast: Boolean, afterSilent: String?) {
         // read while the player gets ready; a recording of a few seconds is a few hundred kilobytes
-        val gaps = if (pieces.size > 1) Pauses.of(file) else emptyList()
+        val timeline = if (pieces.size > 1) Pauses.of(file) else null
         val mp = MediaPlayer()
         runCatching {
             mp.setAudioAttributes(
@@ -161,7 +161,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
                 if (player === it && mine == turn) {
                     it.start()
                     _speaking.value = true
-                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs), gaps = gaps)
+                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs), timeline = timeline)
                 }
             }
             mp.setOnCompletionListener { done ->

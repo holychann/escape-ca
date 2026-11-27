@@ -6,7 +6,7 @@ from .rules import EVERYWHERE_NEVER, LIMITS, rule_for
 SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차한 차 안에서 아이와 부모가 함께 푸는 퀴즈 모험 이야기를, 아이가 고른 친구 한 명이 "나"로 직접 들려주는 말로 쓴다. 아이는 친구가 낸 문제를 풀고, 그 답만큼 차의 버튼(바람 세기, 온도, 독서등, 의자 열선)을 바꾸거나, 친구가 말하는 곤란한 상황을 듣고 알맞은 차 버튼(에어컨, 내기 순환, 성에 제거 등)을 찾아 조작해서 정답을 넣는다. 네가 쓴 말은 차 스피커로 아이에게 그대로 읽힌다.
 
 등장하는 사람
-- 고른 친구('나'): 아이가 오늘 고른 친구 도감의 친구 한 명이다. 처음부터 끝까지 이 친구가 "나"로 탐험대장에게 다정한 반말로 말한다. 동물과 말버릇은 조건에 적힌 그대로 쓰고 바꾸지 않는다. 도감 그림과 어긋나지 않게 조건에 없는 생김새(귀 모양, 눈 색, 옷 등)는 덧붙이지 않는다. 말버릇은 그 말뜻대로 행동하는 순간에만, 한 판에 한두 번 쓴다(조건에 그 순간이 적혀 있다). 친구가 그 행동을 하는 장면의 speech나 result 안에서 앞뒤 문장과 이어지게 쓴다(예: 코냥이 단서를 찾은 result에서 '자세히 보면 보여! 발자국 옆에 하얀 깃털이 있어!'). intro나 treasureBadge 끝에 인사처럼 따로 붙이지 않고, 어울리는 순간이 없으면 쓰지 않는다. 말버릇이 정해지지 않은 친구는 말버릇을 새로 만들지 않는다.
+- 고른 친구('나'): 아이가 오늘 고른 친구 도감의 친구 한 명이다. 처음부터 끝까지 이 친구가 "나"로 탐험대장에게 다정한 반말로 말한다. 동물은 조건에 적힌 그대로 쓰고 바꾸지 않는다. 도감 그림과 어긋나지 않게 조건에 없는 생김새(귀 모양, 눈 색, 옷 등)는 덧붙이지 않는다. 말버릇이나 입버릇처럼 정해진 말을 여러 장면에 되풀이하지 않는다. 친구의 성격과 마음은 정해진 말이 아니라 장면마다 하는 행동으로 보여 준다.
 - 탐험대장(뒷자리 아이): 친구의 문제를 듣고 스스로 답을 구한다. 답과 버튼을 손가락으로 가리키며 어떻게 바꿀지 안전 지킴이에게 말한다. 뒷자리 독서등처럼 손이 닿는 버튼은 직접 누른다.
 - 안전 지킴이(운전석 부모): 아이가 말한 방법이 안전한지 확인하고, 아이가 말한 대로 눌러 준다. 답을 대신 구해 주지 않는다. 늘 '안전 지킴이'라고 부르고 '지킴이님'이나 '탐험 지킴이'처럼 바꾸지 않는다.
 - 이 셋 말고는 아무도 말하지 않는다. 루미, 도감의 다른 친구, 사람, 이름 붙은 주민은 나오지 않는다. 그 세계의 동물이나 식물, 물건은 이름 없이 배경으로만 나오고 말하지 않는다.
@@ -98,22 +98,10 @@ def _quote(words) -> str:
     return ", ".join(f'"{w}"' for w in words)
 
 
-# when each catchphrase fits: said as a sentence of its own at the start or end of a greeting it sounds tacked on
-CATCH_MOMENT = {
-    "BANTE": "아무도 해 보지 않은 일에 내가 먼저 나설 때",
-    "KONYANG": "무언가를 자세히 살펴서 단서나 달라진 점을 찾아냈을 때",
-    "RIA": "막혔을 때 새로운 방법을 떠올려 내놓을 때",
-    "TUBUGI": "서두르거나 잘 안 돼서 속상할 때 다독여 줄 때",
-    "PAPPI": "혼자 하기 힘든 일을 함께 하자고 할 때",
-    "POTTO": "좋은 것을 친구와 나눌 때",
-}
-
-
 def friend_line(code: str) -> str:
-    name, animal, symbol, catch = FRIEND_LABEL[code]
-    moment = CATCH_MOMENT.get(code)
-    said = (f'말버릇은 "{catch}"({moment} 쓴다)' if moment else f'말버릇은 "{catch}"') if catch else "말버릇은 정해져 있지 않다"
-    return f"- 고른 친구('나'): {name}. {animal} 친구이고, {said}, 담고 있는 마음은 '{symbol}'이다."
+    # no catchphrase is given to the writer: said scene after scene it made the script read oddly
+    name, animal, symbol, _ = FRIEND_LABEL[code]
+    return f"- 고른 친구('나'): {name}. {animal} 친구이고, 담고 있는 마음은 '{symbol}'이다."
 
 
 def _scene(key: str, picks: dict) -> list[str]:

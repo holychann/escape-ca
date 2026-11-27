@@ -13,34 +13,61 @@ object Pauses {
         val middleMs: Long get() = (startMs + endMs) / 2
     }
 
+    /**
+     * When the voice is heard in a recording: from [startMs] (the first sound) to [endMs] (the last), with the [gaps]
+     * between words in order.
+     */
+    data class Timeline(val startMs: Long, val endMs: Long, val gaps: List<Gap>) {
+        /** The stretches with voice in them: between the start, the gaps and the end. */
+        val speech: List<Pair<Long, Long>>
+            get() {
+                val cuts = listOf(startMs) + gaps.flatMap { listOf(it.startMs, it.endMs) } + endMs
+                return cuts.chunked(2).filter { it.size == 2 && it[1] > it[0] }.map { it[0] to it[1] }
+            }
+
+        /** How long the voice is heard, the pauses left out. */
+        val voicedMs: Long get() = speech.sumOf { (a, b) -> b - a }
+
+        /** The moment the voice has spoken for [voiced] ms, counted on the recording's own clock. */
+        fun at(voiced: Long): Long {
+            var left = voiced
+            for ((a, b) in speech) {
+                if (left <= b - a) return a + left
+                left -= b - a
+            }
+            return endMs
+        }
+    }
+
     const val FRAME_MS = 20
     /** Shorter than this is the space between two syllables, not a pause. */
     const val MIN_GAP_MS = 150
 
-    fun of(file: File): List<Gap> = runCatching { of(file.readBytes()) }.getOrDefault(emptyList())
+    fun of(file: File): Timeline? = runCatching { of(file.readBytes()) }.getOrNull()
 
-    /** The pauses inside [wav], not counting the quiet before the first sound and after the last. */
-    fun of(wav: ByteArray): List<Gap> {
-        val (rate, channels, data) = pcm(wav) ?: return emptyList()
+    /** Where the voice is and where it pauses in [wav]; null when it is not a 16-bit PCM WAV or has no sound. */
+    fun of(wav: ByteArray): Timeline? {
+        val (rate, channels, data) = pcm(wav) ?: return null
         val perFrame = rate * FRAME_MS / 1000
         val levels = IntArray(data.size / channels / perFrame) { f ->
             var sum = 0L
             for (i in 0 until perFrame) sum += kotlin.math.abs(data[(f * perFrame + i) * channels].toInt())
             (sum / perFrame).toInt()
         }
-        return gaps(levels)
+        return timeline(levels)
     }
 
     /**
-     * The quiet runs in [levels] (the loudness of each [FRAME_MS] frame) at least [MIN_GAP_MS] long and with sound on
-     * both sides. Quiet is measured against how loud the voice is, so a soft line finds its pauses too.
+     * The voice in [levels] (the loudness of each [FRAME_MS] frame): its first and last sound, and the quiet runs at
+     * least [MIN_GAP_MS] long with sound on both sides. Quiet is measured against how loud the voice is, so a soft
+     * line finds its pauses too.
      */
-    fun gaps(levels: IntArray): List<Gap> {
-        if (levels.isEmpty()) return emptyList()
+    fun timeline(levels: IntArray): Timeline? {
+        if (levels.isEmpty()) return null
         val loud = levels.sorted()[(levels.size * 9) / 10]
         val quiet = maxOf(120, loud / 8)
         val sound = levels.indices.filter { levels[it] > quiet }
-        if (sound.isEmpty()) return emptyList()
+        if (sound.isEmpty()) return null
         val out = mutableListOf<Gap>()
         var from = -1
         for (f in sound.first()..sound.last()) {
@@ -51,7 +78,7 @@ object Pauses {
                 from = -1
             }
         }
-        return out
+        return Timeline(sound.first().toLong() * FRAME_MS, (sound.last() + 1).toLong() * FRAME_MS, out)
     }
 
     /** The sample rate, the channel count and the 16-bit samples of a PCM WAV; null for anything else. */

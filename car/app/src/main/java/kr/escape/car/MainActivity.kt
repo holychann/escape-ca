@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.offset
@@ -117,6 +116,13 @@ import kr.escape.car.ui.ClayGlyph
 import kr.escape.car.ui.ClayIcon
 import kr.escape.car.ui.ClayStyle
 import kr.escape.car.ui.Fonts
+import kr.escape.car.ui.keepWords
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.ui.unit.Constraints
 import kr.escape.car.ui.FriendFace
 import kr.escape.car.ui.Hearts
 import kr.escape.car.ui.KidText
@@ -169,6 +175,9 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
     val preview by stories.preview.collectAsState()
     val rejection by stories.rejection.collectAsState()
     val waited = rememberElapsedSeconds(storyStatus == StoryRepo.Status.WRITING, ui.setup.wish)
+    // the wish box as the parent fills it in: the setup card edits it, the child's bubble follows it as it is typed.
+    // It starts from the episode's wish, so a refused one comes back into the box
+    val draft = remember(ui.setup.wish) { wishParts(ui.setup.wish).let { (place, kind) -> WishDraft(place, kind) } }
     val view = StoryView(storyStatus, preview, rejection, waited)
     // the story server is asked only by 소원 빌기 (game.begin); its answer moves the episode's first screen on
     LaunchedEffect(storyStatus) { game.storyDone(storyStatus) }
@@ -204,14 +213,14 @@ private fun App(game: Game, source: VehicleSource, lumi: Lumi, stories: StoryRep
                 Spacer(Modifier.height(24.dp))
                 if (portrait) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        KidStage(game, ui, friends, speaking, shown, said, view, Modifier.weight(1f).fillMaxWidth())
-                        ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.fillMaxWidth())
+                        KidStage(game, ui, friends, speaking, shown, said, view, draft, Modifier.weight(1f).fillMaxWidth())
+                        ParentPanel(game, ui, car, speaking, lumi, view, subs, draft, Modifier.fillMaxWidth())
                     }
                 } else {
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                         val panelWidth = if (ui.phase == Phase.SETUP) 680.dp else 500.dp
-                        ParentPanel(game, ui, car, speaking, lumi, view, subs, Modifier.width(panelWidth).fillMaxHeight())
-                        KidStage(game, ui, friends, speaking, shown, said, view, Modifier.weight(1f).fillMaxHeight())
+                        ParentPanel(game, ui, car, speaking, lumi, view, subs, draft, Modifier.width(panelWidth).fillMaxHeight())
+                        KidStage(game, ui, friends, speaking, shown, said, view, draft, Modifier.weight(1f).fillMaxHeight())
                     }
                 }
                 if (waits.isNotEmpty()) {
@@ -389,6 +398,7 @@ private fun ParentPanel(
     lumi: Lumi,
     view: StoryView,
     subs: Subs,
+    draft: WishDraft,
     modifier: Modifier,
 ) {
     when (ui.phase) {
@@ -396,7 +406,7 @@ private fun ParentPanel(
             // the episode the car was switched off in comes first: the parent goes on with it or starts anew
             val saved by game.saved.collectAsState()
             val resume = saved
-            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, modifier)
+            if (resume != null) ResumePanel(game, resume, car, modifier) else SetupPanel(game, ui, car, view, subs, draft, modifier)
         }
         Phase.INTRO -> PanelCard(modifier) {
             PanelTitle(ui.story?.title ?: "오늘의 이야기")
@@ -469,14 +479,12 @@ private fun ParentPanel(
 }
 
 @Composable
-private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, subs: Subs, modifier: Modifier) {
+private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, subs: Subs, draft: WishDraft, modifier: Modifier) {
     val blockers = Safety.startBlockers(car)
     // with no puzzle this car can play, game.begin() would return without a word
     val playable = game.playable(car)
     // what is in the wish box; it becomes the episode's wish when 소원 빌기 is pressed (a refused one comes back here)
-    var place by remember(ui.setup.wish) { mutableStateOf(wishParts(ui.setup.wish).first) }
-    var kind by remember(ui.setup.wish) { mutableStateOf(wishParts(ui.setup.wish).second) }
-    val wish = kind?.takeIf { place.isNotBlank() }?.let { wishOf(place, it) }
+    val wish = draft.kind?.takeIf { draft.place.isNotBlank() }?.let { wishOf(draft.place, it) }
     PanelCard(modifier) {
         Column {
             PanelTitle("시작하기 전에 골라 주세요", 38)
@@ -504,7 +512,7 @@ private fun SetupPanel(game: Game, ui: GameUi, car: CarState, view: StoryView, s
                     }
                 }
             }
-            WishBox(place, kind, view, onPlace = { place = it.take(PLACE_MAX) }, onKind = { kind = it })
+            WishBox(draft.place, draft.kind, view, onPlace = { draft.place = it.take(PLACE_MAX) }, onKind = { draft.kind = it })
         }
         // why 소원 빌기 cannot be pressed yet is told big across the bottom of the screen (WaitBanner), not here
         // the one button: it asks the story server for this episode and goes on to the episode's first screen, where
@@ -574,12 +582,12 @@ private fun rememberElapsedSeconds(running: Boolean, key: Any?): Int {
 }
 
 /**
- * What Lumi is doing while a wish is made. The server does not report its steps, so this follows the measured
- * times: the words take about 10 s, the pictures about 15 s more.
+ * What the friend is doing while a wish is made. The server does not report its steps, so this follows the measured
+ * times with Claude Opus: the words take about 50 s, the pictures, all drawn at once, about 25 s more.
  */
 private fun wishStep(waited: Int) = when {
-    waited < 10 -> "이야기를 쓰고 있어요"
-    waited < 25 -> "친구들 그림을 그리고 있어요"
+    waited < 50 -> "이야기를 쓰고 있어요"
+    waited < 75 -> "친구들 그림을 그리고 있어요"
     else -> "거의 다 됐어요!"
 }
 
@@ -589,6 +597,25 @@ private const val PLACE_MAX = 20
 private val WISH_FORM = Regex("^(.+)에서 펼쳐지는 (.+) 이야기$")
 
 private fun wishOf(place: String, kind: String) = "${place.trim()}에서 펼쳐지는 $kind 이야기"
+
+/** What is in the wish box while the parent fills it in, shared with the child's stage so its bubble follows along. */
+private class WishDraft(place: String, kind: String?) {
+    var place by mutableStateOf(place)
+    var kind by mutableStateOf(kind)
+
+    /** The child's bubble for it ("롯데월드에서 보물찾기!"), or null while nothing is filled in. */
+    val line: String?
+        get() {
+            val where = place.trim()
+            val what = kind
+            return when {
+                where.isNotEmpty() && what != null -> "${where}에서 $what!"
+                where.isNotEmpty() -> "$where 좋아!"
+                what != null -> "$what 좋아!"
+                else -> null
+            }
+        }
+}
 
 /** The place and the kind of story a wish was made from, so the box shows them again. */
 private fun wishParts(wish: String): Pair<String, String?> =
@@ -795,7 +822,7 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
     PanelCard(modifier) {
         // the kind of puzzle, not its answer: the answer is behind 정답 보기's long press
         PanelTitle(p.category)
-        BodyText(if (belt) "다음 곳으로 가기 전 준비 시간이에요. 아이가 스스로 매도록 기다려 주세요" else "아이가 말한 답과 버튼을 확인하고 눌러 주세요")
+        BodyText(if (belt) "다음 곳으로 가기 전 준비 시간이에요.\n아이가 스스로 매도록 기다려 주세요" else "아이가 말한 답과 버튼을 확인하고 눌러 주세요")
         Middle {
             if (belt) {
                 Column(
@@ -803,11 +830,12 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     KidText("이미 매고 있다면", 30.sp)
-                    BodyText("버클을 손으로 짚고 \"딸깍 확인!\"을 외치게 해 주세요", size = 21.sp)
+                    BodyText("버클을 손으로 짚고\n\"딸깍 확인!\"을 외치게 해 주세요", size = 21.sp)
                 }
             } else {
                 VoiceBox(speaking, ui.setup.friend) { lumi.repeat() }
-                SubtitleToggle(subs)
+                // compact like the setup card's, so the card fits its height without scrolling
+                SubtitleToggle(subs, compact = true)
                 if (scene.buttons.isNotEmpty()) {
                     FieldLabel("이 퍼즐에서 쓰는 버튼")
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { scene.buttons.take(3).forEach { CarButton(it) } }
@@ -831,30 +859,30 @@ private fun PlayingPanel(game: Game, ui: GameUi, car: CarState, speaking: Boolea
 @Composable
 private fun VoiceBox(speaking: Boolean, friend: Friend, onRepeat: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.CreamDeep).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Clay.CreamDeep).padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ClayGlyph(ClayIcon.WAVE, if (speaking) Clay.Mint else Clay.Muted, Modifier.size(32.dp))
+            ClayGlyph(ClayIcon.WAVE, if (speaking) Clay.Mint else Clay.Muted, Modifier.size(30.dp))
             BodyText(
                 if (speaking) "${Lines.subject(friend.label)} 문제를 말하고 있어요" else "${Lines.of(friend.label)} 말을 다시 들을 수 있어요",
-                size = 21.sp, color = Clay.Ink, weight = FontWeight.Medium,
+                size = 20.sp, color = Clay.Ink, weight = FontWeight.Medium,
             )
         }
-        ClayButton("다시 듣기", ClayStyle.GHOST, Modifier.fillMaxWidth(), icon = ClayIcon.SPEAKER, onClick = onRepeat)
+        ClayButton("다시 듣기", ClayStyle.GHOST, Modifier.fillMaxWidth(), height = 76.dp, icon = ClayIcon.SPEAKER, onClick = onRepeat)
     }
 }
 
 /** The car's own button, drawn like the real one, so the parent knows what the child is looking for. */
 @Composable
 private fun CarButton(label: String) {
-    Column(Modifier.width(112.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.width(100.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(
-            Modifier.size(104.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).border(3.dp, Clay.Line, RoundedCornerShape(24.dp)),
+            Modifier.size(88.dp).clip(RoundedCornerShape(22.dp)).background(Color.White).border(3.dp, Clay.Line, RoundedCornerShape(22.dp)),
             contentAlignment = Alignment.Center,
         ) {
             // a button without a drawn glyph shows its name large instead of a picture that is not its own
-            glyphFor(label)?.let { AssetImage(it, Modifier.size(80.dp), scale = ContentScale.Fit) }
+            glyphFor(label)?.let { AssetImage(it, Modifier.size(68.dp), scale = ContentScale.Fit) }
                 ?: KidText(label, 24.sp, maxLines = 2, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp))
         }
         BodyText(label, size = 18.sp, weight = FontWeight.Medium, textAlign = TextAlign.Center)
@@ -895,7 +923,8 @@ private fun AnswerReveal(answer: String?, modifier: Modifier) {
 
 @Composable
 private fun KidStage(
-    game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, said: List<String>, view: StoryView, modifier: Modifier,
+    game: Game, ui: GameUi, book: Book, speaking: Boolean, subtitle: String?, said: List<String>, view: StoryView, draft: WishDraft,
+    modifier: Modifier,
 ) {
     val preview = view.preview
     val buddy = ui.setup.friend
@@ -911,7 +940,8 @@ private fun KidStage(
                 (resume.story?.picture("cover") ?: resume.story?.themePicture ?: "theme_star_train")
             preview != null -> preview.title to (preview.picture("cover") ?: preview.themePicture)
             // the friend picked waits in the explorer team's clubhouse
-            ui.setup.wish.isNotBlank() -> "‘${ui.setup.wish}’ 좋아!" to "home_${buddy.name.lowercase()}"
+            // the wish box as it is being filled in, word by word
+            draft.line != null -> draft.line!! to "home_${buddy.name.lowercase()}"
             else -> "어디로 탐험 갈까?" to "home_${buddy.name.lowercase()}"
         }
         Phase.INTRO -> (ui.story?.title ?: if (ui.writing) "오늘의 이야기" else "별빛 기차가 고장 났대!") to theme
@@ -941,9 +971,23 @@ private fun KidStage(
             Spacer(Modifier.width(22.dp))
             // the bubble takes the room up to the button, so a long title never runs under it
             Column(Modifier.weight(1f).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // on the episode's first screen the bubble also says who today's friend is, under the title; the
-                // bottom of the stage stays free for what the friend is saying
-                SpeechBubble(bubble, friend = buddy.label.takeIf { ui.phase == Phase.INTRO })
+                // under the title the bubble also says who today's friend is (first screen) or how close it got (the
+                // treasure), so the bottom of the stage stays free for what the friend is saying
+                val hearts = ui.heartsNow
+                SpeechBubble(bubble) {
+                    when {
+                        ui.phase == Phase.INTRO -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            KidText("오늘 함께할 친구", 26.sp, color = Clay.SunLip, maxLines = 1)
+                            KidText(buddy.label, 26.sp, maxLines = 1)
+                        }
+                        ui.phase == Phase.TREASURE && hearts != null -> Row(
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            KidText("${Lines.withAnd(buddy.label)} 더 친해졌어!", 28.sp, color = Clay.CoralLip, maxLines = 1)
+                            Hearts(hearts, Friend.MAX_HEARTS, 30.dp)
+                        }
+                    }
+                }
                 if (speaking) SpeakingTag()
             }
             if (canLookBack) {
@@ -960,7 +1004,7 @@ private fun KidStage(
             Phase.SETUP -> if (resume == null) FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
             Phase.INTRO -> Unit
             Phase.PLAYING, Phase.SOLVED -> TagAlong(buddy.label, buddy.picture)
-            Phase.TREASURE -> ui.heartsNow?.let { CloserPop(buddy, it) }
+            Phase.TREASURE -> Unit
             Phase.RESTORE -> Unit
         }
         val quiz = p as? Puzzle.Quiz
@@ -994,10 +1038,9 @@ private fun BoxScope.SubtitleBar(text: String, aboveCard: Boolean, clearCorner: 
             .padding(horizontal = 36.dp, vertical = 18.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Crossfade(text, label = "subtitle") { piece ->
-            // the line break where the phrase allows (Subtitles.lines), never in the middle of a word
-            KidText(Subtitles.lines(piece), 46.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2, balanced = true)
-        }
+        // each piece replaces the last at once: a cross-fade left the old words showing under the new ones. The line
+        // break goes where the phrase allows (Subtitles.lines), never in the middle of a word
+        KidText(Subtitles.lines(text), 46.sp, color = Clay.Ink, textAlign = TextAlign.Center, maxLines = 2, balanced = true)
     }
 }
 
@@ -1049,7 +1092,7 @@ private fun BoxScope.WishingOverlay(wish: String, buddy: Friend, waited: Int) {
             FriendFace(buddy.picture, buddy.label, 176.dp, ringWidth = 0.dp)
         }
         KidText(wishStep(waited), 48.sp, color = Clay.Cream, textAlign = TextAlign.Center)
-        BodyText("‘$wish’ · ${waited}초 · 보통 30초쯤 걸려요", size = 22.sp, color = Clay.Cream.copy(alpha = 0.8f), textAlign = TextAlign.Center)
+        BodyText("${waited}초째, 1분 안팎으로 걸려요", size = 22.sp, color = Clay.Cream.copy(alpha = 0.8f), textAlign = TextAlign.Center)
     }
 }
 
@@ -1079,22 +1122,33 @@ private fun BoxScope.LookBack(lines: List<String>, onClose: () -> Unit) {
     }
 }
 
-/** The friend's bubble at the top of the stage; [friend], when given, is named under the title as today's friend. */
+/** The friend's bubble at the top of the stage: its line, and [below] it a smaller line when the screen has one. */
 @Composable
-private fun SpeechBubble(text: String, friend: String? = null) {
+private fun SpeechBubble(text: String, below: @Composable () -> Unit = {}) {
     if (text.isBlank()) return
     val shape = RoundedCornerShape(44.dp)
-    Box {
-        Box(Modifier.matchParentSize().padding(top = 8.dp).clip(shape).background(Clay.Line))
-        Column(
-            Modifier.padding(bottom = 8.dp).widthIn(max = 760.dp).clip(shape).background(Clay.Cream)
-                .padding(start = 44.dp, end = 44.dp, top = 24.dp, bottom = 26.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            KidText(text, 56.sp, maxLines = 2, balanced = true)
-            if (friend != null) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                KidText("오늘 함께할 친구", 26.sp, color = Clay.SunLip, maxLines = 1)
-                KidText(friend, 26.sp, maxLines = 1)
+    BoxWithConstraints {
+        // a line that wraps takes all the width it may have and leaves an empty strip on the bubble's right: the
+        // line is measured first, and the bubble made as wide as its widest wrapped line
+        val density = LocalDensity.current
+        val room = with(density) { (minOf(maxWidth, 760.dp) - 88.dp).roundToPx().coerceAtLeast(1) }
+        val style = LocalTextStyle.current.merge(
+            TextStyle(fontFamily = Fonts.jua, fontSize = 56.sp, lineHeight = 56.sp * 1.2f, lineBreak = LineBreak.Heading),
+        )
+        val measurer = rememberTextMeasurer()
+        val widest = remember(text, room) {
+            val laid = measurer.measure(AnnotatedString(keepWords(text)), style, maxLines = 2, constraints = Constraints(maxWidth = room))
+            (0 until laid.lineCount).maxOf { laid.getLineRight(it) - laid.getLineLeft(it) }
+        }
+        Box {
+            Box(Modifier.matchParentSize().padding(top = 8.dp).clip(shape).background(Clay.Line))
+            Column(
+                Modifier.padding(bottom = 8.dp).widthIn(max = 760.dp).clip(shape).background(Clay.Cream)
+                    .padding(start = 44.dp, end = 44.dp, top = 24.dp, bottom = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                KidText(text, 56.sp, maxLines = 2, balanced = true, modifier = Modifier.width(with(density) { (widest + 4f).toDp() }))
+                below()
             }
         }
     }

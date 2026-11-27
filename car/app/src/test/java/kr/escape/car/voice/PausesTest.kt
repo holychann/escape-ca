@@ -30,29 +30,48 @@ class PausesTest {
         return out.toByteArray()
     }
 
+    private fun near(expected: Long, actual: Long) =
+        assertTrue("$actual, not $expected", kotlin.math.abs(actual - expected) <= Pauses.FRAME_MS)
+
     @Test
-    fun aPauseBetweenWordsIsFoundButNotTheQuietAroundTheLine() {
-        val gaps = Pauses.of(wav(300 to false, 800 to true, 400 to false, 900 to true, 500 to false))
-        assertEquals(1, gaps.size)
-        // the pause from 1100 ms to 1500 ms, to a frame
-        assertTrue(gaps[0].toString(), kotlin.math.abs(gaps[0].startMs - 1100) <= Pauses.FRAME_MS)
-        assertTrue(gaps[0].toString(), kotlin.math.abs(gaps[0].endMs - 1500) <= Pauses.FRAME_MS)
+    fun theVoiceAndAPauseBetweenWordsAreFoundButNotTheQuietAroundTheLine() {
+        val t = Pauses.of(wav(300 to false, 800 to true, 400 to false, 900 to true, 500 to false))!!
+        near(300, t.startMs)
+        near(2400, t.endMs)
+        assertEquals(1, t.gaps.size)
+        near(1100, t.gaps[0].startMs)
+        near(1500, t.gaps[0].endMs)
+        // the voice is heard for 800 + 900 ms; 1000 ms of it is reached 200 ms after the pause
+        near(1700, t.voicedMs)
+        near(1700, t.at(1000))
     }
 
     @Test
     fun aBreathBetweenSyllablesIsNotAPause() {
-        assertEquals(emptyList<Pauses.Gap>(), Pauses.of(wav(600 to true, 60 to false, 600 to true)))
-        // not a WAV at all: no pauses, never a crash
-        assertEquals(emptyList<Pauses.Gap>(), Pauses.of(ByteArray(10)))
+        assertEquals(emptyList<Pauses.Gap>(), Pauses.of(wav(600 to true, 60 to false, 600 to true))!!.gaps)
+        // not a WAV at all, or no sound in it: nothing to time by, never a crash
+        assertEquals(null, Pauses.of(ByteArray(10)))
+        assertEquals(null, Pauses.of(wav(500 to false)))
     }
 
     @Test
-    fun aPieceTurnsWhenTheVoiceStartsAgainAfterTheNearestPause() {
-        val pieces = listOf("냄새가 밖에서 바람을 타고 들어오니", "자동차 그림 안에서 화살표가 빙글 도는 버튼을 찾아봐.")
-        // a pause well after the letters' share: the second piece waits for it
-        val starts = Subtitles.starts(pieces, 6000, listOf(Pauses.Gap(2900, 3300)))
-        assertEquals(listOf(0L, 3300L - Subtitles.TURN_LEAD_MS), starts)
-        // with no pause in the recording the guess stands
-        assertEquals(Subtitles.starts(pieces, 6000), Subtitles.starts(pieces, 6000, emptyList()))
+    fun eachPieceTurnsAsTheVoiceStartsAgainAfterItsOwnPause() {
+        // three pieces of the same length said at the same pace; the voice pauses after each of the first two
+        val pieces = listOf("가나다라마바사아", "자차카타파하가나", "다라마바사아자차")
+        val t = Pauses.Timeline(200, 6200, listOf(Pauses.Gap(1800, 2100), Pauses.Gap(3700, 4600)))
+        assertEquals(listOf(0L, 2100L - Subtitles.TURN_LEAD_MS, 4600L - Subtitles.TURN_LEAD_MS), Subtitles.starts(pieces, 6400, t))
+    }
+
+    @Test
+    fun aLongLineWithManyPausesDoesNotDrift() {
+        // the first piece is said in three bits with long comma pauses, the second in one go
+        val pieces = listOf("가나다라, 마바사아, 자차카타", "파하가나다라마바사아자차")
+        val t = Pauses.Timeline(
+            0, 5000, listOf(Pauses.Gap(500, 1300), Pauses.Gap(1800, 2600), Pauses.Gap(3100, 3500)),
+        )
+        // measured on the voice alone, the second piece comes up as the voice starts it again after the last pause
+        assertEquals(3500L - Subtitles.TURN_LEAD_MS, Subtitles.starts(pieces, 5000, t)[1])
+        // the share-of-the-whole guess counts the pauses as talking and turns while "자차카타" is still to come
+        assertTrue(Subtitles.starts(pieces, 5000, null)[1] < 3100)
     }
 }
