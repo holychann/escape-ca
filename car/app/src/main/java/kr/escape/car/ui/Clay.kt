@@ -308,7 +308,7 @@ fun CheckLabel(label: String, ok: Boolean) {
 
 // ---------- line icons ----------
 
-enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART, DICE }
+enum class ClayIcon { CHECK, ALERT, PAUSE, HINT, SPEAKER, EYE, STAR, GIFT, WAVE, HEART, DICE, HISTORY }
 
 /** Simple rounded line icons drawn in code, so they take any color and need no resources. */
 @Composable
@@ -359,6 +359,20 @@ fun ClayGlyph(icon: ClayIcon, color: Color, modifier: Modifier = Modifier) {
                 val pip = w * 0.075f
                 listOf(0.33f to 0.33f, 0.67f to 0.33f, 0.5f to 0.5f, 0.33f to 0.67f, 0.67f to 0.67f)
                     .forEach { (x, y) -> drawCircle(color, pip, Offset(w * x, w * y)) }
+            }
+            // a clock turned back, for "what was said before": an open circle ending in an arrow at its upper left,
+            // and the hands
+            ClayIcon.HISTORY -> {
+                val s = Stroke(width = w * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                val cx = w * 0.54f
+                val cy = w * 0.5f
+                val r = w * 0.34f
+                drawArc(color, 205f, 290f, false, Offset(cx - r, cy - r), Size(r * 2, r * 2), style = s)
+                val tip = Offset(w * 0.2f, w * 0.42f)
+                drawLine(color, tip, Offset(tip.x, tip.y - w * 0.17f), s.width, StrokeCap.Round)
+                drawLine(color, tip, Offset(tip.x + w * 0.17f, tip.y), s.width, StrokeCap.Round)
+                drawLine(color, Offset(cx - w * 0.02f, cy - w * 0.19f), Offset(cx - w * 0.02f, cy), s.width, StrokeCap.Round)
+                drawLine(color, Offset(cx - w * 0.02f, cy), Offset(cx + w * 0.15f, cy), s.width, StrokeCap.Round)
             }
         }
     }

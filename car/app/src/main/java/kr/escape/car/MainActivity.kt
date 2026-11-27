@@ -1016,7 +1016,13 @@ private fun KidStage(
         val canLookBack = said.isNotEmpty() && ui.phase in listOf(Phase.INTRO, Phase.PLAYING, Phase.SOLVED, Phase.TREASURE)
         var lookingBack by remember { mutableStateOf(false) }
         Row(Modifier.fillMaxWidth().padding(start = 36.dp, top = 30.dp, end = 36.dp)) {
-            Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
+            // the friend going through the episode, with its name under it
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(buddy.picture, buddy.label, 156.dp, ringWidth = 6.dp) }
+                KidText(buddy.label, 24.sp, color = Clay.Ink, maxLines = 1,
+                    modifier = Modifier.shadow(8.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
+                        .background(Clay.Cream).padding(horizontal = 18.dp, vertical = 6.dp))
+            }
             Spacer(Modifier.width(22.dp))
             // the bubble takes the room up to the button, so a long title never runs under it
             Column(Modifier.weight(1f).padding(top = 22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1041,20 +1047,18 @@ private fun KidStage(
             }
             if (canLookBack) {
                 Spacer(Modifier.width(16.dp))
-                KidText(
-                    "지난 자막", 26.sp, maxLines = 1,
-                    modifier = Modifier.padding(top = 22.dp).shadow(10.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50))
-                        .background(Clay.Cream).clickable { lookingBack = true }.padding(horizontal = 26.dp, vertical = 16.dp),
-                )
+                // 지난 자막: a clock turned back
+                Box(
+                    Modifier.padding(top = 22.dp).size(76.dp).shadow(10.dp, CircleShape).clip(CircleShape)
+                        .background(Clay.Cream).clickable { lookingBack = true }.semantics { contentDescription = "지난 자막" },
+                    contentAlignment = Alignment.Center,
+                ) { ClayGlyph(ClayIcon.HISTORY, Clay.Ink, Modifier.size(46.dp)) }
             }
         }
         when (ui.phase) {
             // an episode to go on with keeps the friend it was played with, so the book is shown only for a new one
             Phase.SETUP -> if (resume == null) FriendShelf(book, buddy, onPick = game::pick, onInvite = game::invite)
-            Phase.INTRO -> Unit
-            Phase.PLAYING, Phase.SOLVED -> TagAlong(buddy.label, buddy.picture)
-            Phase.TREASURE -> Unit
-            Phase.RESTORE -> Unit
+            Phase.INTRO, Phase.PLAYING, Phase.SOLVED, Phase.TREASURE, Phase.RESTORE -> Unit
         }
         val quiz = p as? Puzzle.Quiz
         val card = if (ui.phase == Phase.PLAYING && quiz != null) ui.scene(quiz).question?.takeIf { Lines.card(it) != null } else null
@@ -1362,19 +1366,6 @@ private fun BoxScope.QuestionCard(q: Question) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         KidText(line, 72.sp, maxLines = 1)
-    }
-}
-
-/** The friend going through the episode, in the corner while the puzzles go on. */
-@Composable
-private fun BoxScope.TagAlong(name: String, picture: String?) {
-    Column(
-        Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(Modifier.shadow(16.dp, CircleShape)) { FriendFace(picture, name, 128.dp, ring = Clay.Sun, ringWidth = 5.dp) }
-        KidText(name, 24.sp, color = Clay.Ink, maxLines = 1,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Clay.Cream).padding(horizontal = 18.dp, vertical = 6.dp))
     }
 }
 
