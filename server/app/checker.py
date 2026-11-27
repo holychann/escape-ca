@@ -179,14 +179,14 @@ def art_problems(draft: Draft, req: EpisodeRequest) -> dict[str, list[str]]:
 
 
 def timeless_problems(ep: Episode) -> list[str]:
-    """Season and time-of-day words anywhere in the episode, which keep it off the shelf."""
+    """Time-of-day words anywhere in the episode, which keep it off the shelf."""
     texts = [ep.title, ep.intro, ep.treasureBadge, ep.world]
     for s in ep.scenes.values():
         texts += [s.bubble, s.speech, s.hint, s.result]
         if s.question is not None:
             texts.append(s.question.text)
     found = present(" ".join(texts), LIBRARY_NEVER)
-    return [f"계절·시간대 말: {w}" for w in found]
+    return [f"시간대 말: {w}" for w in found]
 
 
 def check(draft: Draft, req: EpisodeRequest) -> Verdict:

@@ -1,12 +1,12 @@
 """The words the writer gets. Everything in them comes from enums and numbers the app sent, never free text."""
 from . import quiz
 from .models import AGE_LABEL, FRIEND_LABEL, LESSON_LABEL, THEME_LABEL, EpisodeRequest
-from .rules import EVERYWHERE_NEVER, LIMITS, rule_for
+from .rules import EVERYWHERE_NEVER, LIBRARY_NEVER, LIMITS, rule_for
 
 SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차한 차 안에서 아이와 부모가 함께 푸는 퀴즈 모험 이야기를, 아이가 고른 친구 한 명이 "나"로 직접 들려주는 말로 쓴다. 아이는 친구가 낸 문제를 풀고, 그 답만큼 차의 버튼(바람 세기, 온도, 독서등, 의자 열선)을 바꾸거나, 친구가 말하는 곤란한 상황을 듣고 알맞은 차 버튼(에어컨, 내기 순환, 성에 제거 등)을 찾아 조작해서 정답을 넣는다. 네가 쓴 말은 차 스피커로 아이에게 그대로 읽힌다.
 
 등장하는 사람
-- 고른 친구('나'): 아이가 오늘 고른 친구 도감의 친구 한 명이다. 처음부터 끝까지 이 친구가 "나"로 탐험대장에게 다정한 반말로 말한다. 동물과 말버릇은 조건에 적힌 그대로 쓰고 바꾸지 않는다. 도감 그림과 어긋나지 않게 조건에 없는 생김새(귀 모양, 눈 색, 옷 등)는 덧붙이지 않는다. 말버릇은 그 말뜻대로 행동하는 순간에만, 한 판에 한두 번 쓴다(조건에 그 순간이 적혀 있다). 친구가 그 행동을 하는 장면의 speech나 result 안에서 앞뒤 문장과 이어지게 쓴다(예: 코냥이 단서를 찾은 result에서 '자세히 보면 보여! 발자국 옆에 하얀 깃털이 있어!'). intro나 treasureBadge 끝에 인사처럼 따로 붙이지 않고, 어울리는 순간이 없으면 쓰지 않는다. 말버릇이 정해지지 않은 친구는 말버릇을 새로 만들지 않는다.
+- 고른 친구('나'): 아이가 오늘 고른 친구 도감의 친구 한 명이다. 처음부터 끝까지 이 친구가 "나"로 탐험대장에게 다정한 반말로 말한다. 동물은 조건에 적힌 그대로 쓰고 바꾸지 않는다. 도감 그림과 어긋나지 않게 조건에 없는 생김새(귀 모양, 눈 색, 옷 등)는 덧붙이지 않는다. 말버릇이나 입버릇처럼 정해진 말을 여러 장면에 되풀이하지 않는다. 친구의 성격과 마음은 정해진 말이 아니라 장면마다 하는 행동으로 보여 준다.
 - 탐험대장(뒷자리 아이): 친구의 문제를 듣고 스스로 답을 구한다. 답과 버튼을 손가락으로 가리키며 어떻게 바꿀지 안전 지킴이에게 말한다. 뒷자리 독서등처럼 손이 닿는 버튼은 직접 누른다.
 - 안전 지킴이(운전석 부모): 아이가 말한 방법이 안전한지 확인하고, 아이가 말한 대로 눌러 준다. 답을 대신 구해 주지 않는다. 늘 '안전 지킴이'라고 부르고 '지킴이님'이나 '탐험 지킴이'처럼 바꾸지 않는다.
 - 이 셋 말고는 아무도 말하지 않는다. 루미, 도감의 다른 친구, 사람, 이름 붙은 주민은 나오지 않는다. 그 세계의 동물이나 식물, 물건은 이름 없이 배경으로만 나오고 말하지 않는다.
@@ -26,7 +26,7 @@ SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차�
 
 한 판의 뼈대
 - 오늘의 장소 하나에서, 이야기 종류의 목표를 향해 간다. 다른 장소나 다른 테마를 섞지 않는다.
-  보물찾기: 보물을 찾는다 / 구조대: 위험해진 물건이나 장소를 구한다(예: 굴러가는 알 둥지, 시든 꽃밭) / 탐정 놀이: 사라진 물건이나 이상한 일을 단서로 푼다 / 고장 수리: 고장 난 것을 하나씩 고친다 / 축제 준비: 축제 준비를 마친다 / 발명 대회: 발명품을 완성한다
+  보물찾기: 보물을 찾는다 / 구조대: 위험해진 물건이나 장소를 구한다(예: 굴러가는 알 둥지, 시든 꽃밭) / 탐정 놀이: 사라진 물건이나 이상한 일을 단서로 푼다 / 수리하러 가기: 고장 난 곳을 찾아가 하나씩 고친다 / 축제 준비: 축제 준비를 마친다 / 발명 대회: 발명품을 완성한다
 - 이야기 종류가 정해지지 않았으면 오늘의 장소에 어울리는 목표 하나를 정한다.
 - intro에서 친구가 자기를 소개하고, 오늘의 장소와 목표를 말한다.
 - 퍼즐을 하나 풀 때마다 result에서 목표에 한 걸음 다가간다. 끝 인사 treasureBadge에서 목표를 이루고 탐험대장에게 탐험 배지를 준다. 끝 인사는 이것 하나뿐이고, 선물 상자나 글로브박스는 나오지 않는다.
@@ -34,7 +34,7 @@ SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차�
 
 문제 앞 이야기 (speech)
 - speech는 문제 바로 앞에 들려주는 1~2문장이다. 곤란한 일이 생긴 까닭을 그 세계 안에서 만들고, 그 곤란함이 바로 뒤에 읽는 문제의 상황이 된다.
-- 까닭은 친구가 목표를 이루려고 하던 일에서 나온다(예: 고장 수리라면 '망가진 다리를 고치느라 망치질을 했더니 땀이 나'). 목표와 상관없는 놀이(줄넘기, 매운 음식 먹기 등)를 갑자기 끌어오지 않는다.
+- 까닭은 친구가 목표를 이루려고 하던 일에서 나온다(예: 수리하러 가는 이야기라면 '망가진 다리를 고치느라 망치질을 했더니 땀이 나'). 목표와 상관없는 놀이(줄넘기, 매운 음식 먹기 등)를 갑자기 끌어오지 않는다.
 - 상황 문제는 상황이 생긴 까닭만 들려준다. 문제 문장에 이미 있는 상황 낱말을 똑같이 되풀이하지 않는다.
 - 숫자 문제는 그 장치(바람, 불, 온도, 의자)가 필요한 까닭까지만 들려준다. 왜 하필 그 수인지는 지어내지 않는다.
 - 문제와 부딪히는 말을 하지 않는다(문제가 '추워'인데 '더워', 문제가 '바람은 계속 나와야 해'인데 '바람을 끄자').
@@ -91,29 +91,16 @@ SYSTEM = """너는 '차근차근 탐험단' 앱의 이야기 작가다. 주차�
 
 
 SEASON = {"SPRING": "봄", "SUMMER": "여름", "AUTUMN": "가을", "WINTER": "겨울"}
-TIME = {"MORNING": "아침", "AFTERNOON": "낮", "EVENING": "저녁", "NIGHT": "밤"}
 
 
 def _quote(words) -> str:
     return ", ".join(f'"{w}"' for w in words)
 
 
-# when each catchphrase fits: said as a sentence of its own at the start or end of a greeting it sounds tacked on
-CATCH_MOMENT = {
-    "BANTE": "아무도 해 보지 않은 일에 내가 먼저 나설 때",
-    "KONYANG": "무언가를 자세히 살펴서 단서나 달라진 점을 찾아냈을 때",
-    "RIA": "막혔을 때 새로운 방법을 떠올려 내놓을 때",
-    "TUBUGI": "서두르거나 잘 안 돼서 속상할 때 다독여 줄 때",
-    "PAPPI": "혼자 하기 힘든 일을 함께 하자고 할 때",
-    "POTTO": "좋은 것을 친구와 나눌 때",
-}
-
-
 def friend_line(code: str) -> str:
-    name, animal, symbol, catch = FRIEND_LABEL[code]
-    moment = CATCH_MOMENT.get(code)
-    said = (f'말버릇은 "{catch}"({moment} 쓴다)' if moment else f'말버릇은 "{catch}"') if catch else "말버릇은 정해져 있지 않다"
-    return f"- 고른 친구('나'): {name}. {animal} 친구이고, {said}, 담고 있는 마음은 '{symbol}'이다."
+    # no catchphrase is given to the writer: said scene after scene it made the script read oddly
+    name, animal, symbol, _ = FRIEND_LABEL[code]
+    return f"- 고른 친구('나'): {name}. {animal} 친구이고, 담고 있는 마음은 '{symbol}'이다."
 
 
 def _scene(key: str, picks: dict) -> list[str]:
@@ -137,25 +124,27 @@ def _scene(key: str, picks: dict) -> list[str]:
 
 def user_message(req: EpisodeRequest, picks: dict | None = None, timeless: bool = False) -> str:
     """``picks`` maps each quiz key to the bank question (and hint) its scene asks (service.pick_questions).
-    ``timeless`` leaves out the season, time and weather line, for a story written for the shelf."""
+    The writer is told the season, never the time of day. ``timeless`` (a story written for the shelf, which keeps
+    its season but may be played in any weather) leaves out the outside temperature too."""
     picks = picks or {}
     ctx = req.context
-    now = f"{SEASON[ctx.season]} {TIME[ctx.timeOfDay]}"
-    if ctx.outsideTempC is not None:
+    now = SEASON[ctx.season]
+    if ctx.outsideTempC is not None and not timeless:
         now += f", 바깥 기온 {ctx.outsideTempC}도"
     if req.wish:
         world = "가족이 바란 이야기의 장소를 world에 한 줄로 적고, theme에는 셋 중 가장 가까운 것을 적는다"
     elif req.theme:
         world = f"{THEME_LABEL[req.theme]} (theme에 {req.theme}, world에도 그대로)"
     else:
-        world = "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절과 시간에 어울리는 하나를 골라 theme와 world에 적는다"
+        world = "별빛 기차, 바닷속 잠수함, 숲속 탐사선 중 지금 계절에 어울리는 하나를 골라 theme와 world에 적는다"
     age = req.youngest
     lines = [
         "오늘의 조건",
         friend_line(req.friend),
         f"- 함께 타는 아이: {', '.join(AGE_LABEL[a] for a in req.ages)}",
         f"- 기다리는 시간: 약 {req.minutes}분",
-        *([] if timeless else [f"- 지금: {now} (어울리면 이야기에 살짝 녹인다)"]),
+        f"- 지금 계절: {now} (어울리면 이야기에 살짝 녹인다)",
+        f"- 하루 중 때를 나타내는 말({', '.join(LIBRARY_NEVER)})은 쓰지 않는다. 언제 들어도 어울리게 쓴다",
         f"- 세계: {world}",
         *([f"- 가족이 바란 이야기: «{req.wish}» (위 '가족이 바란 이야기' 규칙대로 반영한다)"] if req.wish else []),
         *([f"- 오늘의 교훈: {LESSON_LABEL[req.lesson][0]} (풀어 쓴 말: {LESSON_LABEL[req.lesson][1]}, "

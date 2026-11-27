@@ -203,9 +203,19 @@ class Game(
         }
     }
 
-    /** The friend's hello once the story is here (the app's own without one), and every line fetched for later. */
-    private fun introduce(story: Story?) {
-        _ui.update { it.copy(story = story, writing = false) }
+    /**
+     * The friend's hello once the story is here (the app's own without one), and every line fetched for later. A story
+     * from the shelf brings its own puzzles in place of the planned ones, and the app's own questions follow them.
+     */
+    private fun introduce(ready: StoryRepo.Ready?) {
+        val story = ready?.story
+        _ui.update { ui ->
+            if (ready == null || ready.puzzles == ui.puzzles) return@update ui.copy(story = story, writing = false)
+            val youngest = Planner.youngest(ui.setup)
+            val own = ready.puzzles.filterIsInstance<Puzzle.Quiz>()
+                .mapNotNull { q -> bank?.pick(q, youngest, rnd)?.let { StoryKeys.key(q) to it } }.toMap()
+            ui.copy(story = story, writing = false, puzzles = ready.puzzles, own = own)
+        }
         save()
         val ui = _ui.value
         lumi.say(story?.intro ?: Lines.intro(ui.setup.friend))
@@ -337,6 +347,18 @@ class Game(
         else lumi.say(Lines.WELCOME_BACK)
     }
 
+    /**
+     * 20분 멈춤's 바로 이어 하기: the rest is the family's choice, not forced. The 20 minutes start again from now and
+     * the kept rest is dropped, so the pause goes as soon as the car is safe.
+     */
+    fun keepGoing() {
+        val ui = _ui.value
+        if (ui.stopped != StopReason.TIME_UP && ui.restUntil == null) return
+        _ui.update { it.copy(playedMs = 0, restUntil = null, held = false) }
+        save()
+        if (ui.phase == Phase.PLAYING) lumi.repeat()
+    }
+
     /** 20분 멈춤's 저장하고 쉬기: the car is put back like 끝내기, but the episode is kept for after the rest. */
     fun restAndSave() {
         _ui.update { it.copy(keepSave = true) }
@@ -382,16 +404,16 @@ class Game(
     // ------------------------------------------------------------ 이어 하기
 
     /**
-     * Whether the card's 이어 하기 may go on now: the car as safe as for a new start, the rest after 20 minutes over,
-     * and every device the puzzles still to come need reported (right after the car is switched on it has not yet).
+     * Whether the card's 이어 하기 may go on now: the car as safe as for a new start, and every device the puzzles
+     * still to come need reported (right after the car is switched on it has not yet). The rest after 20 minutes is
+     * only suggested: the family may go on before it is over.
      */
     fun canContinue(s: CarState): Boolean {
         val p = _saved.value ?: return false
-        return Safety.startBlockers(s).isEmpty() && restLeftMs() == 0L &&
-            p.puzzles.drop(p.next).all { s.devices.containsAll(it.devices) }
+        return Safety.startBlockers(s).isEmpty() && p.puzzles.drop(p.next).all { s.devices.containsAll(it.devices) }
     }
 
-    /** How long the family still rests before the saved episode can go on. */
+    /** How much of the suggested rest after 20 minutes is left (the card shows it; it does not hold the family back). */
     fun restLeftMs(): Long = _saved.value?.let { p -> progress?.restLeftMs(p) } ?: 0L
 
     /**

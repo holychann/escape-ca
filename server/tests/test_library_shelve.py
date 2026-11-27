@@ -1,9 +1,10 @@
 """A story written for the shelf is put there after the response, and only when it may be."""
 import json
+import shutil
 
 from fastapi.testclient import TestClient
 
-from app.library import Cell, FolderStorage, Library
+from app.library import Cell, FolderStorage, Library, wish_key
 from app.main import create_app
 from app.models import Episode
 from app.writer import WriterError
@@ -39,22 +40,25 @@ def test_a_story_without_a_wish_is_shelved(tmp_path):
     assert ep["images"] == {}
 
 
-def test_the_writer_is_not_told_the_season_when_the_story_is_for_the_shelf(tmp_path):
+def test_the_writer_is_told_the_season_but_not_the_time_when_the_story_is_for_the_shelf(tmp_path):
     w = FakeWriter(draft(KEYS))
     client(tmp_path, w, shelf(tmp_path)).post("/v1/episode", json=BODY)
-    assert "- 지금:" not in w.messages[0]
+    assert "- 지금 계절: 가을 (" in w.messages[0] and "가을 낮" not in w.messages[0]
 
 
-def test_without_a_library_the_episode_is_written_as_before(tmp_path):
+def test_without_a_library_the_writer_is_told_the_season_but_not_the_time(tmp_path):
     w = FakeWriter(draft(KEYS))
     client(tmp_path, w, None).post("/v1/episode", json=BODY)
-    assert "- 지금: 가을 낮" in w.messages[0]
+    assert "- 지금 계절: 가을" in w.messages[0] and "가을 낮" not in w.messages[0]
 
 
-def test_a_wished_story_is_never_shelved(tmp_path):
+def test_a_wished_story_is_shelved_in_its_own_cell(tmp_path):
     lib = shelf(tmp_path)
-    r = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json={**BODY, "wish": "공룡 섬에서 보물찾기"})
+    wish = "공룡 섬에서 펼쳐지는 보물찾기 이야기"
+    r = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json={**BODY, "wish": wish})
     assert r.status_code == 200 and lib.size(CELL) == 0
+    assert lib.size(Cell("BANTE", "CAPTAIN", 10, wish_key(wish))) == 1
+    assert lib.get(r.json()["storyId"]).meta.wish == wish
 
 
 def test_a_story_by_a_model_not_allowed_is_not_shelved(tmp_path):
@@ -70,11 +74,18 @@ def test_a_story_with_a_dropped_scene_is_not_shelved(tmp_path):
     assert ep["dropped"] == [MATH] and lib.size(CELL) == 0
 
 
-def test_a_story_with_season_words_is_not_shelved(tmp_path):
+def test_a_story_with_time_words_is_not_shelved(tmp_path):
     lib = shelf(tmp_path)
-    d = draft(KEYS, intro="안녕, 탐험대장! 나는 반테야. 단풍이 든 길을 같이 가 보자!")
+    d = draft(KEYS, intro="안녕, 탐험대장! 나는 반테야. 별이 빛나는 밤길을 같이 가 보자!")
     assert client(tmp_path, FakeWriter(d), lib).post("/v1/episode", json=BODY).status_code == 200
     assert lib.size(CELL) == 0
+
+
+def test_a_story_with_season_words_is_shelved_with_its_season(tmp_path):
+    lib = shelf(tmp_path)
+    d = draft(KEYS, intro="안녕, 탐험대장! 나는 반테야. 단풍이 든 길을 같이 가 보자!")
+    ep = client(tmp_path, FakeWriter(d), lib).post("/v1/episode", json=BODY).json()
+    assert lib.size(CELL) == 1 and lib.get(ep["storyId"]).meta.season == "AUTUMN"
 
 
 def test_a_full_cell_takes_no_more(tmp_path):
@@ -108,7 +119,7 @@ def test_a_storage_error_does_not_reach_the_family(tmp_path):
     assert lib.size(CELL) == 0
 
 
-def test_a_painted_story_is_shelved_without_its_pictures(tmp_path):
+def test_a_painted_story_is_shelved_with_its_pictures(tmp_path):
     from tests.test_wish_and_pictures import ART, FakePainter
     lib = shelf(tmp_path)
     d = draft(KEYS, art=ART)
@@ -116,8 +127,30 @@ def test_a_painted_story_is_shelved_without_its_pictures(tmp_path):
     ep = c.post("/v1/episode", json={**BODY, "pictures": True}).json()
     assert ep["images"] and any(s["picture"] for s in ep["scenes"].values())
     s = lib.get(ep["storyId"])
-    assert s.episode.images == {} and s.episode.pictures == {}
-    assert all(sc.picture is None for sc in s.episode.scenes.values())
+    assert s.episode == Episode(**ep)
+    folder = tmp_path / "shelf" / CELL.path() / ep["storyId"] / "img"
+    assert {p.stem for p in folder.iterdir()} == set(ep["images"])
+    # once the day-long copy is gone, the shelf serves its own
+    shutil.rmtree(tmp_path / "images" / ep["storyId"])
+    for name, path in ep["images"].items():
+        r = c.get(path)
+        assert r.status_code == 200 and r.content == (folder / f"{name}.webp").read_bytes()
+    assert c.get(f"/v1/images/{ep['storyId']}/p6.webp").status_code == 404
+
+
+def test_a_picture_gone_before_shelving_is_left_out_of_the_shelved_story(tmp_path):
+    from tests.test_wish_and_pictures import ART, FakePainter
+    jobs = []
+    lib = Library(FolderStorage(tmp_path / "shelf"), run=jobs.append)
+    c = TestClient(create_app(writer=FakeWriter(draft(KEYS, art=ART)), data_dir=tmp_path, painter=FakePainter(),
+                              bank=BANK, library=lib))
+    ep = c.post("/v1/episode", json={**BODY, "pictures": True}).json()
+    (tmp_path / "images" / ep["storyId"] / "p1.webp").unlink()
+    jobs.pop()()
+    s = lib.get(ep["storyId"])
+    assert "p1" not in s.episode.images and "p1" not in s.episode.pictures.values()
+    assert all(sc.picture != "p1" for sc in s.episode.scenes.values())
+    assert set(s.episode.images) == set(ep["images"]) - {"p1"}
 
 
 def test_a_shelf_that_cannot_queue_does_not_reach_the_family(tmp_path):
@@ -169,3 +202,25 @@ def test_the_shelf_made_by_make_library_checks_before_shelving(monkeypatch, tmp_
     ok = client(tmp_path, FakeWriter(draft(KEYS)), lib).post("/v1/episode", json=BODY).json()
     lib.drain(5)
     assert lib.size(CELL) == 1 and lib.get(ok["storyId"]) is not None
+
+def test_a_story_whose_pictures_all_failed_is_not_shelved(tmp_path):
+    from tests.test_wish_and_pictures import ART
+
+    class Refusing:
+        def paint(self, text):
+            raise RuntimeError("refused")
+
+    lib = shelf(tmp_path)
+    c = TestClient(create_app(writer=FakeWriter(draft(KEYS, art=ART)), data_dir=tmp_path, painter=Refusing(), bank=BANK,
+                              library=lib))
+    ep = c.post("/v1/episode", json={**BODY, "pictures": True}).json()
+    assert ep["images"] == {} and ep["scenes"] and lib.size(CELL) == 0
+
+
+def test_a_story_without_pictures_asked_is_shelved_without_them(tmp_path):
+    from tests.test_wish_and_pictures import ART, FakePainter
+    lib = shelf(tmp_path)
+    c = TestClient(create_app(writer=FakeWriter(draft(KEYS, art=ART)), data_dir=tmp_path, painter=FakePainter(),
+                              bank=BANK, library=lib))
+    ep = c.post("/v1/episode", json=BODY).json()
+    assert ep["images"] == {} and lib.size(CELL) == 1

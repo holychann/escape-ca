@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,9 +47,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -100,9 +104,11 @@ fun KidText(
     color: Color = Clay.Ink,
     textAlign: TextAlign? = null,
     maxLines: Int = Int.MAX_VALUE,
+    /** Wrapped only between words, its lines about the same length (subtitles, the friend's bubble). */
+    balanced: Boolean = false,
 ) = Text(
-    text, modifier = modifier, color = color, fontSize = size, fontFamily = Fonts.jua,
-    lineHeight = size * 1.2f, textAlign = textAlign, maxLines = maxLines,
+    if (balanced) keepWords(text) else text, modifier = modifier, color = color, fontSize = size, fontFamily = Fonts.jua,
+    lineHeight = size * 1.2f, textAlign = textAlign, maxLines = maxLines, style = balancedStyle(balanced),
 )
 
 @Composable
@@ -113,7 +119,30 @@ fun BodyText(
     color: Color = Clay.Sub,
     weight: FontWeight = FontWeight.Normal,
     textAlign: TextAlign? = null,
-) = Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, lineHeight = size * 1.45f, textAlign = textAlign)
+    /** Wrapped only between words, its lines about the same length (a notice that must not leave "요" alone). */
+    balanced: Boolean = false,
+) = Text(
+    if (balanced) keepWords(text) else text, modifier = modifier, color = color, fontSize = size, fontWeight = weight,
+    lineHeight = size * 1.45f, textAlign = textAlign, style = balancedStyle(balanced),
+)
+
+@Composable
+private fun balancedStyle(balanced: Boolean) =
+    if (balanced) LocalTextStyle.current.copy(lineBreak = LineBreak.Heading) else LocalTextStyle.current
+
+/**
+ * [text] with a word joiner between the letters of each word: Korean otherwise wraps between any two syllables
+ * ("바꿔 / 요"), and this keeps every word whole, so a line ends only at a space.
+ */
+fun keepWords(text: String): String = buildString(text.length * 2) {
+    text.forEachIndexed { i, c ->
+        if (i > 0) {
+            val before = text[i - 1]
+            if (!before.isWhitespace() && !c.isWhitespace() && !before.isHighSurrogate() && !c.isLowSurrogate()) append('⁠')
+        }
+        append(c)
+    }
+}
 
 // ---------- images ----------
 
@@ -219,26 +248,23 @@ fun ClayButton(
     }
 }
 
-/** A choice tile (age, waiting time): sun when chosen, white with a lip otherwise. */
+/** The thicker bottom edge of a deep cream tile, so it still reads as a pressable piece of clay without an outline. */
+val CreamLip = Color(0xFFE2D3B8)
+
+/** A choice tile (age, waiting time): sun when chosen, deep cream otherwise, each on its bottom lip. No outline. */
 @Composable
-fun ChoiceTile(
-    big: String, small: String, selected: Boolean, modifier: Modifier = Modifier,
-    /** Shorter, for a screen that has to show every choice at once without scrolling. */
-    compact: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(if (compact) 22.dp else 28.dp)
-    val lip = if (compact) 5.dp else 6.dp
+fun ChoiceTile(big: String, small: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    val lip = 5.dp
     Box(modifier) {
-        Box(Modifier.matchParentSize().padding(top = lip).clip(shape).background(if (selected) Clay.SunLip else Clay.Line))
+        Box(Modifier.matchParentSize().padding(top = lip).clip(shape).background(if (selected) Clay.SunLip else CreamLip))
         Column(
-            Modifier.fillMaxWidth().padding(bottom = lip).clip(shape).background(if (selected) Clay.Sun else Color.White)
-                .then(if (selected) Modifier else Modifier.border(3.dp, Clay.Line, shape))
-                .clickable(onClick = onClick).padding(vertical = if (compact) 8.dp else 22.dp),
+            Modifier.fillMaxWidth().padding(bottom = lip).clip(shape).background(if (selected) Clay.Sun else Clay.CreamDeep)
+                .selectable(selected, role = Role.RadioButton, onClick = onClick).padding(vertical = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            KidText(big, if (compact) 28.sp else 40.sp)
-            BodyText(small, size = if (compact) 15.sp else 19.sp, color = if (selected) Clay.Ink else Clay.Sub, weight = FontWeight.Medium)
+            KidText(big, 34.sp)
+            BodyText(small, size = 17.sp, color = if (selected) Clay.Ink else Clay.Sub, weight = FontWeight.Medium)
         }
     }
 }
@@ -356,11 +382,11 @@ fun heartPath(w: Float): Path = Path().apply {
     close()
 }
 
-/** [count] of [max] hearts: full ones in coral, the rest faint. */
+/** [count] of [max] hearts: full ones in coral, the rest in [empty]. */
 @Composable
-fun Hearts(count: Int, max: Int, size: Dp) {
+fun Hearts(count: Int, max: Int, size: Dp, empty: Color = Clay.Line) {
     Row(horizontalArrangement = Arrangement.spacedBy(size / 6)) {
-        repeat(max) { i -> ClayGlyph(ClayIcon.HEART, if (i < count) Clay.Coral else Clay.Line, Modifier.size(size)) }
+        repeat(max) { i -> ClayGlyph(ClayIcon.HEART, if (i < count) Clay.Coral else empty, Modifier.size(size)) }
     }
 }
 

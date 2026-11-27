@@ -2,6 +2,7 @@ package kr.escape.car
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kr.escape.car.car.VehicleSource
@@ -30,6 +31,7 @@ class GameModel(app: Application) : AndroidViewModel(app) {
     val stories = StoryRepo(
         File(app.filesDir, "next_episode.json"), install, client, viewModelScope,
         questions = bank.questions, bank = bank, heard = HeardStories(File(app.filesDir, "heard_stories.json")),
+        log = { Log.i("EscapeCar", it) },
     )
     val book = FriendBook(File(app.filesDir, "friend_book"))
     val game = Game(
@@ -38,6 +40,8 @@ class GameModel(app: Application) : AndroidViewModel(app) {
     )
 
     init {
+        // 지난 자막 puts each line under the part of the episode it was said in
+        lumi.part = { LookBackParts.of(game.ui.value) }
         // the choices the ready story was written for (its wish, the ages), so it is ready again after a restart
         stories.savedSetup()?.let { saved -> game.setup { saved } }
     }

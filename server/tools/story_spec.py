@@ -47,7 +47,7 @@ def configured_price() -> tuple[float, float]:
 # quizzes per waiting time, as the car plans them (car Planner.puzzleCount, less the belt mission)
 PUZZLES = {5: 2, 10: 3, 15: 4}
 SAMPLE_PLACES = ("공룡 섬", "우주 정거장", "바닷속 마을", "구름 성", "과자 숲", "장난감 공장")
-STORY_KINDS = ("보물찾기", "구조대", "탐정 놀이", "고장 수리", "축제 준비", "발명 대회")
+STORY_KINDS = ("보물찾기", "구조대", "탐정 놀이", "수리하러 가기", "축제 준비", "발명 대회")
 
 # the car's devices and the dials each one is asked on (car Puzzles.kt Dial.device)
 DEVICES = {

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.util.concurrent.Executors
 
+/** A line in 지난 자막, with the part of the episode it was said in (퍼즐 1), or null outside one. */
+data class Said(val text: String, val part: String? = null)
+
 /**
  * Lumi's voice: every line is a recording the story server made with Gemini's speech model in a picture-book
  * storyteller's voice (server app/voice.py), fetched once and kept on the device ([cache]). The car's own TTS is never
@@ -38,6 +41,18 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     private val _noSound = MutableStateFlow(false)
     val noSound: StateFlow<Boolean> = _noSound
 
+    /** Every line said since [forget], as the subtitles show it, for 지난 자막; a line said again in a row is kept once. */
+    private val _said = MutableStateFlow<List<Said>>(emptyList())
+    val said: StateFlow<List<Said>> = _said
+
+    /** The part of the episode a line is said in (퍼즐 1), asked as it is said, for 지난 자막's titles. */
+    var part: () -> String? = { null }
+
+    /** A new episode: 지난 자막 starts empty. */
+    fun forget() {
+        _said.value = emptyList()
+    }
+
     /** Tags the subtitle steps posted on [main], so a new line or stop() takes them all back. */
     private val steps = Any()
 
@@ -55,6 +70,8 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         _speaking.value = false
         _noSound.value = false
         val pieces = Subtitles.pieces(text)
+        Subtitles.clean(text).takeIf { it.isNotEmpty() && it != _said.value.lastOrNull()?.text }
+            ?.let { _said.value = _said.value + Said(it, part()) }
         // the first piece is up at once; the rest follow the recording when it starts, or reading pace without one
         show(pieces, mine, null, keepLast, afterSilent)
         val c = cache ?: return silent(pieces, mine, keepLast, afterSilent)
@@ -99,7 +116,11 @@ class Lumi(private val cache: VoiceCache?) : Voice {
      * a recording the last piece goes away a moment after the sound ends; without sound a puzzle line stays for the
      * child to read, while an [aside] ("다시 생각해 볼까?") restores [afterSilent] once read.
      */
-    private fun show(pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null) {
+    private fun show(
+        pieces: List<String>, mine: Int, totalMs: Long?, keepLast: Boolean = true, afterSilent: String? = null,
+        /** Where the voice is and pauses in the recording, so each piece turns as its words begin. */
+        timeline: Pauses.Timeline? = null,
+    ) {
         main.removeCallbacksAndMessages(steps)
         if (pieces.isEmpty()) {
             _subtitle.value = null
@@ -107,7 +128,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
         }
         _subtitle.value = pieces.first()
         if (totalMs != null) {
-            val starts = Subtitles.starts(pieces, totalMs)
+            val starts = Subtitles.starts(pieces, totalMs, timeline)
             pieces.zip(starts).drop(1).forEach { (piece, at) ->
                 main.postDelayed({ if (mine == turn) _subtitle.value = piece }, steps, at)
             }
@@ -132,6 +153,8 @@ class Lumi(private val cache: VoiceCache?) : Voice {
     }
 
     private fun play(file: File, pieces: List<String>, mine: Int, keepLast: Boolean, afterSilent: String?) {
+        // read while the player gets ready; a recording of a few seconds is a few hundred kilobytes
+        val timeline = if (pieces.size > 1) Pauses.of(file) else null
         val mp = MediaPlayer()
         runCatching {
             mp.setAudioAttributes(
@@ -145,7 +168,7 @@ class Lumi(private val cache: VoiceCache?) : Voice {
                 if (player === it && mine == turn) {
                     it.start()
                     _speaking.value = true
-                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs))
+                    show(pieces, mine, it.duration.toLong().takeIf { d -> d > 0 } ?: pieces.sumOf(Subtitles::readMs), timeline = timeline)
                 }
             }
             mp.setOnCompletionListener { done ->

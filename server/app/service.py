@@ -153,8 +153,9 @@ def paint_pictures(ep: Episode, draft: Draft, req: EpisodeRequest, painter: Pain
             after = None
         return [(name, before), (f"{name}_ok", after)]
 
-    # two at a time, so one episode does not use the image model's whole minute at once (IMAGE_PARALLEL)
-    with ThreadPoolExecutor(max_workers=max(1, min(len(wanted), int(os.environ.get("IMAGE_PARALLEL", "2"))))) as pool:
+    # all at once (an episode has at most seven), so the family waits for the slowest picture, not for their sum;
+    # IMAGE_PARALLEL lowers it when the image model's per-minute limit is near
+    with ThreadPoolExecutor(max_workers=max(1, min(len(wanted), int(os.environ.get("IMAGE_PARALLEL", "6"))))) as pool:
         drawn = dict(pair for pairs in pool.map(lambda item: draw(*item), wanted.items()) for pair in pairs)
 
     out = folder / ep.storyId
